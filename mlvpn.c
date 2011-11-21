@@ -37,7 +37,7 @@
 #define MLVPN_MAXPORTSTR 5
 
 /* Only 3 Kbytes */
-#define BUFSIZE 1024 * 1024
+#define BUFSIZE 1024 * 5
 #define DEFAULT_MTU 1500
 #define MAXTUNNELS 128
 
@@ -52,7 +52,16 @@ typedef struct tapbuffer_s
 {
     void *buf;
     unsigned long long len;
+    unsigned long long next_pkt_len;
 } tapbuffer_t;
+
+#define MLVPN_MAGIC 0xFFEEDD00EDDEAD42
+struct mlvpn_encap_hdr
+{
+    uint64_t magic; /* 0xFFEEDD00EDDEAD42 */
+    uint32_t len;   /* packet length */
+    /* data */
+};
 
 struct mlvpn_ether
 {
@@ -89,7 +98,8 @@ typedef struct mlvpn_tunnel_s
     time_t next_attempt;  /* enxt connection attempt */
     uint8_t weight;       /* For weight round robin */
     uint64_t sendpackets; /* 64bit packets send counter */
-    tapbuffer_t *buf;     /* send buffer */
+    tapbuffer_t *sbuf;    /* send buffer */
+    tapbuffer_t *rbuf;    /* receive buffer */
     struct mlvpn_tunnel_s *next; /* chained list to next element */
 } mlvpn_tunnel_t;
 
@@ -165,9 +175,14 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
         strncpy(new->destport, destport, MLVPN_MAXPORTSTR);
     }
 
-    new->buf = (tapbuffer_t *)calloc(1, sizeof(tapbuffer_t));
-    new->buf->buf = malloc(BUFSIZE);
-    new->buf->len = 0;
+    new->sbuf = (tapbuffer_t *)calloc(1, sizeof(tapbuffer_t));
+    new->sbuf->buf = malloc(BUFSIZE);
+    new->sbuf->len = 0;
+
+    new->rbuf = (tapbuffer_t *)calloc(1, sizeof(tapbuffer_t));
+    new->rbuf->buf = malloc(BUFSIZE);
+    new->rbuf->len = 0;
+    new->rbuf->next_pkt_len = -1;
 
     /* insert into chained list */
     last = mlvpn_rtun_last();
@@ -575,11 +590,11 @@ int mlvpn_read_tap()
     /* least packets tunnel */
     mlvpn_tunnel_t *lpt = mlvpn_choose_least_packets_rtun();
 
-    rlen = (BUFSIZE - lpt->buf->len);
+    rlen = (BUFSIZE - lpt->sbuf->len);
     if (rlen <= 0)
     {
         fprintf(stderr, "Tun %d buffer overrun.\n", lpt->fd);
-        lpt->buf->len = 0;
+        lpt->sbuf->len = 0;
         rlen = BUFSIZE;
     }
 
@@ -599,8 +614,8 @@ int mlvpn_read_tap()
             printf("\n");
         }
 
-        memmove(lpt->buf->buf+lpt->buf->len, buffer, len);
-        lpt->buf->len += len;
+        memmove(lpt->sbuf->buf+lpt->sbuf->len, buffer, len);
+        lpt->sbuf->len += len;
     }
     return len;
 }
@@ -616,6 +631,7 @@ int mlvpn_write_tap()
         tap_send->len = 0; /* Reset */
     } else {
         tap_send->len -= len;
+        printf("> Written %d bytes on TAP (%d left).\n", len, tap_send->len);
         memmove(tap_send->buf, tap_send->buf+len, tap_send->len);
     }
     return len;
@@ -627,12 +643,20 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     int len;
     int rlen;
     char buffer[BUFSIZE];
+    int bufpos = 0;
+    struct mlvpn_encap_hdr hdr;
 
-    rlen = BUFSIZE - tap_send->len;
+    if (tun->rbuf->next_pkt_len > 0)
+    {
+        rlen = tun->rbuf->next_pkt_len;
+    } else {
+        rlen = BUFSIZE - tun->rbuf->len;
+    }
     if (rlen <= 0)
     {
-        fprintf(stderr, "Tap send buffer is full.\n");
-        tap_send->len = 0;
+        fprintf(stderr, "Tun receive buffer is full.\n");
+        tun->rbuf->len = 0;
+        tun->rbuf->next_pkt_len = -1;
         rlen = BUFSIZE;
     }
 
@@ -643,12 +667,36 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else if (len > 0) {
-        /* Horrible debug */
-        printf("< TUN%d\t", tun->fd);
-        print_frame(buffer);
-        printf("\n");
-        memmove(tap_send->buf+tap_send->len, buffer, len);
-        tap_send->len += len;
+        if (tun->rbuf->next_pkt_len <= 0)
+        {
+            /* find a new pkt */
+            for (bufpos = 0; bufpos < (len - sizeof(hdr)); bufpos++)
+            {
+                memmove(&hdr, ((char *)buffer)+bufpos, sizeof(hdr));
+                if ( hdr.magic == MLVPN_MAGIC )
+                {
+                    memmove(tun->rbuf->buf+tun->rbuf->len, ((char *)buffer)+bufpos, len-bufpos);
+                    tun->rbuf->next_pkt_len = hdr.len - len - bufpos;
+                    tun->rbuf->len += (len - bufpos);
+                    break;
+                }
+            }
+        } else {
+            memmove(tun->rbuf->buf+tun->rbuf->len, buffer, len);
+            tun->rbuf->len += len;
+        }
+
+        if (tun->rbuf->next_pkt_len > 0)
+        {
+            /* One pkt to write */
+            if (tun->rbuf->len >= tun->rbuf->next_pkt_len)
+            {
+                memmove(tap_send->buf+tap_send->len, tun->rbuf->buf, tun->rbuf->next_pkt_len);
+                tap_send->len += tun->rbuf->next_pkt_len;
+                tun->rbuf->next_pkt_len = -1;
+            }
+            /* sinon on attend le prochain write */
+        }
     }
     return len;
 }
@@ -656,7 +704,16 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
-    len = write(tun->fd, tun->buf->buf, tun->buf->len);
+    struct mlvpn_encap_hdr hdr;
+    char buffer[BUFSIZE+sizeof(hdr)];
+    
+    /* Error there */
+    hdr.magic = MLVPN_MAGIC;
+    hdr.len = tun->sbuf->len;
+    memmove(buffer, &hdr, sizeof(hdr));
+    memmove(((char *)buffer)+sizeof(hdr), tun->sbuf->buf, tun->sbuf->len);
+
+    len = write(tun->fd, buffer, tun->sbuf->len+sizeof(hdr));
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
@@ -664,8 +721,11 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else {
-        tun->buf->len -= len;
-        memmove(tun->buf->buf, tun->buf->buf+len, tun->buf->len);
+        len -= sizeof(hdr);
+
+        tun->sbuf->len -= len;
+        printf("> Written %d bytes on tun %d (%d left).\n", len, tun->fd, tun->sbuf->len);
+        memmove(tun->sbuf->buf, tun->sbuf->buf+len, tun->sbuf->len);
     }
     return len;
 }
@@ -748,7 +808,7 @@ int main(int argc, char **argv)
         {
             if (tmptun->fd > 0)
             {
-                if (tmptun->buf->len > 0)
+                if (tmptun->sbuf->len > 0)
                     FD_SET(tmptun->fd, &wfds);
                 FD_SET(tmptun->fd, &rfds);
                 if (tmptun->fd > maxfd)
