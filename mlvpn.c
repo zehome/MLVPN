@@ -36,9 +36,8 @@
 #define MLVPN_MAXHNAMSTR 1024
 #define MLVPN_MAXPORTSTR 5
 
-/* Only 3 Kbytes */
+/* Only 5 Kbytes */
 #define BUFSIZE 1024 * 5
-#define DEFAULT_MTU 1500
 #define MAXTUNNELS 128
 
 struct tuntap_s
@@ -62,6 +61,9 @@ struct mlvpn_encap_hdr
     uint32_t len;   /* packet length */
     /* data */
 };
+#define DEFAULT_MTU 1500
+#define TAP_RW_MAX (DEFAULT_MTU + 14)
+#define RTUN_RW_MAX (DEFAULT_MTU + 14 + sizeof(struct mlvpn_encap_hdr))
 
 struct mlvpn_ether
 {
@@ -590,19 +592,17 @@ int mlvpn_read_tap()
     /* least packets tunnel */
     mlvpn_tunnel_t *lpt = mlvpn_choose_least_packets_rtun();
 
-    rlen = (BUFSIZE - lpt->sbuf->len);
-    if (rlen <= 0)
-    {
-        fprintf(stderr, "Tun %d buffer overrun.\n", lpt->fd);
-        lpt->sbuf->len = 0;
-        rlen = BUFSIZE;
-    }
-
-    len = read(tuntap.fd, buffer, rlen);
+    len = read(tuntap.fd, buffer, TAP_RW_MAX);
     if (len < 0)
     {
         perror("read");
     } else if (len > 0) {
+        if (len >= (BUFSIZE - lpt->sbuf->len))
+        {
+            fprintf(stderr, "Tun %d buffer overrun.\n", lpt->fd);
+            lpt->sbuf->len = 0;
+        }
+
         /* Horrible debug */
         printf("< TAP\t");
         print_frame(buffer);
@@ -623,7 +623,7 @@ int mlvpn_read_tap()
 int mlvpn_write_tap()
 {
     int len;
-    len = write(tuntap.fd, tap_send->buf, tap_send->len);
+    len = write(tuntap.fd, tap_send->buf, TAP_RW_MAX);
     if (len < 0)
     {
         fprintf(stderr, "Write error on tuntap.\n");
@@ -643,45 +643,44 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     int len;
     int rlen;
     char buffer[BUFSIZE];
-    char *tmp = buffer;
-    int bufpos = 0;
     struct mlvpn_encap_hdr hdr;
 
     if (tun->rbuf->next_pkt_len > 0)
     {
         rlen = tun->rbuf->next_pkt_len;
     } else {
-        rlen = BUFSIZE - tun->rbuf->len;
-    }
-    if (rlen <= 0)
-    {
-        fprintf(stderr, "Tun receive buffer is full (%d & %d).\n", tun->rbuf->next_pkt_len, tun->rbuf->len);
-        tun->rbuf->len = 0;
-        tun->rbuf->next_pkt_len = 0;
-        rlen = BUFSIZE;
+        rlen = RTUN_RW_MAX;
     }
 
-    len = read(tun->fd, buffer, rlen);
+    len = read(tun->fd, buffer, (rlen<=RTUN_RW_MAX ? rlen : RTUN_RW_MAX));
     if (len < 0)
     {
         perror("read");
         close(tun->fd);
         tun->fd = -1;
     } else if (len > 0) {
+        if (len >= (BUFSIZE - tun->rbuf->len))
+        {
+            fprintf(stderr, "Tun receive buffer is full (%llu & %u).\n", 
+                tun->rbuf->next_pkt_len, tun->rbuf->len);
+            tun->rbuf->len = 0;
+            tun->rbuf->next_pkt_len = 0;
+        }
+
         if (tun->rbuf->next_pkt_len <= 0)
         {
             /* find a new pkt */
-            for (bufpos = 0; bufpos < (len - sizeof(hdr)); bufpos++)
+            memcpy(&hdr, buffer, sizeof(struct mlvpn_encap_hdr));
+            if ( hdr.magic == MLVPN_MAGIC )
             {
-                memmove(&hdr, tmp+bufpos, sizeof(hdr));
-                if ( hdr.magic == MLVPN_MAGIC )
-                {
-                    printf("Found packet %d length!\n", hdr.len);
-                    memmove(tun->rbuf->buf+tun->rbuf->len, tmp+bufpos, len-bufpos);
-                    tun->rbuf->next_pkt_len = hdr.len - len - bufpos;
-                    tun->rbuf->len += (len - bufpos);
-                    break;
-                }
+                printf("Found packet %u length!\n", hdr.len);
+                memcpy(tun->rbuf->buf + tun->rbuf->len, 
+                       buffer+sizeof(struct mlvpn_encap_hdr), len - sizeof(struct mlvpn_encap_hdr));
+                tun->rbuf->next_pkt_len = hdr.len;
+                tun->rbuf->len += (len - sizeof(struct mlvpn_encap_hdr));
+            } else {
+                printf("Bad packet magic=%llu\n", hdr.magic);
+                return 0;
             }
         } else {
             memmove(tun->rbuf->buf+tun->rbuf->len, buffer, len);
@@ -693,9 +692,14 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
             /* One pkt to write */
             if (tun->rbuf->len >= tun->rbuf->next_pkt_len)
             {
-                memmove(tap_send->buf+tap_send->len, tun->rbuf->buf, tun->rbuf->next_pkt_len);
+                memmove(tap_send->buf+tap_send->len,
+                    tun->rbuf->buf, 
+                    tun->rbuf->next_pkt_len);
                 tap_send->len += tun->rbuf->next_pkt_len;
-                memmove(tun->rbuf->buf, tun->rbuf->buf+tun->rbuf->next_pkt_len, tun->rbuf->len - tun->rbuf->next_pkt_len);
+
+                memmove(tun->rbuf->buf, 
+                    tun->rbuf->buf + tun->rbuf->next_pkt_len,
+                    tun->rbuf->len - tun->rbuf->next_pkt_len);
                 tun->rbuf->len -=  tun->rbuf->next_pkt_len;
                 tun->rbuf->next_pkt_len = 0;
             }
@@ -708,17 +712,19 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
+    int wlen;
     struct mlvpn_encap_hdr hdr;
-    char buffer[BUFSIZE+sizeof(hdr)];
-    char *tmp = buffer;
+    char buffer[BUFSIZE+sizeof(struct mlvpn_encap_hdr)];
+
+    wlen = (tun->sbuf->len+sizeof(struct mlvpn_encap_hdr) <= RTUN_RW_MAX ? tun->sbuf->len : RTUN_RW_MAX-sizeof(struct mlvpn_encap_hdr));
     
     /* Error there */
     hdr.magic = MLVPN_MAGIC;
-    hdr.len = tun->sbuf->len;
-    memmove(tmp, &hdr, sizeof(hdr));
-    memmove(tmp+sizeof(hdr), tun->sbuf->buf, tun->sbuf->len);
+    hdr.len = wlen;
+    memmove(buffer, &hdr, sizeof(struct mlvpn_encap_hdr));
+    memmove(buffer+sizeof(struct mlvpn_encap_hdr), tun->sbuf->buf, wlen+sizeof(struct mlvpn_encap_hdr));
 
-    len = write(tun->fd, tmp, tun->sbuf->len+sizeof(hdr));
+    len = write(tun->fd, buffer, wlen);
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
@@ -726,7 +732,7 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else {
-        len -= sizeof(hdr);
+        len -= sizeof(struct mlvpn_encap_hdr);
 
         tun->sbuf->len -= len;
         printf("> Written %d bytes on tun %d (%d left).\n", len, tun->fd, tun->sbuf->len);
