@@ -693,6 +693,8 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
             {
                 memmove(tap_send->buf+tap_send->len, tun->rbuf->buf, tun->rbuf->next_pkt_len);
                 tap_send->len += tun->rbuf->next_pkt_len;
+                memmove(tun->rbuf->buf, tun->rbuf->buf+tun->rbuf->next_pkt_len, tun->rbuf->len - tun->rbuf->next_pkt_len);
+                tun->rbuf->len -=  tun->rbuf->next_pkt_len;
                 tun->rbuf->next_pkt_len = -1;
             }
             /* sinon on attend le prochain write */
