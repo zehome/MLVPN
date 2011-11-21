@@ -665,7 +665,7 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         tun->fd = -1;
     } else {
         tun->buf->len -= len;
-        memmove(tun->buf->buf, tun->buf+len, tun->buf->len);
+        memmove(tun->buf->buf, tun->buf->buf+len, tun->buf->len);
     }
     return len;
 }
