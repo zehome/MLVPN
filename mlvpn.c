@@ -37,7 +37,7 @@
 #define MLVPN_MAXPORTSTR 5
 
 /* Only 3 Kbytes */
-#define BUFSIZE 1024 * 3
+#define BUFSIZE 1024 * 32
 #define DEFAULT_MTU 1500
 #define MAXTUNNELS 128
 
@@ -609,6 +609,7 @@ int mlvpn_write_tap()
     {
         fprintf(stderr, "Write error on tuntap.\n");
         perror("write");
+        tap_send->len = 0; /* Reset */
     } else {
         memmove(tap_send->buf, tap_send->buf+len, len);
         tap_send->len -= len;
@@ -690,6 +691,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Created tap interface %s\n", tuntap.devname);
     }
     
+    /* client */
     for (i = 0; i < 4; i++)
     {
         char port[6];
@@ -697,6 +699,17 @@ int main(int argc, char **argv)
         snprintf(port, 5, "%d", 5080+i);
         tmptun = mlvpn_rtun_new(NULL, NULL, "192.168.6.2", port, 0);
     }
+
+    /* srv */
+    /*
+    for (i = 0; i < 4; i++)
+    {
+        char port[6];
+        memset(port, 0, 6);
+        snprintf(port, 5, "%d", 5080+i);
+        tmptun = mlvpn_rtun_new(NULL, NULL, NULL, port, 1);
+    }
+    */
 
     while ( 1 ) 
     {
