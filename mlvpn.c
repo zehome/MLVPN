@@ -50,7 +50,7 @@ struct tuntap_s
 typedef struct tapbuffer_s
 {
     void *buf;
-    unsigned long long len;
+    int len;
     int next_pkt_len;
 } tapbuffer_t;
 
@@ -616,7 +616,7 @@ int mlvpn_read_tap()
 int mlvpn_write_tap()
 {
     int len;
-    len = write(tuntap.fd, tap_send->buf, TAP_RW_MAX);
+    len = write(tuntap.fd, tap_send->buf, (tap_send->len <= TAP_RW_MAX ? tap_send->len : TAP_RW_MAX));
     if (len < 0)
     {
         fprintf(stderr, "Write error on tuntap.\n");
@@ -624,7 +624,7 @@ int mlvpn_write_tap()
         tap_send->len = 0; /* Reset */
     } else {
         tap_send->len -= len;
-        printf("> Written %d bytes on TAP (%llu left).\n", len, tap_send->len);
+        printf("> Written %d bytes on TAP (%d left).\n", len, tap_send->len);
         memmove(tap_send->buf, tap_send->buf+len, tap_send->len);
     }
     return len;
@@ -669,7 +669,7 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         tun->fd = -1;
     } else {
         tun->sbuf->len -= len;
-        printf("> Written %d bytes on tun %d (%llu left).\n", len, tun->fd, tun->sbuf->len);
+        printf("> Written %d bytes on tun %d (%d left).\n", len, tun->fd, tun->sbuf->len);
         memmove(tun->sbuf->buf, tun->sbuf->buf+len, tun->sbuf->len);
     }
     return len;
