@@ -37,7 +37,7 @@
 #define MLVPN_MAXPORTSTR 5
 
 /* Only 3 Kbytes */
-#define BUFSIZE 1024 * 32
+#define BUFSIZE 1024 * 1024
 #define DEFAULT_MTU 1500
 #define MAXTUNNELS 128
 
@@ -569,12 +569,21 @@ mlvpn_choose_least_packets_rtun()
 int mlvpn_read_tap()
 {
     int len;
+    int rlen;
     char buffer[BUFSIZE];
 
     /* least packets tunnel */
     mlvpn_tunnel_t *lpt = mlvpn_choose_least_packets_rtun();
 
-    len = read(tuntap.fd, buffer, BUFSIZE);
+    rlen = (BUFSIZE - lpt->buf->len);
+    if (rlen <= 0)
+    {
+        fprintf(stderr, "Tun %d buffer overrun.\n", lpt->fd);
+        lpt->buf->len = 0;
+        rlen = BUFSIZE;
+    }
+
+    len = read(tuntap.fd, buffer, rlen);
     if (len < 0)
     {
         perror("read");
@@ -590,11 +599,6 @@ int mlvpn_read_tap()
             printf("\n");
         }
 
-        if (len + lpt->buf->len >= BUFSIZE)
-        {
-            fprintf(stderr, "Tun %d buffer overrun.\n", lpt->fd);
-            lpt->buf->len = 0;
-        }
         memmove(lpt->buf->buf+lpt->buf->len, buffer, len);
         lpt->buf->len += len;
     }
@@ -611,8 +615,8 @@ int mlvpn_write_tap()
         perror("write");
         tap_send->len = 0; /* Reset */
     } else {
-        memmove(tap_send->buf, tap_send->buf+len, len);
         tap_send->len -= len;
+        memmove(tap_send->buf, tap_send->buf+len, tap_send->len);
     }
     return len;
 }
@@ -621,9 +625,18 @@ int mlvpn_write_tap()
 int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
+    int rlen;
     char buffer[BUFSIZE];
 
-    len = read(tun->fd, buffer, BUFSIZE);
+    rlen = BUFSIZE - tap_send->len;
+    if (rlen <= 0)
+    {
+        fprintf(stderr, "Tap send buffer is full.\n");
+        tap_send->len = 0;
+        rlen = BUFSIZE;
+    }
+
+    len = read(tun->fd, buffer, rlen);
     if (len < 0)
     {
         perror("read");
@@ -634,12 +647,6 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         printf("< TUN%d\t", tun->fd);
         print_frame(buffer);
         printf("\n");
-
-        if (tap_send->len + len >= BUFSIZE)
-        {
-            fprintf(stderr, "Tap send buffer is full.\n");
-            tap_send->len = 0;
-        }
         memmove(tap_send->buf+tap_send->len, buffer, len);
         tap_send->len += len;
     }
@@ -657,8 +664,8 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else {
-        memmove(tun->buf->buf, tun->buf+len, len);
         tun->buf->len -= len;
+        memmove(tun->buf->buf, tun->buf+len, tun->buf->len);
     }
     return len;
 }
@@ -692,6 +699,7 @@ int main(int argc, char **argv)
     }
     
     /* client */
+    /*
     for (i = 0; i < 4; i++)
     {
         char port[6];
@@ -699,6 +707,10 @@ int main(int argc, char **argv)
         snprintf(port, 5, "%d", 5080+i);
         tmptun = mlvpn_rtun_new(NULL, NULL, "192.168.6.2", port, 0);
     }
+    */
+    tmptun = mlvpn_rtun_new(NULL, NULL, "chp.zehome.com", "5080", 0);
+    tmptun = mlvpn_rtun_new(NULL, NULL, "chp1.zehome.com", "5081", 0);
+    tmptun = mlvpn_rtun_new(NULL, NULL, "chp2.zehome.com", "5082", 0);
 
     /* srv */
     /*
