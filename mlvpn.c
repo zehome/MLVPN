@@ -182,7 +182,7 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     new->rbuf = (tapbuffer_t *)calloc(1, sizeof(tapbuffer_t));
     new->rbuf->buf = malloc(BUFSIZE);
     new->rbuf->len = 0;
-    new->rbuf->next_pkt_len = -1;
+    new->rbuf->next_pkt_len = 0;
 
     /* insert into chained list */
     last = mlvpn_rtun_last();
@@ -643,6 +643,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     int len;
     int rlen;
     char buffer[BUFSIZE];
+    char *tmp = buffer;
     int bufpos = 0;
     struct mlvpn_encap_hdr hdr;
 
@@ -656,7 +657,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     {
         fprintf(stderr, "Tun receive buffer is full (%d & %d).\n", tun->rbuf->next_pkt_len, tun->rbuf->len);
         tun->rbuf->len = 0;
-        tun->rbuf->next_pkt_len = -1;
+        tun->rbuf->next_pkt_len = 0;
         rlen = BUFSIZE;
     }
 
@@ -672,11 +673,11 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
             /* find a new pkt */
             for (bufpos = 0; bufpos < (len - sizeof(hdr)); bufpos++)
             {
-                memmove(&hdr, ((char *)buffer)+bufpos, sizeof(hdr));
+                memmove(&hdr, tmp+bufpos, sizeof(hdr));
                 if ( hdr.magic == MLVPN_MAGIC )
                 {
                     printf("Found packet %d length!\n", hdr.len);
-                    memmove(tun->rbuf->buf+tun->rbuf->len, ((char *)buffer)+bufpos, len-bufpos);
+                    memmove(tun->rbuf->buf+tun->rbuf->len, tmp+bufpos, len-bufpos);
                     tun->rbuf->next_pkt_len = hdr.len - len - bufpos;
                     tun->rbuf->len += (len - bufpos);
                     break;
@@ -696,7 +697,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
                 tap_send->len += tun->rbuf->next_pkt_len;
                 memmove(tun->rbuf->buf, tun->rbuf->buf+tun->rbuf->next_pkt_len, tun->rbuf->len - tun->rbuf->next_pkt_len);
                 tun->rbuf->len -=  tun->rbuf->next_pkt_len;
-                tun->rbuf->next_pkt_len = -1;
+                tun->rbuf->next_pkt_len = 0;
             }
             /* sinon on attend le prochain write */
         }
@@ -709,14 +710,15 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
     int len;
     struct mlvpn_encap_hdr hdr;
     char buffer[BUFSIZE+sizeof(hdr)];
+    char *tmp = buffer;
     
     /* Error there */
     hdr.magic = MLVPN_MAGIC;
     hdr.len = tun->sbuf->len;
-    memmove(buffer, &hdr, sizeof(hdr));
-    memmove(((char *)buffer)+sizeof(hdr), tun->sbuf->buf, tun->sbuf->len);
+    memmove(tmp, &hdr, sizeof(hdr));
+    memmove(tmp+sizeof(hdr), tun->sbuf->buf, tun->sbuf->len);
 
-    len = write(tun->fd, buffer, tun->sbuf->len+sizeof(hdr));
+    len = write(tun->fd, tmp, tun->sbuf->len+sizeof(hdr));
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
