@@ -52,7 +52,7 @@ typedef struct tapbuffer_s
 {
     void *buf;
     unsigned long long len;
-    unsigned long long next_pkt_len;
+    int next_pkt_len;
 } tapbuffer_t;
 
 #define MLVPN_MAGIC 0xFFEEDD00EDDEAD42
@@ -654,7 +654,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     }
     if (rlen <= 0)
     {
-        fprintf(stderr, "Tun receive buffer is full.\n");
+        fprintf(stderr, "Tun receive buffer is full (%d & %d).\n", tun->rbuf->next_pkt_len, tun->rbuf->len);
         tun->rbuf->len = 0;
         tun->rbuf->next_pkt_len = -1;
         rlen = BUFSIZE;
@@ -675,6 +675,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
                 memmove(&hdr, ((char *)buffer)+bufpos, sizeof(hdr));
                 if ( hdr.magic == MLVPN_MAGIC )
                 {
+                    printf("Found packet %d length!\n", hdr.len);
                     memmove(tun->rbuf->buf+tun->rbuf->len, ((char *)buffer)+bufpos, len-bufpos);
                     tun->rbuf->next_pkt_len = hdr.len - len - bufpos;
                     tun->rbuf->len += (len - bufpos);
