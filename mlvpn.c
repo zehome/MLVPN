@@ -719,7 +719,7 @@ int main(int argc, char **argv)
         char port[6];
         memset(port, 0, 6);
         snprintf(port, 5, "%d", 5080+i);
-        tmptun = mlvpn_rtun_new(NULL, NULL, NULL, port, 1);
+        tmptun = mlvpn_rtun_new("0.0.0.0", port, NULL, NULL, 1);
     }
     */
 
