@@ -660,13 +660,14 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
-    len = write(tun->fd, tun->sbuf->buf, RTUN_RW_MAX);
+    len = write(tun->fd, tun->sbuf->buf, (tun->sbuf->len <= RTUN_RW_MAX ? tun->sbuf->len : RTUN_RW_MAX));
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
         perror("write");
         close(tun->fd);
         tun->fd = -1;
+        tun->sbuf->len = 0;
     } else {
         tun->sbuf->len -= len;
         printf("> Written %d bytes on tun %d (%d left).\n", len, tun->fd, tun->sbuf->len);
