@@ -49,7 +49,7 @@ struct tuntap_s
 };
 
 #define MLVPN_MAGIC 0xFFEEDD00EDDEAD42
-#define ETHER_MAX_PKT 1500
+#define ETHER_MAX_PKT 1448
 typedef struct mlvpn_pkt
 {
     uint64_t magic;
@@ -66,7 +66,7 @@ typedef struct mlvpn_pkt
 
 typedef struct pktbuffer_s
 {
-    mlvpn_pkt_t *pkts[PKTBUFSIZE];
+    mlvpn_pkt_t pkts[PKTBUFSIZE];
     int len;
 } pktbuffer_t;
 
@@ -128,7 +128,7 @@ mlvpn_put_pkt(pktbuffer_t *buf, const void *data, int len)
     pkt.magic = MLVPN_MAGIC;
     pkt.len = len;
     memmove(pkt.data, data, len);
-    memcpy(buf->pkts[buf->len], &pkt, sizeof(mlvpn_pkt_t));
+    memcpy(&buf->pkts[buf->len], &pkt, sizeof(mlvpn_pkt_t));
     return ++buf->len;
 }
 
@@ -137,7 +137,7 @@ mlvpn_pop_pkt(pktbuffer_t *buf)
 {
     int i;
     for (i = 0; i < buf->len-1; i++)
-        memmove(buf->pkts[i], buf->pkts[i+1], sizeof(mlvpn_pkt_t));
+        memmove(&buf->pkts[i], &buf->pkts[i+1], sizeof(mlvpn_pkt_t));
     buf->len -= 1;
 }
 
@@ -210,12 +210,8 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     }
 
     new->sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    for (i = 0; i < PKTBUFSIZE; i++)
-        new->sbuf->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
     new->sbuf->len = 0;
     new->rbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    for (i = 0; i < PKTBUFSIZE; i++)
-        new->rbuf->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
     new->rbuf->len = 0;
 
     /* insert into chained list */
@@ -664,7 +660,7 @@ int mlvpn_write_tap()
             "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n", buf->len);
         return -1;
     }
-    pkt = buf->pkts[0];
+    pkt = &buf->pkts[0];
     len = write(tuntap.fd, pkt->data, pkt->len);
     if (len < 0)
     {
@@ -705,7 +701,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         memmove(&pkt, buffer, sizeof(mlvpn_pkt_t));
         if (pkt.magic != MLVPN_MAGIC)
         {
-            fprintf(stderr, "Invalid mlvpn pkt. %llu != %llu", pkt.magic, (uint64_t)MLVPN_MAGIC);
+            fprintf(stderr, "Invalid mlvpn pkt. %llx != %llx\n", pkt.magic, (uint64_t)MLVPN_MAGIC);
             return -1;
         }
         printf("< TUN %d read %d bytes.\n", tun->fd, pkt.len);
@@ -717,10 +713,17 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
-    void *data = tun->sbuf->pkts[0]->data;
-    int wlen = tun->sbuf->pkts[0]->len + 12;
+    char buffer[2048];
+    mlvpn_pkt_t *pkt = &tun->sbuf->pkts[0];
+    int wlen = pkt->len + 12;
+    int bufpos = 0;
 
-    len = write(tun->fd, data, wlen);
+    memmove(buffer, &pkt->magic, sizeof(pkt->magic));
+    bufpos += sizeof(uint64_t);
+    memmove(buffer+bufpos, &pkt->len, sizeof(pkt->magic));
+    bufpos += sizeof(uint32_t);
+    memmove(buffer+bufpos, pkt->data, pkt->len);
+    len = write(tun->fd, buffer, pkt->len+bufpos);
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
@@ -742,10 +745,7 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 
 void init_buffers()
 {
-    int i;
     tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    for (i = 0; i < PKTBUFSIZE; i++)
-        tap_send->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
     tap_send->len = 0;
 }
 
