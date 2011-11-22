@@ -38,6 +38,7 @@
 
 /* Only 5 Kbytes */
 #define BUFSIZE 1024 * 5
+#define PKTBUFSIZE 32
 #define MAXTUNNELS 128
 
 struct tuntap_s
@@ -47,23 +48,27 @@ struct tuntap_s
     char devname[IFNAMSIZ];
 };
 
-typedef struct tapbuffer_s
-{
-    void *buf;
-    int len;
-    int next_pkt_len;
-} tapbuffer_t;
-
 #define MLVPN_MAGIC 0xFFEEDD00EDDEAD42
-struct mlvpn_encap_hdr
+#define ETHER_MAX_PKT 1500
+typedef struct mlvpn_pkt
 {
-    uint64_t magic; /* 0xFFEEDD00EDDEAD42 */
-    uint32_t len;   /* packet length */
-    /* data */
-};
+    uint64_t magic;
+    uint32_t len;
+    char data[ETHER_MAX_PKT];
+} mlvpn_pkt_t;
+
+/* TCP overhead = 66 Bytes on the wire */
+#define TCP_OVERHEAD 66
 #define DEFAULT_MTU 1500
-#define TAP_RW_MAX DEFAULT_MTU
-#define RTUN_RW_MAX (DEFAULT_MTU + 14)
+#define TUNTAP_RW_MAX DEFAULT_MTU
+#define RTUN_RW_MAX (DEFAULT_MTU - TCP_OVERHEAD)
+#define MAX_PKT_LEN (RTUN_RW_MAX - sizeof(mlvpn_pkt_t))
+
+typedef struct pktbuffer_s
+{
+    mlvpn_pkt_t *pkts[PKTBUFSIZE];
+    int len;
+} pktbuffer_t;
 
 struct mlvpn_ether
 {
@@ -100,14 +105,41 @@ typedef struct mlvpn_tunnel_s
     time_t next_attempt;  /* enxt connection attempt */
     uint8_t weight;       /* For weight round robin */
     uint64_t sendpackets; /* 64bit packets send counter */
-    tapbuffer_t *sbuf;    /* send buffer */
+    pktbuffer_t *sbuf;    /* send buffer */
+    pktbuffer_t *rbuf;    /* receive buffer */
     struct mlvpn_tunnel_s *next; /* chained list to next element */
 } mlvpn_tunnel_t;
 
 /* GLOBALS */
 static struct tuntap_s tuntap;
-static tapbuffer_t *tap_send;
+static pktbuffer_t *tap_send;
 static mlvpn_tunnel_t *rtun_start = NULL;
+
+/* Build a new pkt and insert into pktbuffer */
+int
+mlvpn_put_pkt(pktbuffer_t *buf, const void *data, int len)
+{
+    mlvpn_pkt_t pkt;
+    if (len > ETHER_MAX_PKT)
+    {
+        fprintf(stderr, "Packet len %d overlimit!\n", len);
+        return -1;
+    }
+    pkt.magic = MLVPN_MAGIC;
+    pkt.len = len;
+    memmove(pkt.data, data, len);
+    memcpy(buf->pkts[buf->len], &pkt, sizeof(mlvpn_pkt_t));
+    return ++buf->len;
+}
+
+void
+mlvpn_pop_pkt(pktbuffer_t *buf)
+{
+    int i;
+    for (i = 0; i < buf->len-1; i++)
+        memmove(buf->pkts[i], buf->pkts[i+1], sizeof(mlvpn_pkt_t));
+    buf->len -= 1;
+}
 
 mlvpn_tunnel_t *
 mlvpn_rtun_last()
@@ -127,6 +159,7 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
 {
     mlvpn_tunnel_t *last = rtun_start;
     mlvpn_tunnel_t *new;
+    int i;
 
     /* Some basic checks */
     if (server_mode)
@@ -176,9 +209,14 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
         strncpy(new->destport, destport, MLVPN_MAXPORTSTR);
     }
 
-    new->sbuf = (tapbuffer_t *)calloc(1, sizeof(tapbuffer_t));
-    new->sbuf->buf = malloc(BUFSIZE);
+    new->sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
+    for (i = 0; i < PKTBUFSIZE; i++)
+        new->sbuf->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
     new->sbuf->len = 0;
+    new->rbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
+    for (i = 0; i < PKTBUFSIZE; i++)
+        new->rbuf->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
+    new->rbuf->len = 0;
 
     /* insert into chained list */
     last = mlvpn_rtun_last();
@@ -438,7 +476,7 @@ int mlvpn_taptun_alloc()
     }
     
     memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags = TUN_TAP_DEV | IFF_NO_PI; /* We do not want kernel packet info */
+    ifr.ifr_flags = IFF_TUN | IFF_NO_PI; /* We do not want kernel packet info */
 
     /* Allocate with specified name, otherwise the kernel
      * will find a name for us.
@@ -541,15 +579,16 @@ decap_ip4_frame(struct mlvpn_ipv4 *ip4, const void *buffer)
 void print_frame(const char *frame)
 {
     /* decap packet to get TOS */
-    struct mlvpn_ether ether;
+    //struct mlvpn_ether ether;
     struct mlvpn_ipv4 ip4;
-    decap_ethernet_frame(&ether, frame);
-    print_ether(&ether);
-    if (ntohs(ether.proto) == MLVPN_ETH_IP4)
-    {
-        decap_ip4_frame(&ip4, frame+sizeof(struct mlvpn_ether));
+    //decap_ethernet_frame(&ether, frame);
+    //print_ether(&ether);
+    //if (ntohs(ether.proto) == MLVPN_ETH_IP4)
+    //{
+    //    //decap_ip4_frame(&ip4, frame+sizeof(struct mlvpn_ether));
+        decap_ip4_frame(&ip4, frame);
         print_ip4(&ip4);
-    }
+    //}
 }
 
 mlvpn_tunnel_t *
@@ -580,17 +619,17 @@ mlvpn_choose_least_packets_rtun()
 int mlvpn_read_tap()
 {
     int len;
-    char buffer[BUFSIZE];
+    char buffer[DEFAULT_MTU];
 
     /* least packets tunnel */
     mlvpn_tunnel_t *lpt = mlvpn_choose_least_packets_rtun();
 
-    len = read(tuntap.fd, buffer, TAP_RW_MAX);
+    len = read(tuntap.fd, buffer, DEFAULT_MTU);
     if (len < 0)
     {
         perror("read");
     } else if (len > 0) {
-        if (len >= (BUFSIZE - lpt->sbuf->len))
+        if (lpt->sbuf->len + 1 > PKTBUFSIZE)
         {
             fprintf(stderr, "Tun %d buffer overrun.\n", lpt->fd);
             lpt->sbuf->len = 0;
@@ -599,6 +638,7 @@ int mlvpn_read_tap()
         /* Horrible debug */
         printf("< TAP\t");
         print_frame(buffer);
+
         if (! lpt)
         {
             printf(" [ERR]\n");
@@ -607,8 +647,7 @@ int mlvpn_read_tap()
             printf("\n");
         }
 
-        memmove(lpt->sbuf->buf+lpt->sbuf->len, buffer, len);
-        lpt->sbuf->len += len;
+        mlvpn_put_pkt(lpt->sbuf, buffer, len);
     }
     return len;
 }
@@ -616,17 +655,30 @@ int mlvpn_read_tap()
 int mlvpn_write_tap()
 {
     int len;
-    len = write(tuntap.fd, tap_send->buf, (tap_send->len <= TAP_RW_MAX ? tap_send->len : TAP_RW_MAX));
+    mlvpn_pkt_t *pkt;
+    pktbuffer_t *buf = tap_send;
+
+    if (buf->len <= 0)
+    {
+        fprintf(stderr, 
+            "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n", buf->len);
+        return -1;
+    }
+    pkt = buf->pkts[0];
+    len = write(tuntap.fd, pkt->data, pkt->len);
     if (len < 0)
     {
         fprintf(stderr, "Write error on tuntap.\n");
         perror("write");
-        tap_send->len = 0; /* Reset */
     } else {
-        tap_send->len -= len;
-        printf("> Written %d bytes on TAP (%d left).\n", len, tap_send->len);
-        memmove(tap_send->buf, tap_send->buf+len, tap_send->len);
+        if (len != pkt->len)
+        {
+            fprintf(stderr, "Error writing to tap device: written %d bytes out of %d.\n", len, pkt->len);
+        } else {
+            printf("> Written %d bytes on TAP (%d pkts left).\n", len, buf->len);
+        }
     }
+    mlvpn_pop_pkt(buf);
     return len;
 }
 
@@ -634,7 +686,14 @@ int mlvpn_write_tap()
 int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
-    char buffer[BUFSIZE];
+    char buffer[RTUN_RW_MAX];
+    mlvpn_pkt_t pkt;
+
+    if (tap_send->len+1 > PKTBUFSIZE)
+    {
+        fprintf(stderr, "TAP buffer overrun.\n");
+        tap_send->len = 0;
+    }
 
     len = read(tun->fd, buffer, RTUN_RW_MAX);
     if (len < 0)
@@ -643,16 +702,14 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else if (len > 0) {
-        if (len >= (BUFSIZE - tap_send->len))
+        memmove(&pkt, buffer, sizeof(mlvpn_pkt_t));
+        if (pkt.magic != MLVPN_MAGIC)
         {
-            fprintf(stderr, "TAP send buffer is full.\n");
-            tap_send->len = 0;
+            fprintf(stderr, "Invalid mlvpn pkt. %llu != %llu", pkt.magic, (uint64_t)MLVPN_MAGIC);
+            return -1;
         }
-
-        memmove(tap_send->buf+tap_send->len,
-            buffer,
-            len);
-        tap_send->len += len;
+        printf("< TUN %d read %d bytes.\n", tun->fd, pkt.len);
+        mlvpn_put_pkt(tap_send, pkt.data, pkt.len);
     }
     return len;
 }
@@ -660,26 +717,36 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
-    len = write(tun->fd, tun->sbuf->buf, (tun->sbuf->len <= RTUN_RW_MAX ? tun->sbuf->len : RTUN_RW_MAX));
+    void *data = tun->sbuf->pkts[0]->data;
+    int wlen = tun->sbuf->pkts[0]->len + 12;
+
+    len = write(tun->fd, data, wlen);
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
         perror("write");
         close(tun->fd);
         tun->fd = -1;
-        tun->sbuf->len = 0;
     } else {
-        tun->sbuf->len -= len;
-        printf("> Written %d bytes on tun %d (%d left).\n", len, tun->fd, tun->sbuf->len);
-        memmove(tun->sbuf->buf, tun->sbuf->buf+len, tun->sbuf->len);
+        if (wlen != len)
+        {
+            fprintf(stderr, "Error writing on TUN %d: written %d bytes over %d.\n",
+                tun->fd, len, wlen);
+        } else {
+            printf("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, tun->sbuf->len - 1);
+        }
     }
+    mlvpn_pop_pkt(tun->sbuf);
     return len;
 }
 
 void init_buffers()
 {
-    tap_send = (tapbuffer_t *)calloc(1, sizeof(tapbuffer_t));
-    tap_send->buf = malloc(BUFSIZE);
+    int i;
+    tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
+    for (i = 0; i < PKTBUFSIZE; i++)
+        tap_send->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
+    tap_send->len = 0;
 }
 
 int main(int argc, char **argv)
