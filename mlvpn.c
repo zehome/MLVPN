@@ -723,7 +723,7 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
     mlvpn_pkt_t *pkt = &tun->sbuf->pkts[0];
     wlen = sizeof(*pkt) - sizeof(pkt->data) + pkt->len;
 
-    len = write(tun->fd, pkt, wlen)
+    len = write(tun->fd, pkt, wlen);
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
