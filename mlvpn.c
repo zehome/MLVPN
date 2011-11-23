@@ -681,20 +681,21 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
 {
     mlvpn_pkt_t pkt;
     int i;
-    int shift;
     int pkts = 0;
+    int last_shift = -1;
 
-    for (i = 0; i < BUFSIZE - sizeof(pkt); i++)
+    for (i = 0; i < tun->rbuf.len - sizeof(pkt) + sizeof(pkt.data) ; i++)
     {
+        void *rbuf = tun->rbuf.data + i;
         /* Finding the magic and re-assemble valid pkt */
-        memcpy(&pkt, tun->rbuf.data + i, (sizeof(pkt)-sizeof(pkt.data)));
+        memcpy(&pkt, rbuf, (sizeof(pkt)-sizeof(pkt.data)));
         if (pkt.magic == MLVPN_MAGIC)
         {
             if (tun->rbuf.len - i >= pkt.len)
             {
                 /* Valid packet, copy the rest */
                 printf("Valid pkt found. Len=%d\n", pkt.len);
-                memcpy(&pkt, tun->rbuf.data + i, sizeof(mlvpn_pkt_t));
+                memcpy(&pkt, rbuf, sizeof(pkt)-sizeof(pkt.data)+pkt.len);
                 if (tap_send->len+1 > PKTBUFSIZE)
                 {
                     fprintf(stderr, "TAP buffer overrun.\n");
@@ -703,17 +704,24 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
                 mlvpn_put_pkt(tap_send, pkt.data, pkt.len);
 
                 /* shift read buffer to the right */
-                shift = i + (sizeof(pkt)-sizeof(pkt.data)) + pkt.len;
-                memmove(tun->rbuf.data,
-                    tun->rbuf.data + i + (sizeof(pkt)-sizeof(pkt.data)),
-                    shift);
-                tun->rbuf.len -= shift;
+                last_shift = i + (sizeof(pkt) - sizeof(pkt.data)) + pkt.len;
                 /* Overkill */
-                memset(&pkt, 0, sizeof(mlvpn_pkt_t));
+                memset(&pkt, 0, sizeof(pkt));
                 pkts++;
             } else {
                 printf("Found pkt but not enough data. Len=%d available=%d\n", (int)pkt.len, (int)(tun->rbuf.len - i));
             }
+        }
+    }
+    if (last_shift > 0)
+    {
+        int rest_len = tun->rbuf.len - last_shift;
+        if (rest_len > 0)
+        {
+            memmove(tun->rbuf.data,
+                tun->rbuf.data + last_shift,
+                rest_len);
+            tun->rbuf.len -= last_shift;
         }
     }
 
