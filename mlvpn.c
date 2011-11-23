@@ -36,8 +36,8 @@
 #define MLVPN_MAXHNAMSTR 1024
 #define MLVPN_MAXPORTSTR 5
 
-/* 5 Kbytes re-assembly buffer */
-#define BUFSIZE 1024 * 5
+/* 4 Kbytes re-assembly buffer */
+#define BUFSIZE 1024 * 4
 /* Number of packets in the queue */
 #define PKTBUFSIZE 32
 /* Maximum channels */
@@ -101,13 +101,13 @@ struct mlvpn_buffer
 
 typedef struct mlvpn_tunnel_s
 {
-    int fd;               /* socket file descriptor */
-    int server_fd;        /* server socket (used to accept) */
-    int server_mode;      /* server or client */
     char *bindaddr;       /* packets source */
     char *bindport;       /* packets port source (or NULL) */
     char *destaddr;       /* remote server ip (can be hostname) */
     char *destport;       /* remote server port */
+    int fd;               /* socket file descriptor */
+    int server_fd;        /* server socket (used to accept) */
+    int server_mode;      /* server or client */
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
     time_t next_attempt;  /* enxt connection attempt */
@@ -696,7 +696,7 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
         memcpy(&pkt, rbuf, (sizeof(pkt)-sizeof(pkt.data)));
         if (pkt.magic == MLVPN_MAGIC)
         {
-            if (tun->rbuf.len - i >= pkt.len)
+            if (tun->rbuf.len - i >= pkt.len+sizeof(pkt)-sizeof(pkt.data))
             {
                 /* Valid packet, copy the rest */
                 printf("Valid pkt found. Len=%d\n", pkt.len);
