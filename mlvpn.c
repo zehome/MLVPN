@@ -608,7 +608,8 @@ mlvpn_choose_least_packets_rtun()
         }
         t = t->next;
     }
-    lpt->sendpackets++;
+    if (lpt)
+        lpt->sendpackets++;
     return lpt;
 }
 
