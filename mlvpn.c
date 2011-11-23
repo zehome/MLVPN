@@ -689,14 +689,14 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
     int pkts = 0;
     int last_shift = -1;
 
-    for (i = 0; i < tun->rbuf.len - sizeof(pkt) + sizeof(pkt.data) ; i++)
+    for (i = 0; i < tun->rbuf.len - (sizeof(pkt)-sizeof(pkt.data)) ; i++)
     {
         void *rbuf = tun->rbuf.data + i;
         /* Finding the magic and re-assemble valid pkt */
         memcpy(&pkt, rbuf, (sizeof(pkt)-sizeof(pkt.data)));
         if (pkt.magic == MLVPN_MAGIC)
         {
-            if (tun->rbuf.len - i >= pkt.len+sizeof(pkt)-sizeof(pkt.data))
+            if (tun->rbuf.len - i >= pkt.len+(sizeof(pkt)-sizeof(pkt.data)))
             {
                 /* Valid packet, copy the rest */
                 printf("Valid pkt found. Len=%d\n", pkt.len);
@@ -709,7 +709,7 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
                 mlvpn_put_pkt(tap_send, pkt.data, pkt.len);
 
                 /* shift read buffer to the right */
-                i += sizeof(pkt) - sizeof(pkt.data) + pkt.len;
+                i += ((sizeof(pkt)-sizeof(pkt.data)) + pkt.len - 1); /* -1 because of i++ in the loop */
                 last_shift = i;
                 /* Overkill */
                 memset(&pkt, 0, sizeof(pkt));
