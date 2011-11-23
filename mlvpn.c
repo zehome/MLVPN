@@ -639,7 +639,12 @@ int mlvpn_read_tap()
         } else {
             printf("\n");
         }
-
+        
+        if (lpt->sbuf->len+1 > PKTBUFSIZE)
+        {
+            fprintf(stderr, "TUN %d buffer overrun.\n", lpt->fd);
+            lpt->sbuf->len = 0;
+        }
         mlvpn_put_pkt(lpt->sbuf, buffer, len);
     }
     return len;
