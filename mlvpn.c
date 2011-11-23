@@ -683,7 +683,6 @@ int mlvpn_write_tap()
 int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
-    char buffer[RTUN_RW_MAX];
     mlvpn_pkt_t pkt;
 
     if (tap_send->len+1 > PKTBUFSIZE)
@@ -692,17 +691,23 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         tap_send->len = 0;
     }
 
-    len = read(tun->fd, buffer, RTUN_RW_MAX);
+    len = read(tun->fd, &pkt, sizeof(pkt));
     if (len < 0)
     {
         perror("read");
         close(tun->fd);
         tun->fd = -1;
-    } else if (len > 0) {
-        memmove(&pkt, buffer, sizeof(mlvpn_pkt_t));
+    } else if (len != 0) {
+
+        if (len != sizeof(pkt)) {
+            fprintf(stderr, "Wrong len, get %ld need %ld\n", len, sizeof(pkt));
+            return len;
+        }
+
         if (pkt.magic != MLVPN_MAGIC)
         {
             fprintf(stderr, "Invalid mlvpn pkt. %llx != %llx\n", pkt.magic, (uint64_t)MLVPN_MAGIC);
+            fprintf(stderr, "len = %ld\n", len);
             return -1;
         }
         printf("< TUN %d read %d bytes.\n", tun->fd, pkt.len);
@@ -714,17 +719,9 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
-    char buffer[2048];
     mlvpn_pkt_t *pkt = &tun->sbuf->pkts[0];
-    int wlen = pkt->len + 12;
-    int bufpos = 0;
 
-    memmove(buffer, &pkt->magic, sizeof(pkt->magic));
-    bufpos += sizeof(uint64_t);
-    memmove(buffer+bufpos, &pkt->len, sizeof(pkt->magic));
-    bufpos += sizeof(uint32_t);
-    memmove(buffer+bufpos, pkt->data, pkt->len);
-    len = write(tun->fd, buffer, pkt->len+bufpos);
+    len = write(tun->fd, pkt, sizeof(*pkt));
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
@@ -732,10 +729,10 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else {
-        if (wlen != len)
+        if (sizeof(*pkt) != len)
         {
             fprintf(stderr, "Error writing on TUN %d: written %d bytes over %d.\n",
-                tun->fd, len, wlen);
+                tun->fd, len, sizeof(*pkt));
         } else {
             printf("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, tun->sbuf->len - 1);
         }
