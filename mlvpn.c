@@ -63,7 +63,8 @@ typedef struct mlvpn_pkt
 #define TCP_OVERHEAD 66
 #define TUNTAP_RW_MAX DEFAULT_MTU
 #define RTUN_RW_MAX (DEFAULT_MTU - TCP_OVERHEAD)
-#define MAX_PKT_LEN (RTUN_RW_MAX - 8) /* 8 bytes for magic + len */
+//#define MAX_PKT_LEN (RTUN_RW_MAX - 8) /* 8 bytes for magic + len */
+#define MAX_PKT_LEN 1500
 
 typedef struct pktbuffer_s
 {
@@ -683,7 +684,7 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
     int shift;
     int pkts = 0;
 
-    for (i = 0; i < BUFSIZE; i++)
+    for (i = 0; i < BUFSIZE - sizeof(pkt); i++)
     {
         /* Finding the magic and re-assemble valid pkt */
         memcpy(&pkt, tun->rbuf.data + i, (sizeof(pkt)-sizeof(pkt.data)));
