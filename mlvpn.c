@@ -704,7 +704,8 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
                 mlvpn_put_pkt(tap_send, pkt.data, pkt.len);
 
                 /* shift read buffer to the right */
-                last_shift = i + (sizeof(pkt) - sizeof(pkt.data)) + pkt.len;
+                i += sizeof(pkt) - sizeof(pkt.data) + pkt.len;
+                last_shift = i;
                 /* Overkill */
                 memset(&pkt, 0, sizeof(pkt));
                 pkts++;
@@ -721,8 +722,8 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
             memmove(tun->rbuf.data,
                 tun->rbuf.data + last_shift,
                 rest_len);
-            tun->rbuf.len -= last_shift;
         }
+        tun->rbuf.len -= last_shift;
     }
 
     return pkts;
