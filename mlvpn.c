@@ -719,9 +719,11 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
+    int wlen;
     mlvpn_pkt_t *pkt = &tun->sbuf->pkts[0];
+    wlen = sizeof(*pkt) - sizeof(pkt->data) + pkt->len;
 
-    len = write(tun->fd, pkt, sizeof(*pkt));
+    len = write(tun->fd, pkt, wlen)
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
@@ -729,10 +731,10 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else {
-        if (sizeof(*pkt) != len)
+        if (wlen != len)
         {
             fprintf(stderr, "Error writing on TUN %d: written %d bytes over %d.\n",
-                tun->fd, len, sizeof(*pkt));
+                tun->fd, len, wlen);
         } else {
             printf("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, tun->sbuf->len - 1);
         }
