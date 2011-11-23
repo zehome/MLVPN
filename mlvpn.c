@@ -691,15 +691,15 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         tap_send->len = 0;
     }
 
-    len = read(tun->fd, &pkt, sizeof(pkt));
+    len = read(tun->fd, &pkt, sizeof(pkt) - sizeof(pkt.data));
     if (len < 0)
     {
         perror("read");
         close(tun->fd);
         tun->fd = -1;
     } else if (len != 0) {
-
-        if (len != sizeof(pkt)) {
+        len += read(tun->fd, &pkt.data, pkt.len);
+        if (len != (sizeof(pkt) - sizeof(pkt.data) + pkt.len)) {
             fprintf(stderr, "Wrong len, get %ld need %ld\n", len, sizeof(pkt));
             return len;
         }
