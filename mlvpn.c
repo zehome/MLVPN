@@ -43,6 +43,9 @@
 /* Maximum channels */
 #define MAXTUNNELS 128
 
+#define ENCAP_PROTO_UDP 0
+#define ENCAP_PROTO_TCP 1
+
 struct tuntap_s
 {
     int fd;
@@ -116,6 +119,8 @@ typedef struct mlvpn_tunnel_s
     pktbuffer_t *sbuf;    /* send buffer */
     struct mlvpn_buffer rbuf;    /* receive buffer */
     struct mlvpn_tunnel_s *next; /* chained list to next element */
+    int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
+    struct addrinfo *addrinfo;
 } mlvpn_tunnel_t;
 
 /* GLOBALS */
@@ -192,6 +197,7 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     new->server_mode = server_mode;
     new->server_fd = -1;
     new->weight = 1;
+    new->encap_prot = ENCAP_PROTO_UDP;
 
     if (bindaddr)
     {
@@ -246,20 +252,25 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
        the unspecified address for that family. */
     hints.ai_flags    = AI_PASSIVE;
     hints.ai_family   = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
+    fd = t->fd;
+    if (t->encap_prot == ENCAP_PROTO_TCP)
+    {
+        hints.ai_socktype = SOCK_STREAM;
+        if (t->server_mode)
+            fd = t->server_fd;
+    } else {
+        hints.ai_socktype = SOCK_DGRAM;
+    }
     n = getaddrinfo(t->bindaddr, t->bindport, &hints, &res);
     if (n < 0)
     {
         fprintf(stderr, "getaddrinfo error: [%s]\n", gai_strerror(n));
         return -1;
     }
+    t->addrinfo = res;
+
     /* Try open socket with each address getaddrinfo returned,
        until getting a valid listening socket. */
-    if (t->server_mode)
-        fd = t->server_fd;
-    else
-        fd = t->fd;
-
     printf("Binding socket %d to %s\n", fd, t->bindaddr);
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     if (n < 0)
@@ -276,23 +287,29 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     char *addr, *port;
     struct addrinfo hints, *res, *back;
 
+    fd = t->fd;
     if (t->server_mode)
     {
+        if (t->encap_prot == ENCAP_PROTO_TCP)
+            fd = t->server_fd;
         addr = t->bindaddr;
         port = t->bindport;
-        fd = t->server_fd;
         printf("server_rtun_connect %s %s\n", addr, port);
     } else {
         addr = t->destaddr;
         port = t->destport;
-        fd = t->fd;
         printf("client_rtun_connect %s %s\n", addr, port);
     }
 
     /* Initialize hints */
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_INET; /* Prefer IPv4 */
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_INET; /* Prefer IPv4 */
+    if (t->encap_prot == ENCAP_PROTO_TCP)
+    {
+        hints.ai_socktype = SOCK_STREAM;
+    } else {
+        hints.ai_socktype = SOCK_DGRAM;
+    }
 
     ret = getaddrinfo(addr, port, &hints, &res);
     if (ret < 0)
@@ -309,7 +326,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             fprintf(stderr, "Socket creation error while connecting to [%s]: %s\n", addr, port);
         } else {
             fprintf(stderr, "Created socket %d.\n", fd);
-            if (t->server_mode)
+            if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
                 t->server_fd = fd;
             else
                 t->fd = fd;
@@ -327,27 +344,30 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                         goto error;
                 }
             }
-            if (t->server_mode)
+            if (t->encap_prot == ENCAP_PROTO_TCP)
             {
-                /* listen, only allow 1 socket in accept() queue */
-                if ((ret = listen(fd, 1)) < 0)
+                if (t->server_mode)
                 {
-                    fprintf(stderr, "Unable to listen on socket %d.\n", fd);
-                    goto error;
-                }
-            } else {
-                /* client mode */
-                fprintf(stderr, "Connecting to [%s]:%s\n", addr, port);
-                /* connect(2) */
-                if (connect(fd, res->ai_addr, res->ai_addrlen) == 0)
-                {
-                    fprintf(stderr, "Successfully connected to [%s]:%s.\n", addr, port);
-                    break;
+                    /* listen, only allow 1 socket in accept() queue */
+                    if ((ret = listen(fd, 1)) < 0)
+                    {
+                        fprintf(stderr, "Unable to listen on socket %d.\n", fd);
+                        goto error;
+                    }
                 } else {
-                    fprintf(stderr, "Connection to [%s]:%s failed.\n", addr, port);
-                    perror("connect");
-                    close(fd);
-                    t->fd = -1;
+                    /* client mode */
+                    fprintf(stderr, "Connecting to [%s]:%s\n", addr, port);
+                    /* connect(2) */
+                    if (connect(fd, res->ai_addr, res->ai_addrlen) == 0)
+                    {
+                        fprintf(stderr, "Successfully connected to [%s]:%s.\n", addr, port);
+                        break;
+                    } else {
+                        fprintf(stderr, "Connection to [%s]:%s failed.\n", addr, port);
+                        perror("connect");
+                        close(fd);
+                        t->fd = -1;
+                    }
                 }
             }
             /* set non blocking after connect... May lockup the entiere process */
@@ -383,7 +403,7 @@ void mlvpn_tick_connect_rtun()
 
     while (t)
     {
-        if (t->server_mode)
+        if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
             fd = t->server_fd;
         else
             fd = t->fd;
@@ -421,7 +441,7 @@ int mlvpn_server_accept()
 
     while (t)
     {
-        if (t->server_fd > 0)
+        if (t->server_fd > 0 && t->encap_prot == ENCAP_PROTO_TCP)
         {
             fd = accept(t->server_fd, (struct sockaddr *)&clientaddr, &addrlen);
             if (fd < 0)
@@ -437,7 +457,7 @@ int mlvpn_server_accept()
                 getnameinfo((struct sockaddr *)&clientaddr, addrlen,
                             clienthost, sizeof(clienthost),
                             clientservice, sizeof(clientservice),
-                            NI_NUMERICHOST);
+                            NI_NUMERICHOST|NI_NUMERICSERV);
                 fprintf(stderr, "Connection attempt from [%s]:%s.\n", 
                     clienthost, clientservice);
                 if (t->fd >= 0)
@@ -739,6 +759,8 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
 {
     int len;
     int rlen;
+    struct sockaddr_storage clientaddr;
+    socklen_t addrlen = sizeof(clientaddr);
 
     /* how much data we can handle right now ? */
     rlen = BUFSIZE - tun->rbuf.len;
@@ -747,8 +769,14 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         fprintf(stderr, "Tun %d receive buffer overrun.\n", tun->fd);
         tun->rbuf.len = 0;
     }
-
-    len = read(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen);
+    
+    if (tun->encap_prot == ENCAP_PROTO_TCP)
+    {
+        len = read(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen);
+    } else {
+        len = recvfrom(tun->fd, tun->rbuf.data+tun->rbuf.len, rlen, 
+            MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
+    }
     if (len < 0)
     {
         perror("read");
@@ -756,7 +784,19 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
         close(tun->fd);
         tun->fd = -1;
     } else if (len > 0) {
-        printf("< TUN %d read %d bytes.\n", tun->fd, len);
+        if (tun->encap_prot == ENCAP_PROTO_TCP)
+        {
+            printf("< TUN %d read %d bytes.\n", tun->fd, len);
+        } else {
+            char clienthost[NI_MAXHOST];
+            char clientport[NI_MAXSERV];
+            getnameinfo((struct sockaddr *)&clientaddr, addrlen,
+                clienthost, sizeof(clienthost),
+                clientport, sizeof(clientport),
+                NI_NUMERICHOST|NI_NUMERICSERV);
+            printf("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len, 
+                clienthost, clientport);
+        }
         tun->rbuf.len += len;
         mlvpn_tick_rtun_rbuf(tun);
     }
@@ -770,7 +810,13 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
     mlvpn_pkt_t *pkt = &tun->sbuf->pkts[0];
     wlen = sizeof(*pkt) - sizeof(pkt->data) + pkt->len;
 
-    len = write(tun->fd, pkt, wlen);
+    if (tun->encap_prot == ENCAP_PROTO_TCP)
+    {
+        len = write(tun->fd, pkt, wlen);
+    } else {
+        len = sendto(tun->fd, pkt, wlen, MSG_DONTWAIT,
+            (struct sockaddr *)tun->addrinfo, sizeof(tun->addrinfo));
+    }
     if (len < 0)
     {
         fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
