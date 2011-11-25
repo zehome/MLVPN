@@ -198,6 +198,8 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     new->server_fd = -1;
     new->weight = 1;
     new->encap_prot = ENCAP_PROTO_UDP;
+    new->addrinfo = (struct addrinfo *)malloc(sizeof(struct addrinfo));
+    memset(new->addrinfo, 0, sizeof(struct addrinfo));
 
     if (bindaddr)
     {
@@ -798,6 +800,13 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
                 NI_NUMERICHOST|NI_NUMERICSERV);
             printf("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len, 
                 clienthost, clientport);
+            if (! tun->addrinfo->ai_addrlen)
+                tun->addrinfo->ai_addrlen = addrlen;
+            if (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0)
+            {
+                printf("New UDP connection detected.\n");
+                memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
+            }
         }
         tun->rbuf.len += len;
         mlvpn_tick_rtun_rbuf(tun);
