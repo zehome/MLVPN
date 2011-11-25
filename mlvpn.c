@@ -267,7 +267,6 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
         fprintf(stderr, "getaddrinfo error: [%s]\n", gai_strerror(n));
         return -1;
     }
-    t->addrinfo = res;
 
     /* Try open socket with each address getaddrinfo returned,
        until getting a valid listening socket. */
@@ -317,6 +316,8 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         fprintf(stderr, "Connection to [%s]:%s failed. getaddrinfo: [%s]\n", addr, port, gai_strerror(ret));
         return -1;
     }
+    t->addrinfo = res;
+
     back = res;
     while (res)
     {
@@ -336,8 +337,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(int));
             if (t->encap_prot == ENCAP_PROTO_TCP)
                 setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
-
-            if (t->bindaddr || t->encap_prot == ENCAP_PROTO_UDP)
+            if (t->bindaddr)
             {
                 if (mlvpn_rtun_bind(t) < 0)
                 {
@@ -817,7 +817,7 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
         len = write(tun->fd, pkt, wlen);
     } else {
         len = sendto(tun->fd, pkt, wlen, MSG_DONTWAIT,
-            (struct sockaddr *)tun->addrinfo, sizeof(tun->addrinfo));
+            tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     }
     if (len < 0)
     {
