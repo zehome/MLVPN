@@ -312,13 +312,13 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         hints.ai_socktype = SOCK_DGRAM;
     }
 
-    ret = getaddrinfo(addr, port, &hints, &res);
+    ret = getaddrinfo(addr, port, &hints, &t->addrinfo);
     if (ret < 0)
     {
         fprintf(stderr, "Connection to [%s]:%s failed. getaddrinfo: [%s]\n", addr, port, gai_strerror(ret));
         return -1;
     }
-    t->addrinfo = res;
+    res = t->addrinfo;
 
     back = res;
     while (res)
@@ -392,10 +392,10 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         res = res->ai_next;
     }
     
-    freeaddrinfo(back);
+//    freeaddrinfo(back);
     return 0;
 error:
-    freeaddrinfo(back);
+//    freeaddrinfo(back);
     return -1;
 }
 
@@ -885,9 +885,9 @@ int main(int argc, char **argv)
         tmptun = mlvpn_rtun_new(NULL, NULL, "192.168.6.2", port, 0);
     }
     */
-    tmptun = mlvpn_rtun_new(NULL, NULL, "chp.zehome.com", "5080", 0);
-    tmptun = mlvpn_rtun_new(NULL, NULL, "chp1.zehome.com", "5081", 0);
-    tmptun = mlvpn_rtun_new(NULL, NULL, "chp2.zehome.com", "5082", 0);
+    tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp.zehome.com", "5080", 0);
+    tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp1.zehome.com", "5081", 0);
+    tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp2.zehome.com", "5082", 0);
 
     /* srv */
     /*
