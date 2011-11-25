@@ -334,8 +334,10 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             /* setup non blocking sockets */
             int val = 1;
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(int));
-            setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
-            if (t->bindaddr)
+            if (t->encap_prot == ENCAP_PROTO_TCP)
+                setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+
+            if (t->bindaddr || t->encap_prot == ENCAP_PROTO_UDP)
             {
                 if (mlvpn_rtun_bind(t) < 0)
                 {
