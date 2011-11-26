@@ -38,8 +38,9 @@
 
 /* 4 Kbytes re-assembly buffer */
 #define BUFSIZE 1024 * 4
-/* Number of packets in the queue */
-#define PKTBUFSIZE 32
+/* Number of packets in the queue. Each pkt is ~ 1520 */
+/* 1520 * 1024 ~= 1.5 MByte of data maximum per channel VMSize */
+#define PKTBUFSIZE 1024
 /* Maximum channels */
 #define MAXTUNNELS 128
 
@@ -55,11 +56,18 @@ struct tuntap_s
 
 #define DEFAULT_MTU 1500
 #define MLVPN_MAGIC 0xFFEEDD00
-typedef struct mlvpn_pkt
+struct mlvpn_pktdata
 {
     uint32_t magic;
     uint32_t len;
     char data[DEFAULT_MTU];
+};
+#define PKTHDRSIZ(pktdata) (sizeof(pktdata)-sizeof(pktdata.data))
+
+typedef struct mlvpn_pkt
+{
+    struct mlvpn_pktdata pktdata;
+    struct timeval rcv_tv; /* Received timeval */
 } mlvpn_pkt_t;
 
 /* TCP overhead = 66 Bytes on the wire */
@@ -72,7 +80,7 @@ typedef struct mlvpn_pkt
 typedef struct pktbuffer_s
 {
     size_t len;
-    mlvpn_pkt_t pkts[PKTBUFSIZE];
+    mlvpn_pkt_t *pkts;
 } pktbuffer_t;
 
 struct mlvpn_ether
@@ -130,7 +138,7 @@ static mlvpn_tunnel_t *rtun_start = NULL;
 
 /* Build a new pkt and insert into pktbuffer */
 int
-mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len)
+mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len, int timing)
 {
     mlvpn_pkt_t pkt;
     if (len > MAX_PKT_LEN)
@@ -139,10 +147,29 @@ mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len)
             (uint32_t)len, (uint32_t) MAX_PKT_LEN);
         return -1;
     }
-    pkt.magic = MLVPN_MAGIC;
-    pkt.len = len;
-    memcpy(pkt.data, data, len);
+    pkt.pktdata.magic = MLVPN_MAGIC;
+    pkt.pktdata.len = len;
+    memcpy(pkt.pktdata.data, data, len);
+
+    /* We need to store timing informations for latency normalization
+     * priorization or trafic shapping
+     * 
+     * We do not waste gettimeofday syscalls for tuntap device
+     * as it's useless to shape/normalize on tuntap device!
+     */
+    if (timing)
+    {
+        struct timeval tv;
+        if (gettimeofday(&tv, NULL) != 0)
+        {
+            perror("gettimeofday");
+        } else {
+            memcpy(&pkt.rcv_tv, &tv, sizeof(struct timeval));
+        }
+    }
+
     memcpy(&buf->pkts[buf->len], &pkt, sizeof(mlvpn_pkt_t));
+
     return ++buf->len;
 }
 
@@ -229,6 +256,8 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     new->sbuf->len = 0;
     memset(new->rbuf.data, 0, BUFSIZE);
     new->rbuf.len = 0;
+    
+    new->sbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
 
     /* insert into chained list */
     last = mlvpn_rtun_last();
@@ -669,7 +698,7 @@ int mlvpn_read_tap()
             fprintf(stderr, "TUN %d buffer overrun.\n", lpt->fd);
             lpt->sbuf->len = 0;
         }
-        mlvpn_put_pkt(lpt->sbuf, buffer, len);
+        mlvpn_put_pkt(lpt->sbuf, buffer, len, 1);
     }
     return len;
 }
@@ -686,16 +715,16 @@ int mlvpn_write_tap()
             "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n", (int)buf->len);
         return -1;
     }
-    pkt = &buf->pkts[0];
-    len = write(tuntap.fd, pkt->data, pkt->len);
+    pkt = &buf->pkts[0]; /* First pkt in queue */
+    len = write(tuntap.fd, pkt->pktdata.data, pkt->pktdata.len);
     if (len < 0)
     {
         fprintf(stderr, "Write error on tuntap.\n");
         perror("write");
     } else {
-        if (len != pkt->len)
+        if (len != pkt->pktdata.len)
         {
-            fprintf(stderr, "Error writing to tap device: written %d bytes out of %d.\n", len, pkt->len);
+            fprintf(stderr, "Error writing to tap device: written %d bytes out of %d.\n", len, pkt->pktdata.len);
         } else {
             printf("> Written %d bytes on TAP (%d pkts left).\n", len, (int)buf->len);
         }
@@ -708,38 +737,39 @@ int mlvpn_write_tap()
  * from the TCP/UDP channel and prepare packets for TUN/TAP device. */
 int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
 {
-    mlvpn_pkt_t pkt;
+    struct mlvpn_pktdata pktdata;
     int i;
     int pkts = 0;
     int last_shift = -1;
 
-    for (i = 0; i < tun->rbuf.len - (sizeof(pkt)-sizeof(pkt.data)) ; i++)
+    for (i = 0; i < tun->rbuf.len - (PKTHDRSIZ(pktdata)) ; i++)
     {
         void *rbuf = tun->rbuf.data + i;
         /* Finding the magic and re-assemble valid pkt */
-        memcpy(&pkt, rbuf, (sizeof(pkt)-sizeof(pkt.data)));
-        if (pkt.magic == MLVPN_MAGIC)
+        memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata));
+        if (pktdata.magic == MLVPN_MAGIC)
         {
-            if (tun->rbuf.len - i >= pkt.len+(sizeof(pkt)-sizeof(pkt.data)))
+            if (tun->rbuf.len - i >= pktdata.len+PKTHDRSIZ(pktdata))
             {
                 /* Valid packet, copy the rest */
-                printf("Valid pkt found. Len=%d\n", pkt.len);
-                memcpy(&pkt, rbuf, sizeof(pkt)-sizeof(pkt.data)+pkt.len);
+                printf("Valid pkt found. Len=%d\n", pktdata.len);
+                memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata)+pktdata.len);
                 if (tap_send->len+1 > PKTBUFSIZE)
                 {
                     fprintf(stderr, "TAP buffer overrun.\n");
                     tap_send->len = 0;
                 }
-                mlvpn_put_pkt(tap_send, pkt.data, pkt.len);
+                mlvpn_put_pkt(tap_send, pktdata.data, pktdata.len, 0);
 
                 /* shift read buffer to the right */
-                i += ((sizeof(pkt)-sizeof(pkt.data)) + pkt.len - 1); /* -1 because of i++ in the loop */
+                /* -1 because of i++ in the loop */
+                i += (PKTHDRSIZ(pktdata) + pktdata.len - 1); 
                 last_shift = i;
                 /* Overkill */
-                memset(&pkt, 0, sizeof(pkt));
+                memset(&pktdata, 0, sizeof(pktdata));
                 pkts++;
             } else {
-                printf("Found pkt but not enough data. Len=%d available=%d\n", (int)pkt.len, (int)(tun->rbuf.len - i));
+                printf("Found pkt but not enough data. Len=%d available=%d\n", (int)pktdata.len, (int)(tun->rbuf.len - i));
             }
         }
     }
@@ -819,13 +849,13 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
     int len;
     int wlen;
     mlvpn_pkt_t *pkt = &tun->sbuf->pkts[0];
-    wlen = sizeof(*pkt) - sizeof(pkt->data) + pkt->len;
+    wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
 
     if (tun->encap_prot == ENCAP_PROTO_TCP)
     {
-        len = write(tun->fd, pkt, wlen);
+        len = write(tun->fd, &pkt->pktdata, wlen);
     } else {
-        len = sendto(tun->fd, pkt, wlen, MSG_DONTWAIT,
+        len = sendto(tun->fd, &pkt->pktdata, wlen, MSG_DONTWAIT,
             tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     }
     if (len < 0)
@@ -851,6 +881,7 @@ void init_buffers()
 {
     tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
     tap_send->len = 0;
+    tap_send->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
 }
 
 int main(int argc, char **argv)
@@ -859,8 +890,6 @@ int main(int argc, char **argv)
     mlvpn_tunnel_t *tmptun;
 
     printf("ML-VPN (c) 2011 Laurent Coustet\n");
-
-    init_buffers();
 
     memset(&tuntap, 0, sizeof(tuntap));
 
@@ -899,6 +928,8 @@ int main(int argc, char **argv)
         tmptun = mlvpn_rtun_new("0.0.0.0", port, NULL, NULL, 1);
     }
     */
+    
+    init_buffers();
 
     while ( 1 ) 
     {
@@ -935,7 +966,7 @@ int main(int argc, char **argv)
         }
 
         timeout.tv_sec = 1;
-        timeout.tv_usec = 50000;
+        timeout.tv_usec = 1000;
 
         ret = select(maxfd+1, &rfds, &wfds, NULL, &timeout);
         if (ret > 0)
