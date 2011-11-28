@@ -67,7 +67,12 @@ struct mlvpn_pktdata
 typedef struct mlvpn_pkt
 {
     struct mlvpn_pktdata pktdata;
-    struct timeval rcv_tv; /* Received timeval */
+    /* This variable permits to "sleep" some time before
+     * sending a new packet.
+     * This is used to permit trafic shaping
+     * on the "bulk" queue (sbuf not on hpsbuf)
+     */
+    uint64_t next_packet_send;
 } mlvpn_pkt_t;
 
 /* TCP overhead = 66 Bytes on the wire */
@@ -77,10 +82,22 @@ typedef struct mlvpn_pkt
 //#define MAX_PKT_LEN (RTUN_RW_MAX - 8) /* 8 bytes for magic + len */
 #define MAX_PKT_LEN 1500
 
+/* Latency increase in micros */
+#define LATENCY_INCREASE 1000 * 10
+
 typedef struct pktbuffer_s
 {
     size_t len;
     mlvpn_pkt_t *pkts;
+    /* This represents the bandwidth to use on this queue
+     * in bytes per second.
+     * Set to <= 0 for not limiting bandwidth.
+     *
+     * The above flag is calculated from the bandwidth
+     * using the following formula:
+     * next_packet_send = now_in_millis + 1/(bandwidth/packetlen)
+     */
+    uint32_t bandwidth;
 } pktbuffer_t;
 
 struct mlvpn_ether
@@ -121,10 +138,11 @@ typedef struct mlvpn_tunnel_s
     int server_mode;      /* server or client */
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
-    time_t next_attempt;  /* enxt connection attempt */
+    time_t next_attempt;  /* next connection attempt */
     uint8_t weight;       /* For weight round robin */
     uint64_t sendpackets; /* 64bit packets send counter */
     pktbuffer_t *sbuf;    /* send buffer */
+    pktbuffer_t *hpsbuf;  /* high priority buffer */
     struct mlvpn_buffer rbuf;    /* receive buffer */
     struct mlvpn_tunnel_s *next; /* chained list to next element */
     int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
@@ -136,9 +154,20 @@ static struct tuntap_s tuntap;
 static pktbuffer_t *tap_send;
 static mlvpn_tunnel_t *rtun_start = NULL;
 
+uint64_t mlvpn_millis()
+{
+    struct timeval tv;
+    if (gettimeofday(&tv, NULL) != 0)
+    {
+        perror("gettimeofday");
+        return 1;
+    }
+    return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+}
+
 /* Build a new pkt and insert into pktbuffer */
 int
-mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len, int timing)
+mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len)
 {
     mlvpn_pkt_t pkt;
     if (len > MAX_PKT_LEN)
@@ -149,27 +178,10 @@ mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len, int timing)
     }
     pkt.pktdata.magic = MLVPN_MAGIC;
     pkt.pktdata.len = len;
+    pkt.next_packet_send = 0;
+
     memcpy(pkt.pktdata.data, data, len);
-
-    /* We need to store timing informations for latency normalization
-     * priorization or trafic shapping
-     * 
-     * We do not waste gettimeofday syscalls for tuntap device
-     * as it's useless to shape/normalize on tuntap device!
-     */
-    if (timing)
-    {
-        struct timeval tv;
-        if (gettimeofday(&tv, NULL) != 0)
-        {
-            perror("gettimeofday");
-        } else {
-            memcpy(&pkt.rcv_tv, &tv, sizeof(struct timeval));
-        }
-    }
-
     memcpy(&buf->pkts[buf->len], &pkt, sizeof(mlvpn_pkt_t));
-
     return ++buf->len;
 }
 
@@ -254,10 +266,17 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
 
     new->sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
     new->sbuf->len = 0;
+    new->sbuf->bandwidth = 0;
+
+    new->hpsbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
+    new->hpsbuf->len = 0;
+    new->hpsbuf->bandwidth = 0;
+
     memset(new->rbuf.data, 0, BUFSIZE);
     new->rbuf.len = 0;
     
     new->sbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
+    new->hpsbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
 
     /* insert into chained list */
     last = mlvpn_rtun_last();
@@ -315,7 +334,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
 {
     int ret, fd;
     char *addr, *port;
-    struct addrinfo hints, *res, *back;
+    struct addrinfo hints, *res;
 
     fd = t->fd;
     if (t->server_mode)
@@ -349,7 +368,6 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     }
     res = t->addrinfo;
 
-    back = res;
     while (res)
     {
         /* creation de la socket(2) */
@@ -421,10 +439,8 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         res = res->ai_next;
     }
     
-//    freeaddrinfo(back);
     return 0;
 error:
-//    freeaddrinfo(back);
     return -1;
 }
 
@@ -672,19 +688,22 @@ int mlvpn_read_tap()
 {
     int len;
     char buffer[DEFAULT_MTU];
+    pktbuffer_t *sbuf;
+    mlvpn_tunnel_t *lpt;
 
     /* least packets tunnel */
-    mlvpn_tunnel_t *lpt = mlvpn_choose_least_packets_rtun();
+    lpt = mlvpn_choose_least_packets_rtun();
+    sbuf = lpt->sbuf;
 
     len = read(tuntap.fd, buffer, DEFAULT_MTU);
     if (len < 0)
     {
         perror("read");
     } else if (len > 0) {
+        struct mlvpn_ipv4 ip4;
+
         /* Horrible debug */
         printf("< TAP\t");
-        print_frame(buffer);
-
         if (! lpt)
         {
             printf(" [ERR]\n");
@@ -692,13 +711,22 @@ int mlvpn_read_tap()
         } else {
             printf("\n");
         }
-        
-        if (lpt->sbuf->len+1 > PKTBUFSIZE)
+
+        decap_ip4_frame(&ip4, buffer);
+        print_ip4(&ip4);
+        /* icmp ? */
+        if (ip4.proto & 0x01)
+        {
+            fprintf(stderr, "ICMP detected!\n");
+            sbuf = lpt->hpsbuf;
+        }
+
+        if (sbuf->len+1 > PKTBUFSIZE)
         {
             fprintf(stderr, "TUN %d buffer overrun.\n", lpt->fd);
-            lpt->sbuf->len = 0;
+            sbuf->len = 0;
         }
-        mlvpn_put_pkt(lpt->sbuf, buffer, len, 1);
+        mlvpn_put_pkt(sbuf, buffer, len);
     }
     return len;
 }
@@ -759,7 +787,7 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
                     fprintf(stderr, "TAP buffer overrun.\n");
                     tap_send->len = 0;
                 }
-                mlvpn_put_pkt(tap_send, pktdata.data, pktdata.len, 0);
+                mlvpn_put_pkt(tap_send, pktdata.data, pktdata.len);
 
                 /* shift read buffer to the right */
                 /* -1 because of i++ in the loop */
@@ -844,11 +872,12 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     return len;
 }
 
-int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
+int mlvpn_write_rtun_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
 {
     int len;
     int wlen;
-    mlvpn_pkt_t *pkt = &tun->sbuf->pkts[0];
+    mlvpn_pkt_t *pkt = &pktbuf->pkts[0];
+
     wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
 
     if (tun->encap_prot == ENCAP_PROTO_TCP)
@@ -870,11 +899,64 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
             fprintf(stderr, "Error writing on TUN %d: written %d bytes over %d.\n",
                 tun->fd, len, wlen);
         } else {
-            printf("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, (int)tun->sbuf->len - 1);
+            printf("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, (int)pktbuf->len - 1);
         }
     }
-    mlvpn_pop_pkt(tun->sbuf);
+    mlvpn_pop_pkt(pktbuf);
     return len;
+}
+
+int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
+{
+    int bytes = 0;
+    if (tun->hpsbuf->len > 0)
+    {
+        bytes += mlvpn_write_rtun_pkt(tun, tun->hpsbuf);
+    }
+
+    if (tun->sbuf->len > 0)
+    {
+        bytes += mlvpn_write_rtun_pkt(tun, tun->sbuf);
+    }
+    return bytes;
+}
+
+int
+mlvpn_timer_rtun_send(mlvpn_tunnel_t *t)
+{
+    int bytesent = -1;
+    uint64_t now;
+    mlvpn_pkt_t *pkt;
+
+    /* Send high priority buffer as soon as possible */
+    if (t->hpsbuf->len > 0)
+    {
+        bytesent = mlvpn_write_rtun_pkt(t, t->hpsbuf);
+    }
+
+    if (t->sbuf->len <= 0)
+        return bytesent;
+
+    pkt = &t->sbuf->pkts[0];
+    now = mlvpn_millis();
+    if (now >= pkt->next_packet_send || pkt->next_packet_send == 0)
+    {
+        bytesent += mlvpn_write_rtun_pkt(t, t->sbuf);
+        if (t->sbuf->len > 0)
+        {
+            pkt = &t->sbuf->pkts[0];
+            if (t->sbuf->bandwidth > 0 && pkt->pktdata.len > 0)
+            {
+                pkt->next_packet_send = mlvpn_millis() + 
+                    1000/(t->sbuf->bandwidth/pkt->pktdata.len);
+//                pkt->next_packet_send = mlvpn_millis() + 100;
+            }
+        }
+    } else {
+        /* need some sleep to avoid 100% cpu */
+        usleep(500);
+    }
+    return bytesent;
 }
 
 void init_buffers()
@@ -882,6 +964,7 @@ void init_buffers()
     tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
     tap_send->len = 0;
     tap_send->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
+    tap_send->bandwidth = 0;
 }
 
 int main(int argc, char **argv)
@@ -915,8 +998,9 @@ int main(int argc, char **argv)
     }
     */
     tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp.zehome.com", "5080", 0);
-    tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp1.zehome.com", "5081", 0);
-    tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp2.zehome.com", "5082", 0);
+    tmptun->sbuf->bandwidth = 60*1024; /* 30KB/s bandwidth */
+    //tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp1.zehome.com", "5081", 0);
+    //tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp2.zehome.com", "5082", 0);
 
     /* srv */
     /*
@@ -956,7 +1040,7 @@ int main(int argc, char **argv)
         {
             if (tmptun->fd > 0)
             {
-                if (tmptun->sbuf->len > 0)
+                if (tmptun->sbuf->len > 0 || tmptun->hpsbuf->len > 0)
                     FD_SET(tmptun->fd, &wfds);
                 FD_SET(tmptun->fd, &rfds);
                 if (tmptun->fd > maxfd)
@@ -983,10 +1067,20 @@ int main(int argc, char **argv)
                     if (FD_ISSET(tmptun->fd, &rfds))
                         mlvpn_read_rtun(tmptun);
                     if (FD_ISSET(tmptun->fd, &wfds))
-                        mlvpn_write_rtun(tmptun);
+                    {
+                        if (LATENCY_INCREASE > 0)
+                        {
+                            mlvpn_timer_rtun_send(tmptun);
+                        } else {
+                            mlvpn_write_rtun(tmptun);
+                        }
+                    }
                 }
                 tmptun = tmptun->next;
             }
+        } else if (ret == 0) {
+            /* timeout, check for "normalize sending" */
+
         } else if (ret < 0) {
             /* Error */
             perror("select");
