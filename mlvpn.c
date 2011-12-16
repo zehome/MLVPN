@@ -517,7 +517,7 @@ mlvpn_choose_least_packets_rtun()
 
     while (t)
     {
-        if (t->fd > 0)
+        if (t->fd > 0 && t->activated)
         {
             tmp = (t->sendpackets * t->weight);
             if (tmp <= least)
