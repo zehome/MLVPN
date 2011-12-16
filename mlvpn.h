@@ -1,0 +1,91 @@
+#ifndef _MLVPN_H
+#define _MLVPN_H
+
+#include <stdint.h>
+#include <arpa/inet.h>
+#include <linux/if_tun.h>
+#include <linux/if.h>
+
+#include "pkt.h"
+#include "buffer.h"
+
+#define MLVPN_ETH_IP4 0x0800
+#define MLVPN_ETH_IP6 0x86DD
+#define MLVPN_ETH_ARP 0x0806
+
+#define MLVPN_MAXHNAMSTR 1024
+#define MLVPN_MAXPORTSTR 5
+#define MLVPN_MAGIC 0xFFEEDD00
+
+/* 4 Kbytes re-assembly buffer */
+#define BUFSIZE 1024 * 4
+/* Number of packets in the queue. Each pkt is ~ 1520 */
+/* 1520 * 128 ~= 24 KBytes of data maximum per channel VMSize */
+#define PKTBUFSIZE 128
+/* Maximum channels */
+#define MAXTUNNELS 128
+
+struct tuntap_s
+{
+    int fd;
+    int mtu;
+    char devname[IFNAMSIZ];
+};
+
+
+struct mlvpn_ether
+{
+    uint8_t src[6];
+    uint8_t dst[6];
+    uint16_t proto;
+};
+
+struct mlvpn_ipv4
+{
+    uint8_t version_and_length;
+    uint8_t tos;
+    uint16_t length;
+    uint16_t id;
+    uint16_t frag;
+    uint8_t ttl;
+    uint8_t proto;
+    uint16_t checksum;
+    uint32_t src;
+    uint32_t dst;
+};
+
+struct mlvpn_buffer
+{
+    size_t len;
+    char data[BUFSIZE];
+};
+
+typedef struct mlvpn_tunnel_s
+{
+    char *bindaddr;       /* packets source */
+    char *bindport;       /* packets port source (or NULL) */
+    char *destaddr;       /* remote server ip (can be hostname) */
+    char *destport;       /* remote server port */
+    int fd;               /* socket file descriptor */
+    int server_fd;        /* server socket (used to accept) */
+    int server_mode;      /* server or client */
+    int disconnects;      /* is it stable ? */
+    int conn_attempts;    /* connection attempts */
+    time_t next_attempt;  /* next connection attempt */
+    uint8_t weight;       /* For weight round robin */
+    uint64_t sendpackets; /* 64bit packets send counter */
+    pktbuffer_t *sbuf;    /* send buffer */
+    pktbuffer_t *hpsbuf;  /* high priority buffer */
+    struct mlvpn_buffer rbuf;    /* receive buffer */
+    struct mlvpn_tunnel_s *next; /* chained list to next element */
+    int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
+    struct addrinfo *addrinfo;
+    int activated;
+} mlvpn_tunnel_t;
+
+enum {
+    ENCAP_PROTO_UDP,
+    ENCAP_PROTO_TCP
+};
+
+#endif
