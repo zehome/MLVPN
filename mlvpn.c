@@ -17,137 +17,15 @@
 #include <time.h>
 
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/time.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
-#include <arpa/inet.h>
-#include <linux/if_tun.h>
-#include <linux/if.h>
 
-#define MLVPN_ETH_IP4 0x0800
-#define MLVPN_ETH_IP6 0x86DD
-#define MLVPN_ETH_ARP 0x0806
-
-#define MLVPN_MAXHNAMSTR 1024
-#define MLVPN_MAXPORTSTR 5
-
-/* 4 Kbytes re-assembly buffer */
-#define BUFSIZE 1024 * 4
-/* Number of packets in the queue. Each pkt is ~ 1520 */
-/* 1520 * 1024 ~= 1.5 MByte of data maximum per channel VMSize */
-#define PKTBUFSIZE 1024
-/* Maximum channels */
-#define MAXTUNNELS 128
-
-#define ENCAP_PROTO_UDP 0
-#define ENCAP_PROTO_TCP 1
-
-struct tuntap_s
-{
-    int fd;
-    int mtu;
-    char devname[IFNAMSIZ];
-};
-
-#define DEFAULT_MTU 1500
-#define MLVPN_MAGIC 0xFFEEDD00
-struct mlvpn_pktdata
-{
-    uint32_t magic;
-    uint32_t len;
-    char data[DEFAULT_MTU];
-};
-#define PKTHDRSIZ(pktdata) (sizeof(pktdata)-sizeof(pktdata.data))
-
-typedef struct mlvpn_pkt
-{
-    struct mlvpn_pktdata pktdata;
-    /* This variable permits to "sleep" some time before
-     * sending a new packet.
-     * This is used to permit trafic shaping
-     * on the "bulk" queue (sbuf not on hpsbuf)
-     */
-    uint64_t next_packet_send;
-} mlvpn_pkt_t;
-
-/* TCP overhead = 66 Bytes on the wire */
-#define TCP_OVERHEAD 66
-#define TUNTAP_RW_MAX DEFAULT_MTU
-#define RTUN_RW_MAX (DEFAULT_MTU - TCP_OVERHEAD)
-//#define MAX_PKT_LEN (RTUN_RW_MAX - 8) /* 8 bytes for magic + len */
-#define MAX_PKT_LEN 1500
-
-/* Latency increase in micros */
-#define LATENCY_INCREASE 1000 * 10
-
-typedef struct pktbuffer_s
-{
-    size_t len;
-    mlvpn_pkt_t *pkts;
-    /* This represents the bandwidth to use on this queue
-     * in bytes per second.
-     * Set to <= 0 for not limiting bandwidth.
-     *
-     * The above flag is calculated from the bandwidth
-     * using the following formula:
-     * next_packet_send = now_in_millis + 1/(bandwidth/packetlen)
-     */
-    uint32_t bandwidth;
-} pktbuffer_t;
-
-struct mlvpn_ether
-{
-    uint8_t src[6];
-    uint8_t dst[6];
-    uint16_t proto;
-};
-
-struct mlvpn_ipv4
-{
-    uint8_t version_and_length;
-    uint8_t tos;
-    uint16_t length;
-    uint16_t id;
-    uint16_t frag;
-    uint8_t ttl;
-    uint8_t proto;
-    uint16_t checksum;
-    uint32_t src;
-    uint32_t dst;
-};
-
-struct mlvpn_buffer
-{
-    size_t len;
-    char data[BUFSIZE];
-};
-
-typedef struct mlvpn_tunnel_s
-{
-    char *bindaddr;       /* packets source */
-    char *bindport;       /* packets port source (or NULL) */
-    char *destaddr;       /* remote server ip (can be hostname) */
-    char *destport;       /* remote server port */
-    int fd;               /* socket file descriptor */
-    int server_fd;        /* server socket (used to accept) */
-    int server_mode;      /* server or client */
-    int disconnects;      /* is it stable ? */
-    int conn_attempts;    /* connection attempts */
-    time_t next_attempt;  /* next connection attempt */
-    uint8_t weight;       /* For weight round robin */
-    uint64_t sendpackets; /* 64bit packets send counter */
-    pktbuffer_t *sbuf;    /* send buffer */
-    pktbuffer_t *hpsbuf;  /* high priority buffer */
-    struct mlvpn_buffer rbuf;    /* receive buffer */
-    struct mlvpn_tunnel_s *next; /* chained list to next element */
-    int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
-    struct addrinfo *addrinfo;
-} mlvpn_tunnel_t;
+#include "debug.h"
+#include "mlvpn.h"
 
 /* GLOBALS */
 static struct tuntap_s tuntap;
@@ -163,35 +41,6 @@ uint64_t mlvpn_millis()
         return 1;
     }
     return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-}
-
-/* Build a new pkt and insert into pktbuffer */
-int
-mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len)
-{
-    mlvpn_pkt_t pkt;
-    if (len > MAX_PKT_LEN)
-    {
-        fprintf(stderr, "Packet len %u overlimit (%u)!\n", 
-            (uint32_t)len, (uint32_t) MAX_PKT_LEN);
-        return -1;
-    }
-    pkt.pktdata.magic = MLVPN_MAGIC;
-    pkt.pktdata.len = len;
-    pkt.next_packet_send = 0;
-
-    memcpy(pkt.pktdata.data, data, len);
-    memcpy(&buf->pkts[buf->len], &pkt, sizeof(mlvpn_pkt_t));
-    return ++buf->len;
-}
-
-void
-mlvpn_pop_pkt(pktbuffer_t *buf)
-{
-    int i;
-    for (i = 0; i < buf->len-1; i++)
-        memmove(&buf->pkts[i], &buf->pkts[i+1], sizeof(mlvpn_pkt_t));
-    buf->len -= 1;
 }
 
 mlvpn_tunnel_t *
@@ -218,13 +67,13 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     {
         if (bindaddr == NULL || bindport == NULL)
         {
-            fprintf(stderr, "Can initialize socket with null bindaddr:bindport.\n");
+            _ERROR("Can initialize socket with null bindaddr:bindport.\n");
             return NULL;
         }
     } else {
         if (destaddr == NULL || destport == NULL)
         {
-            fprintf(stderr, "Can initialize socket with null destaddr:destport.\n");
+            _ERROR("Can initialize socket with null destaddr:destport.\n");
             return NULL;
         }
     }
@@ -236,6 +85,7 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     new->server_mode = server_mode;
     new->server_fd = -1;
     new->weight = 1;
+    new->activated = 0;
     new->encap_prot = ENCAP_PROTO_UDP;
     new->addrinfo = (struct addrinfo *)malloc(sizeof(struct addrinfo));
     memset(new->addrinfo, 0, sizeof(struct addrinfo));
@@ -314,13 +164,13 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
     n = getaddrinfo(t->bindaddr, t->bindport, &hints, &res);
     if (n < 0)
     {
-        fprintf(stderr, "getaddrinfo error: [%s]\n", gai_strerror(n));
+        _ERROR("getaddrinfo error: [%s]\n", gai_strerror(n));
         return -1;
     }
 
     /* Try open socket with each address getaddrinfo returned,
        until getting a valid listening socket. */
-    printf("Binding socket %d to %s\n", fd, t->bindaddr);
+    _INFO("Binding socket %d to %s\n", fd, t->bindaddr);
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     if (n < 0)
     {
@@ -343,11 +193,11 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             fd = t->server_fd;
         addr = t->bindaddr;
         port = t->bindport;
-        printf("server_rtun_connect %s %s\n", addr, port);
+        _INFO("server_rtun_connect %s %s\n", addr, port);
     } else {
         addr = t->destaddr;
         port = t->destport;
-        printf("client_rtun_connect %s %s\n", addr, port);
+        _INFO("client_rtun_connect %s %s\n", addr, port);
     }
 
     /* Initialize hints */
@@ -363,7 +213,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     ret = getaddrinfo(addr, port, &hints, &t->addrinfo);
     if (ret < 0)
     {
-        fprintf(stderr, "Connection to [%s]:%s failed. getaddrinfo: [%s]\n", addr, port, gai_strerror(ret));
+        _ERROR("Connection to [%s]:%s failed. getaddrinfo: [%s]\n", addr, port, gai_strerror(ret));
         return -1;
     }
     res = t->addrinfo;
@@ -373,9 +223,9 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         /* creation de la socket(2) */
         if ( (fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0)
         {
-            fprintf(stderr, "Socket creation error while connecting to [%s]: %s\n", addr, port);
+            _ERROR("Socket creation error while connecting to [%s]: %s\n", addr, port);
         } else {
-            fprintf(stderr, "Created socket %d.\n", fd);
+            _ERROR("Created socket %d.\n", fd);
             if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
                 t->server_fd = fd;
             else
@@ -390,7 +240,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             {
                 if (mlvpn_rtun_bind(t) < 0)
                 {
-                    fprintf(stderr, "Unable to bind socket %d.\n", fd);
+                    _ERROR("Unable to bind socket %d.\n", fd);
                     if (t->server_mode)
                         goto error;
                 }
@@ -402,19 +252,19 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                     /* listen, only allow 1 socket in accept() queue */
                     if ((ret = listen(fd, 1)) < 0)
                     {
-                        fprintf(stderr, "Unable to listen on socket %d.\n", fd);
+                        _ERROR("Unable to listen on socket %d.\n", fd);
                         goto error;
                     }
                 } else {
                     /* client mode */
-                    fprintf(stderr, "Connecting to [%s]:%s\n", addr, port);
+                    _ERROR("Connecting to [%s]:%s\n", addr, port);
                     /* connect(2) */
                     if (connect(fd, res->ai_addr, res->ai_addrlen) == 0)
                     {
-                        fprintf(stderr, "Successfully connected to [%s]:%s.\n", addr, port);
+                        _ERROR("Successfully connected to [%s]:%s.\n", addr, port);
                         break;
                     } else {
-                        fprintf(stderr, "Connection to [%s]:%s failed.\n", addr, port);
+                        _ERROR("Connection to [%s]:%s failed.\n", addr, port);
                         perror("connect");
                         close(fd);
                         t->fd = -1;
@@ -425,13 +275,13 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             long fl = fcntl(fd, F_GETFL);
             if (fl < 0)
             {
-                fprintf(stderr, "Error during fcntl.\n");
+                _ERROR("Error during fcntl.\n");
                 perror("fcntl F_GETFL");
             } else {
                 fl |= O_NONBLOCK;
                 if (fcntl(fd, F_SETFL, fl) < 0)
                 {
-                    fprintf(stderr, "Unable to set socket %d non blocking.\n", fd);
+                    _ERROR("Unable to set socket %d non blocking.\n", fd);
                     perror("fcntl F_SETFL");
                 }
             }
@@ -507,26 +357,27 @@ int mlvpn_server_accept()
                             clienthost, sizeof(clienthost),
                             clientservice, sizeof(clientservice),
                             NI_NUMERICHOST|NI_NUMERICSERV);
-                fprintf(stderr, "Connection attempt from [%s]:%s.\n", 
+                _ERROR("Connection attempt from [%s]:%s.\n", 
                     clienthost, clientservice);
                 if (t->fd >= 0)
                 {
-                    fprintf(stderr, "Overwritting already existing connection.\n");
+                    _ERROR("Overwritting already existing connection.\n");
                     close(t->fd);
                     t->fd = -1;
+                    t->activated = 1;
                 }
                 t->fd = fd;
 
                 long fl = fcntl(t->fd, F_GETFL);
                 if (fl < 0)
                 {
-                    fprintf(stderr, "Error during fcntl.\n");
+                    _ERROR("Error during fcntl.\n");
                     perror("fcntl F_GETFL");
                 } else {
                     fl |= O_NONBLOCK;
                     if (fcntl(t->fd, F_SETFL, fl) < 0)
                     {
-                        fprintf(stderr, "Unable to set socket %d non blocking.\n", t->fd);
+                        _ERROR("Unable to set socket %d non blocking.\n", t->fd);
                         perror("fcntl F_SETFL");
                     }
                 }
@@ -544,7 +395,7 @@ int mlvpn_taptun_alloc()
 
     if ( (fd = open("/dev/net/tun", O_RDWR)) < 0 )
     {
-        fprintf(stderr, "Unable to open /dev/net/tun RW. Check permissions.\n");
+        _ERROR("Unable to open /dev/net/tun RW. Check permissions.\n");
         return fd;
     }
     
@@ -555,14 +406,12 @@ int mlvpn_taptun_alloc()
      * will find a name for us.
      */
     if (tuntap.devname)
-    {
         strncpy(ifr.ifr_name, tuntap.devname, IFNAMSIZ);
-    }
 
     /* ioctl to create the if */
     if ( (err = ioctl(fd, TUNSETIFF, (void *) &ifr)) < 0)
     {
-        fprintf(stderr, "Unable to create the device. Kernel returned %d.\n", err);
+        _ERROR("Unable to create the device. Kernel returned %d.\n", err);
         perror("ioctl");
         close(fd);
         return err;
@@ -646,16 +495,16 @@ decap_ip4_frame(struct mlvpn_ipv4 *ip4, const void *buffer)
 void print_frame(const char *frame)
 {
     /* decap packet to get TOS */
-    //struct mlvpn_ether ether;
+    struct mlvpn_ether ether;
     struct mlvpn_ipv4 ip4;
-    //decap_ethernet_frame(&ether, frame);
-    //print_ether(&ether);
-    //if (ntohs(ether.proto) == MLVPN_ETH_IP4)
-    //{
-    //    //decap_ip4_frame(&ip4, frame+sizeof(struct mlvpn_ether));
+    decap_ethernet_frame(&ether, frame);
+    print_ether(&ether);
+    if (ntohs(ether.proto) == MLVPN_ETH_IP4)
+    {
+        decap_ip4_frame(&ip4, frame+sizeof(struct mlvpn_ether));
         decap_ip4_frame(&ip4, frame);
         print_ip4(&ip4);
-    //}
+    }
 }
 
 mlvpn_tunnel_t *
@@ -693,6 +542,9 @@ int mlvpn_read_tap()
 
     /* least packets tunnel */
     lpt = mlvpn_choose_least_packets_rtun();
+    if (! lpt)
+        return 0;
+
     sbuf = lpt->sbuf;
 
     len = read(tuntap.fd, buffer, DEFAULT_MTU);
@@ -701,29 +553,15 @@ int mlvpn_read_tap()
         perror("read");
     } else if (len > 0) {
         struct mlvpn_ipv4 ip4;
-
-        /* Horrible debug */
-        printf("< TAP\t");
-        if (! lpt)
-        {
-            printf(" [ERR]\n");
-            return 0;
-        } else {
-            printf("\n");
-        }
-
         decap_ip4_frame(&ip4, buffer);
-        print_ip4(&ip4);
+
         /* icmp ? */
-        if (ip4.proto & 0x01)
-        {
-            fprintf(stderr, "ICMP detected!\n");
+        if (ip4.proto & 0x01 || ip4.tos & 0x10)
             sbuf = lpt->hpsbuf;
-        }
 
         if (sbuf->len+1 > PKTBUFSIZE)
         {
-            fprintf(stderr, "TUN %d buffer overrun.\n", lpt->fd);
+            _WARNING("TUN %d buffer overrun.\n", lpt->fd);
             sbuf->len = 0;
         }
         mlvpn_put_pkt(sbuf, buffer, len);
@@ -739,7 +577,7 @@ int mlvpn_write_tap()
 
     if (buf->len <= 0)
     {
-        fprintf(stderr, 
+        _ERROR( 
             "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n", (int)buf->len);
         return -1;
     }
@@ -747,14 +585,14 @@ int mlvpn_write_tap()
     len = write(tuntap.fd, pkt->pktdata.data, pkt->pktdata.len);
     if (len < 0)
     {
-        fprintf(stderr, "Write error on tuntap.\n");
+        _ERROR("Write error on tuntap.\n");
         perror("write");
     } else {
         if (len != pkt->pktdata.len)
         {
-            fprintf(stderr, "Error writing to tap device: written %d bytes out of %d.\n", len, pkt->pktdata.len);
+            _ERROR("Error writing to tap device: written %d bytes out of %d.\n", len, pkt->pktdata.len);
         } else {
-            printf("> Written %d bytes on TAP (%d pkts left).\n", len, (int)buf->len);
+            _DEBUG("> Written %d bytes on TAP (%d pkts left).\n", len, (int)buf->len);
         }
     }
     mlvpn_pop_pkt(buf);
@@ -780,11 +618,10 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
             if (tun->rbuf.len - i >= pktdata.len+PKTHDRSIZ(pktdata))
             {
                 /* Valid packet, copy the rest */
-                printf("Valid pkt found. Len=%d\n", pktdata.len);
                 memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata)+pktdata.len);
                 if (tap_send->len+1 > PKTBUFSIZE)
                 {
-                    fprintf(stderr, "TAP buffer overrun.\n");
+                    _ERROR("TAP buffer overrun.\n");
                     tap_send->len = 0;
                 }
                 mlvpn_put_pkt(tap_send, pktdata.data, pktdata.len);
@@ -797,7 +634,7 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
                 memset(&pktdata, 0, sizeof(pktdata));
                 pkts++;
             } else {
-                printf("Found pkt but not enough data. Len=%d available=%d\n", (int)pktdata.len, (int)(tun->rbuf.len - i));
+                _DEBUG("Found pkt but not enough data. Len=%d available=%d\n", (int)pktdata.len, (int)(tun->rbuf.len - i));
             }
         }
     }
@@ -828,7 +665,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     rlen = BUFSIZE - tun->rbuf.len;
     if (rlen <= 0)
     {
-        fprintf(stderr, "Tun %d receive buffer overrun.\n", tun->fd);
+        _WARNING("Tun %d receive buffer overrun.\n", tun->fd);
         tun->rbuf.len = 0;
     }
     
@@ -848,7 +685,7 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
     } else if (len > 0) {
         if (tun->encap_prot == ENCAP_PROTO_TCP)
         {
-            printf("< TUN %d read %d bytes.\n", tun->fd, len);
+            _DEBUG("< TUN %d read %d bytes.\n", tun->fd, len);
         } else {
             char clienthost[NI_MAXHOST];
             char clientport[NI_MAXSERV];
@@ -856,13 +693,14 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
                 clienthost, sizeof(clienthost),
                 clientport, sizeof(clientport),
                 NI_NUMERICHOST|NI_NUMERICSERV);
-            printf("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len, 
+            _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len, 
                 clienthost, clientport);
             if (! tun->addrinfo->ai_addrlen)
                 tun->addrinfo->ai_addrlen = addrlen;
             if (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0)
             {
-                printf("New UDP connection detected.\n");
+                tun->activated = 1;
+                _DEBUG("New UDP connection detected.\n");
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
@@ -889,17 +727,17 @@ int mlvpn_write_rtun_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
     }
     if (len < 0)
     {
-        fprintf(stderr, "Write error on tunnel fd=%d\n", tun->fd);
+        _ERROR("Write error on tunnel fd=%d\n", tun->fd);
         perror("write");
         close(tun->fd);
         tun->fd = -1;
     } else {
         if (wlen != len)
         {
-            fprintf(stderr, "Error writing on TUN %d: written %d bytes over %d.\n",
+            _ERROR("Error writing on TUN %d: written %d bytes over %d.\n",
                 tun->fd, len, wlen);
         } else {
-            printf("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, (int)pktbuf->len - 1);
+            _DEBUG("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, (int)pktbuf->len - 1);
         }
     }
     mlvpn_pop_pkt(pktbuf);
@@ -910,14 +748,11 @@ int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
 {
     int bytes = 0;
     if (tun->hpsbuf->len > 0)
-    {
         bytes += mlvpn_write_rtun_pkt(tun, tun->hpsbuf);
-    }
 
     if (tun->sbuf->len > 0)
-    {
         bytes += mlvpn_write_rtun_pkt(tun, tun->sbuf);
-    }
+
     return bytes;
 }
 
@@ -949,7 +784,6 @@ mlvpn_timer_rtun_send(mlvpn_tunnel_t *t)
             {
                 pkt->next_packet_send = mlvpn_millis() + 
                     1000/(t->sbuf->bandwidth/pkt->pktdata.len);
-//                pkt->next_packet_send = mlvpn_millis() + 100;
             }
         }
     } else {
@@ -981,10 +815,10 @@ int main(int argc, char **argv)
     ret = mlvpn_taptun_alloc();
     if (ret <= 0)
     {
-        fprintf(stderr, "Unable to create tunnel device.\n");
+        _ERROR("Unable to create tunnel device.\n");
         return 1;
     } else {
-        fprintf(stderr, "Created tap interface %s\n", tuntap.devname);
+        _INFO("Created tap interface %s\n", tuntap.devname);
     }
     
     /* client */
@@ -1067,14 +901,7 @@ int main(int argc, char **argv)
                     if (FD_ISSET(tmptun->fd, &rfds))
                         mlvpn_read_rtun(tmptun);
                     if (FD_ISSET(tmptun->fd, &wfds))
-                    {
-                        if (LATENCY_INCREASE > 0)
-                        {
-                            mlvpn_timer_rtun_send(tmptun);
-                        } else {
-                            mlvpn_write_rtun(tmptun);
-                        }
-                    }
+                        mlvpn_timer_rtun_send(tmptun);
                 }
                 tmptun = tmptun->next;
             }
