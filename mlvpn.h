@@ -82,6 +82,7 @@ typedef struct mlvpn_tunnel_s
     struct addrinfo *addrinfo;
     int activated;
     time_t last_packet_time; /* Used to timeout the link */
+    time_t timeout;
 } mlvpn_tunnel_t;
 
 enum {

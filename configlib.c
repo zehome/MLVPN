@@ -319,7 +319,7 @@ confObj_t *_conf_parseLine( char *line, unsigned int linelen, unsigned int linen
   
   if ((j == 0) || (confObj->var == NULL))
   {
-    _ERROR("Parse error near line %d: Variable not found.\n", linenum);
+    /* _ERROR("Parse error near line %d: Variable not found.\n", linenum); */
     free(confObj);
     free(buf);
     return NULL;
