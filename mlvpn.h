@@ -81,6 +81,7 @@ typedef struct mlvpn_tunnel_s
     int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
     struct addrinfo *addrinfo;
     int activated;
+    time_t last_packet_time; /* Used to timeout the link */
 } mlvpn_tunnel_t;
 
 enum {
@@ -89,5 +90,22 @@ enum {
 };
 
 int mlvpn_config(char *filename);
+
+uint64_t mlvpn_millis();
+
+mlvpn_tunnel_t *mlvpn_rtun_last();
+
+void mlvpn_tick_rtun(mlvpn_tunnel_t *t);
+
+mlvpn_tunnel_t *
+mlvpn_rtun_new(const char *bindaddr, const char *bindport,
+               const char *destaddr, const char *destport,
+               int server_mode);
+
+int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
+
+int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
+
+void mlvpn_rtun_tick_connect();
 
 #endif

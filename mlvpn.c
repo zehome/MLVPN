@@ -56,6 +56,13 @@ mlvpn_rtun_last()
     return t;
 }
 
+void
+mlvpn_rtun_tick(mlvpn_tunnel_t *t)
+{
+    t->last_packet_time = time((time_t *)NULL);
+}
+
+
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
@@ -129,6 +136,8 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     
     new->sbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
     new->hpsbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
+    
+    mlvpn_rtun_tick(new);
 
     /* insert into chained list */
     last = mlvpn_rtun_last();
@@ -264,6 +273,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                     if (connect(fd, res->ai_addr, res->ai_addrlen) == 0)
                     {
                         _ERROR("Successfully connected to [%s]:%s.\n", addr, port);
+                        mlvpn_rtun_tick(t);
                         break;
                     } else {
                         _ERROR("Connection to [%s]:%s failed.\n", addr, port);
@@ -296,7 +306,7 @@ error:
     return -1;
 }
 
-void mlvpn_tick_connect_rtun()
+void mlvpn_rtun_tick_connect()
 {
     mlvpn_tunnel_t *t = rtun_start;
     int ret, fd;
@@ -535,7 +545,7 @@ mlvpn_choose_least_packets_rtun()
     return lpt;
 }
 
-int mlvpn_read_tap()
+int mlvpn_tuntap_read()
 {
     int len;
     char buffer[DEFAULT_MTU];
@@ -563,7 +573,7 @@ int mlvpn_read_tap()
 
         if (sbuf->len+1 > PKTBUFSIZE)
         {
-            _WARNING("TUN %d buffer overrun.\n", lpt->fd);
+            _WARNING("TUN %d buffer overflow.\n", lpt->fd);
             sbuf->len = 0;
         }
         mlvpn_put_pkt(sbuf, buffer, len);
@@ -571,7 +581,7 @@ int mlvpn_read_tap()
     return len;
 }
 
-int mlvpn_write_tap()
+int mlvpn_tuntap_write()
 {
     int len;
     mlvpn_pkt_t *pkt;
@@ -603,7 +613,7 @@ int mlvpn_write_tap()
 
 /* Pass thru the mlvpn_rbuf to find packets received
  * from the TCP/UDP channel and prepare packets for TUN/TAP device. */
-int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
+int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
 {
     struct mlvpn_pktdata pktdata;
     int i;
@@ -656,7 +666,7 @@ int mlvpn_tick_rtun_rbuf(mlvpn_tunnel_t *tun)
 }
 
 /* read from the rtunnel => write directly to the tap send buffer */
-int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
+int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
 {
     int len;
     int rlen;
@@ -707,12 +717,12 @@ int mlvpn_read_rtun(mlvpn_tunnel_t *tun)
             }
         }
         tun->rbuf.len += len;
-        mlvpn_tick_rtun_rbuf(tun);
+        mlvpn_rtun_tick_rbuf(tun);
     }
     return len;
 }
 
-int mlvpn_write_rtun_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
+int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
 {
     int len;
     int wlen;
@@ -746,20 +756,20 @@ int mlvpn_write_rtun_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
     return len;
 }
 
-int mlvpn_write_rtun(mlvpn_tunnel_t *tun)
+int mlvpn_rtun_write(mlvpn_tunnel_t *tun)
 {
     int bytes = 0;
     if (tun->hpsbuf->len > 0)
-        bytes += mlvpn_write_rtun_pkt(tun, tun->hpsbuf);
+        bytes += mlvpn_rtun_write_pkt(tun, tun->hpsbuf);
 
     if (tun->sbuf->len > 0)
-        bytes += mlvpn_write_rtun_pkt(tun, tun->sbuf);
+        bytes += mlvpn_rtun_write_pkt(tun, tun->sbuf);
 
     return bytes;
 }
 
 int
-mlvpn_timer_rtun_send(mlvpn_tunnel_t *t)
+mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
 {
     int bytesent = -1;
     uint64_t now;
@@ -768,7 +778,7 @@ mlvpn_timer_rtun_send(mlvpn_tunnel_t *t)
     /* Send high priority buffer as soon as possible */
     if (t->hpsbuf->len > 0)
     {
-        bytesent = mlvpn_write_rtun_pkt(t, t->hpsbuf);
+        bytesent = mlvpn_rtun_write_pkt(t, t->hpsbuf);
     }
 
     if (t->sbuf->len <= 0)
@@ -778,7 +788,7 @@ mlvpn_timer_rtun_send(mlvpn_tunnel_t *t)
     now = mlvpn_millis();
     if (now >= pkt->next_packet_send || pkt->next_packet_send == 0)
     {
-        bytesent += mlvpn_write_rtun_pkt(t, t->sbuf);
+        bytesent += mlvpn_rtun_write_pkt(t, t->sbuf);
         if (t->sbuf->len > 0)
         {
             pkt = &t->sbuf->pkts[0];
@@ -839,7 +849,7 @@ int main(int argc, char **argv)
     while ( 1 ) 
     {
         /* Connect rtun if not connected. tick if connected */
-        mlvpn_tick_connect_rtun();
+        mlvpn_rtun_tick_connect();
         mlvpn_server_accept();
 
         int maxfd = 0;
@@ -877,18 +887,18 @@ int main(int argc, char **argv)
         if (ret > 0)
         {
             if (FD_ISSET(tuntap.fd, &rfds))
-                mlvpn_read_tap();
+                mlvpn_tuntap_read();
             if (FD_ISSET(tuntap.fd, &wfds))
-                mlvpn_write_tap();
+                mlvpn_tuntap_write();
             tmptun = rtun_start;
             while (tmptun)
             {
                 if (tmptun->fd > 0)
                 {
                     if (FD_ISSET(tmptun->fd, &rfds))
-                        mlvpn_read_rtun(tmptun);
+                        mlvpn_rtun_read(tmptun);
                     if (FD_ISSET(tmptun->fd, &wfds))
-                        mlvpn_timer_rtun_send(tmptun);
+                        mlvpn_rtun_timer_write(tmptun);
                 }
                 tmptun = tmptun->next;
             }
