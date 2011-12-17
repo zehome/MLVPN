@@ -127,5 +127,6 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
                int server_mode);
 
 int mlvpn_server_accept();
+void mlvpn_rtun_close(mlvpn_tunnel_t *tun);
 
 #endif

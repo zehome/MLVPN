@@ -289,6 +289,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                             addr, port, strerror(errno));
                         close(fd);
                         t->fd = -1;
+                        t->activated = 0;
                         break;
                     }
                 }
@@ -386,8 +387,7 @@ int mlvpn_server_accept()
                 if (t->fd >= 0)
                 {
                     _ERROR("Overwritting already existing connection.\n");
-                    close(t->fd);
-                    t->activated = 1;
+                    mlvpn_rtun_close(t);
                 }
                 t->fd = fd;
                 mlvpn_rtun_reset_counters();
@@ -563,6 +563,26 @@ mlvpn_tunnel_t *mlvpn_rtun_choose()
     return lpt;
 }
 
+void mlvpn_rtun_check_timeout()
+{
+    mlvpn_tunnel_t *t = rtun_start;
+    time_t now = time((time_t *)NULL);
+
+    while (t)
+    {
+        if (t->fd > 0 && t->activated && t->timeout > 0)
+        {
+            if ((t->last_packet_time + t->timeout) >= now)
+            {
+                /* Timeout */
+                _INFO("Link %d timeout.\n");
+                mlvpn_rtun_close(t);
+            }
+        }
+        t = t->next;
+    }
+}
+
 int mlvpn_tuntap_read()
 {
     int len;
@@ -715,10 +735,7 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
     if (len < 0)
     {
         _ERROR("Read error on %d: %s\n", tun->fd, strerror(errno));
-        tun->rbuf.len = 0;
-        close(tun->fd);
-        tun->fd = -1;
-        mlvpn_rtun_reset_counters();
+        mlvpn_rtun_close(tun);
     } else if (len > 0) {
         if (tun->encap_prot == ENCAP_PROTO_TCP)
         {
@@ -773,9 +790,7 @@ int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
     if (len < 0)
     {
         _ERROR("Write error on %d: %s\n", tun->fd, strerror(errno));
-        close(tun->fd);
-        tun->fd = -1;
-        mlvpn_rtun_reset_counters();
+        mlvpn_rtun_close(tun);
     } else {
         if (wlen != len)
         {
@@ -837,6 +852,18 @@ mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
     return bytesent;
 }
 
+void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
+{
+    if (tun->fd > 0)
+        close(tun->fd);
+    tun->fd = -1;
+    tun->activated = 0;
+    tun->rbuf.len = 0;
+    tun->sbuf->len = 0;
+    tun->hpsbuf->len = 0;
+    mlvpn_rtun_reset_counters();
+}
+
 void init_buffers()
 {
     tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
@@ -848,11 +875,12 @@ void init_buffers()
 int main(int argc, char **argv)
 {
     int ret;
+    struct timeval timeout;
+    int maxfd = 0;
     char *cfgfilename = NULL;
-
     mlvpn_tunnel_t *tmptun;
 
-    printf("ML-VPN (c) 2011 Laurent Coustet\n");
+    printf("ML-VPN (c) 2012 Laurent Coustet\n\n");
     
     /* Command line option parsing */
     if (argc < 2)
@@ -880,12 +908,12 @@ int main(int argc, char **argv)
 
     while (1) 
     {
+        mlvpn_rtun_check_timeout();
+
         /* Connect rtun if not connected. tick if connected */
         mlvpn_rtun_tick_connect();
         mlvpn_server_accept();
 
-        int maxfd = 0;
-        struct timeval timeout;
         fd_set rfds, wfds;
         
         FD_ZERO(&rfds);
