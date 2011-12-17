@@ -400,7 +400,7 @@ int mlvpn_server_accept()
     return accepted;
 }
 
-int mlvpn_taptun_alloc()
+int mlvpn_tuntap_alloc()
 {
     struct ifreq ifr;
     int fd, err;
@@ -519,8 +519,14 @@ void print_frame(const char *frame)
     }
 }
 
-mlvpn_tunnel_t *
-mlvpn_choose_least_packets_rtun()
+void mlvpn_rtun_reset_counters()
+{
+    mlvpn_tunnel_t *t = rtun_start;
+    while (t)
+        t->sendpackets = 0;
+}
+
+mlvpn_tunnel_t *mlvpn_rtun_choose()
 {
     mlvpn_tunnel_t *t = rtun_start;
     mlvpn_tunnel_t *lpt = t;
@@ -553,7 +559,7 @@ int mlvpn_tuntap_read()
     mlvpn_tunnel_t *lpt;
 
     /* least packets tunnel */
-    lpt = mlvpn_choose_least_packets_rtun();
+    lpt = mlvpn_rtun_choose();
     if (! lpt)
         return 0;
 
@@ -835,7 +841,7 @@ int main(int argc, char **argv)
     memset(&tuntap, 0, sizeof(tuntap));
     snprintf(tuntap.devname, IFNAMSIZ, "mlvpn%d", 0);
     tuntap.mtu = 1500;
-    ret = mlvpn_taptun_alloc();
+    ret = mlvpn_tuntap_alloc();
     if (ret <= 0)
     {
         _ERROR("Unable to create tunnel device.\n");
