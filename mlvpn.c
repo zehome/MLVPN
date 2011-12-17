@@ -1049,7 +1049,7 @@ int mlvpn_config(char *filename)
 
                 tmptun = mlvpn_rtun_new(bindaddr, bindport, dstaddr, dstport,
                     server_mode);
-                tmptun->encap_proto = protocol;
+                tmptun->encap_prot = protocol;
 
                 if (bwlimit > 0)
                     tmptun->sbuf->bandwidth = bwlimit;
