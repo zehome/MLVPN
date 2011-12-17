@@ -90,22 +90,41 @@ enum {
 };
 
 int mlvpn_config(char *filename);
+void init_buffers();
 
 uint64_t mlvpn_millis();
 
+
+/* Should be elsewhere ! */
+void print_ether(struct mlvpn_ether *ether);
+void print_ip4(struct mlvpn_ipv4 *ip4);
+struct mlvpn_ether *
+decap_ethernet_frame(struct mlvpn_ether *ether, const void *buffer);
+struct mlvpn_ipv4 *
+decap_ip4_frame(struct mlvpn_ipv4 *ip4, const void *buffer);
+void print_frame(const char *frame);
+
+int mlvpn_tuntap_read();
+int mlvpn_tuntap_write();
+int mlvpn_taptun_alloc();
+
+void mlvpn_rtun_reset_counters();
+void mlvpn_rtun_tick(mlvpn_tunnel_t *t);
+void mlvpn_rtun_tick_connect();
+int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
+int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
+int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun);
+int mlvpn_rtun_read(mlvpn_tunnel_t *tun);
+int mlvpn_rtun_write(mlvpn_tunnel_t *tun);
+int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf);
+int mlvpn_rtun_timer_write(mlvpn_tunnel_t *t);
 mlvpn_tunnel_t *mlvpn_rtun_last();
-
-void mlvpn_tick_rtun(mlvpn_tunnel_t *t);
-
+mlvpn_tunnel_t *mlvpn_rtun_choose();
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
                int server_mode);
 
-int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
-
-int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
-
-void mlvpn_rtun_tick_connect();
+int mlvpn_server_accept();
 
 #endif

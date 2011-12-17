@@ -224,7 +224,8 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     ret = getaddrinfo(addr, port, &hints, &t->addrinfo);
     if (ret < 0)
     {
-        _ERROR("Connection to [%s]:%s failed. getaddrinfo: [%s]\n", addr, port, gai_strerror(ret));
+        _ERROR("Connection to [%s]:%s failed. getaddrinfo: [%s]\n",
+            addr, port, gai_strerror(ret));
         return -1;
     }
     res = t->addrinfo;
@@ -234,7 +235,8 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         /* creation de la socket(2) */
         if ( (fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0)
         {
-            _ERROR("Socket creation error while connecting to [%s]: %s\n", addr, port);
+            _ERROR("Socket creation error while connecting to [%s]: %s\n",
+                addr, port);
         } else {
             _ERROR("Created socket %d.\n", fd);
             if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
@@ -244,9 +246,11 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
 
             /* setup non blocking sockets */
             int val = 1;
-            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(int));
+            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+                &val, sizeof(int));
             if (t->encap_prot == ENCAP_PROTO_TCP)
-                setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+                setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY,
+                    &val, sizeof(int));
             if (t->bindaddr)
             {
                 if (mlvpn_rtun_bind(t) < 0)
@@ -272,11 +276,13 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                     /* connect(2) */
                     if (connect(fd, res->ai_addr, res->ai_addrlen) == 0)
                     {
-                        _ERROR("Successfully connected to [%s]:%s.\n", addr, port);
+                        _ERROR("Successfully connected to [%s]:%s.\n",
+                            addr, port);
                         mlvpn_rtun_tick(t);
                         break;
                     } else {
-                        _ERROR("Connection to [%s]:%s failed.\n", addr, port);
+                        _ERROR("Connection to [%s]:%s failed.\n",
+                            addr, port);
                         perror("connect");
                         close(fd);
                         t->fd = -1;
@@ -354,7 +360,8 @@ int mlvpn_server_accept()
     {
         if (t->server_fd > 0 && t->encap_prot == ENCAP_PROTO_TCP)
         {
-            fd = accept(t->server_fd, (struct sockaddr *)&clientaddr, &addrlen);
+            fd = accept(t->server_fd, (struct sockaddr *)&clientaddr,
+                &addrlen);
             if (fd < 0)
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
@@ -389,7 +396,8 @@ int mlvpn_server_accept()
                     fl |= O_NONBLOCK;
                     if (fcntl(t->fd, F_SETFL, fl) < 0)
                     {
-                        _ERROR("Unable to set socket %d non blocking.\n", t->fd);
+                        _ERROR("Unable to set socket %d non blocking.\n",
+                            t->fd);
                         perror("fcntl F_SETFL");
                     }
                 }
@@ -412,7 +420,8 @@ int mlvpn_tuntap_alloc()
     }
     
     memset(&ifr, 0, sizeof(ifr));
-    ifr.ifr_flags = IFF_TUN | IFF_NO_PI; /* We do not want kernel packet info */
+    /* We do not want kernel packet info */
+    ifr.ifr_flags = IFF_TUN | IFF_NO_PI; 
 
     /* Allocate with specified name, otherwise the kernel
      * will find a name for us.
@@ -596,7 +605,8 @@ int mlvpn_tuntap_write()
     if (buf->len <= 0)
     {
         _ERROR( 
-            "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n", (int)buf->len);
+            "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n",
+                (int)buf->len);
         return -1;
     }
     pkt = &buf->pkts[0]; /* First pkt in queue */
@@ -608,9 +618,11 @@ int mlvpn_tuntap_write()
     } else {
         if (len != pkt->pktdata.len)
         {
-            _ERROR("Error writing to tap device: written %d bytes out of %d.\n", len, pkt->pktdata.len);
+            _ERROR("Error writing to tap device: written %d bytes out of %d.\n",
+                len, pkt->pktdata.len);
         } else {
-            _DEBUG("> Written %d bytes on TAP (%d pkts left).\n", len, (int)buf->len);
+            _DEBUG("> Written %d bytes on TAP (%d pkts left).\n", 
+                len, (int)buf->len);
         }
     }
     mlvpn_pop_pkt(buf);
@@ -652,7 +664,8 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                 memset(&pktdata, 0, sizeof(pktdata));
                 pkts++;
             } else {
-                _DEBUG("Found pkt but not enough data. Len=%d available=%d\n", (int)pktdata.len, (int)(tun->rbuf.len - i));
+                _DEBUG("Found pkt but not enough data. Len=%d available=%d\n",
+                    (int)pktdata.len, (int)(tun->rbuf.len - i));
             }
         }
     }
@@ -691,7 +704,7 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
     {
         len = read(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen);
     } else {
-        len = recvfrom(tun->fd, tun->rbuf.data+tun->rbuf.len, rlen, 
+        len = recvfrom(tun->fd, tun->rbuf.data+tun->rbuf.len, rlen,
             MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
     }
     if (len < 0)
@@ -755,7 +768,8 @@ int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
             _ERROR("Error writing on TUN %d: written %d bytes over %d.\n",
                 tun->fd, len, wlen);
         } else {
-            _DEBUG("> TUN %d written %d bytes (%d pkts left).\n", tun->fd, len, (int)pktbuf->len - 1);
+            _DEBUG("> TUN %d written %d bytes (%d pkts left).\n",
+                tun->fd, len, (int)pktbuf->len - 1);
         }
     }
     mlvpn_pop_pkt(pktbuf);
@@ -924,10 +938,12 @@ int main(int argc, char **argv)
 int mlvpn_config(char *filename)
 {
     config_t *config, *work;
-    char *lastSection = NULL;
-    int server_mode = 0;
     mlvpn_tunnel_t *tmptun;
     logfile_t *log;
+    char *tmp;
+    char *lastSection = NULL;
+    int default_protocol = ENCAP_PROTO_UDP;
+    int server_mode = 0;
 
     log = (logfile_t *)malloc(sizeof(logfile_t));
     log->fd = NULL;
@@ -944,20 +960,33 @@ int mlvpn_config(char *filename)
 
     while (work)
     {
-        if (work->section != NULL && (mystr_eq(work->section, lastSection) == 0))
+        if ((work->section != NULL) && 
+            (mystr_eq(work->section, lastSection) == 0))
         {
             lastSection = work->section;
             _DEBUG("Section %s\n", lastSection);
             if (mystr_eq(lastSection, "general"))
             {
                 char *mode;
-                _conf_set_str_from_conf(config, lastSection, "logfile",
-                    &(log->filename), NULL, NULL, 0);
-                _conf_set_int_from_conf(config, lastSection, "loglevel",
-                    &(log->level), 4, NULL, 0);
 
-                _conf_set_str_from_conf(config, lastSection, "mode",
-                    &mode, NULL, "Operation mode is mandatory!", 1);
+                _conf_set_str_from_conf(config, lastSection,
+                    "logfile", &(log->filename), NULL, NULL, 0);
+                _conf_set_int_from_conf(config, lastSection,
+                    "loglevel", &(log->level), 4, NULL, 0);
+
+                _conf_set_str_from_conf(config, lastSection,
+                    "mode", &mode, NULL, "Operation mode is mandatory!", 1);
+
+                _conf_set_str_from_conf(config, lastSection,
+                    "protocol", &tmp, "udp", NULL, 0);
+                if (mystr_eq(tmp, "udp")) {
+                    default_protocol = ENCAP_PROTO_UDP;
+                } else if (mystr_eq(tmp, "tcp")) {
+                    default_protocol = ENCAP_PROTO_TCP;
+                } else {
+                    _ERROR("Unknown protocol %s.\n", tmp);
+                }
+
                 if (mystr_eq(mode, "server"))
                     server_mode = 1;
             } else {
@@ -966,33 +995,62 @@ int mlvpn_config(char *filename)
                 char *dstaddr;
                 char *dstport;
                 int bwlimit = 0;
+                int protocol = default_protocol;
 
                 if (server_mode)
                 {
-                    _conf_set_str_from_conf(config, lastSection, "bindhost",
-                        &bindaddr, "0.0.0.0", "binding to host 0.0.0.0\n", 0);
-                    _conf_set_str_from_conf(config, lastSection, "bindport",
-                        &bindport, NULL, "bind port is mandatory in server mode!\n", 1);
-                    _conf_set_str_from_conf(config, lastSection, "remotehost",
-                        &dstaddr, NULL, NULL, 0);
-                    _conf_set_str_from_conf(config, lastSection, "remoteport",
-                        &dstport, NULL, NULL, 0);
-                    _conf_set_int_from_conf(config, lastSection, "bandwidth_download",
-                        &bwlimit, 0, NULL, 0);
+                    _conf_set_str_from_conf(config, lastSection,
+                        "bindhost",
+                        &bindaddr, "0.0.0.0", 
+                        "binding to host 0.0.0.0\n", 0);
+
+                    _conf_set_str_from_conf(config, lastSection,
+                        "bindport",
+                        &bindport, NULL,
+                        "bind port is mandatory in server mode!\n", 1);
+
+                    _conf_set_str_from_conf(config, lastSection,
+                        "remotehost", &dstaddr, NULL, NULL, 0);
+
+                    _conf_set_str_from_conf(config, lastSection,
+                        "remoteport", &dstport, NULL, NULL, 0);
+
+                    _conf_set_int_from_conf(config, lastSection,
+                        "bandwidth_download", &bwlimit, 0, NULL, 0);
                 } else {
-                    _conf_set_str_from_conf(config, lastSection, "bindhost",
+                    _conf_set_str_from_conf(config, lastSection,
+                        "bindhost",
                         &bindaddr, "0.0.0.0", "binding to host 0.0.0.0\n", 0);
-                    _conf_set_str_from_conf(config, lastSection, "bindport",
+                    _conf_set_str_from_conf(config, lastSection,
+                        "bindport",
                         &bindport, NULL, NULL, 0);
-                    _conf_set_str_from_conf(config, lastSection, "remotehost",
+                    _conf_set_str_from_conf(config, lastSection,
+                        "remotehost",
                         &dstaddr, NULL, "No remote address specified.\n", 1);
-                    _conf_set_str_from_conf(config, lastSection, "remoteport",
+                    _conf_set_str_from_conf(config, lastSection,
+                        "remoteport",
                         &dstport, NULL, "No remote port specified.\n", 1);
-                    _conf_set_int_from_conf(config, lastSection, "bandwidth_upload",
-                        &bwlimit, 0, NULL, 0);
+                    _conf_set_int_from_conf(config, lastSection,
+                        "bandwidth_upload", &bwlimit, 0, NULL, 0);
                 }
+
+                _conf_set_str_from_conf(config, lastSection, 
+                    "protocol", &tmp, NULL, NULL, 0);
+                if (tmp)
+                {
+                    if (mystr_eq(tmp, "udp")) {
+                        protocol = ENCAP_PROTO_UDP;
+                    } else if (mystr_eq(tmp, "tcp")) {
+                        protocol = ENCAP_PROTO_TCP;
+                    } else {
+                        _ERROR("Unknown protocol %s.\n", tmp);
+                    }
+                }
+
                 tmptun = mlvpn_rtun_new(bindaddr, bindport, dstaddr, dstport,
                     server_mode);
+                tmptun->encap_proto = protocol;
+
                 if (bwlimit > 0)
                     tmptun->sbuf->bandwidth = bwlimit;
             }
