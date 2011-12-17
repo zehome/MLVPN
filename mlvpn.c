@@ -26,6 +26,8 @@
 
 #include "debug.h"
 #include "mlvpn.h"
+#include "tool.h"
+#include "configlib.h"
 
 /* GLOBALS */
 static struct tuntap_s tuntap;
@@ -804,12 +806,23 @@ void init_buffers()
 int main(int argc, char **argv)
 {
     int ret;
+    char *cfgfilename = NULL;
+
     mlvpn_tunnel_t *tmptun;
 
     printf("ML-VPN (c) 2011 Laurent Coustet\n");
+    
+    /* Command line option parsing */
+    if (argc < 2)
+    {
+        cfgfilename = "mlvpn.conf";
+    } else {
+        cfgfilename = argv[1];
+    }
+    mlvpn_config(cfgfilename);
 
+    /* tun/tap initialization */
     memset(&tuntap, 0, sizeof(tuntap));
-
     snprintf(tuntap.devname, IFNAMSIZ, "mlvpn%d", 0);
     tuntap.mtu = 1500;
     ret = mlvpn_taptun_alloc();
@@ -820,32 +833,6 @@ int main(int argc, char **argv)
     } else {
         _INFO("Created tap interface %s\n", tuntap.devname);
     }
-    
-    /* client */
-    /*
-    for (i = 0; i < 4; i++)
-    {
-        char port[6];
-        memset(port, 0, 6);
-        snprintf(port, 5, "%d", 5080+i);
-        tmptun = mlvpn_rtun_new(NULL, NULL, "192.168.6.2", port, 0);
-    }
-    */
-    tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp.zehome.com", "5080", 0);
-    tmptun->sbuf->bandwidth = 60*1024; /* 30KB/s bandwidth */
-    //tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp1.zehome.com", "5081", 0);
-    //tmptun = mlvpn_rtun_new("192.168.6.2", NULL, "chp2.zehome.com", "5082", 0);
-
-    /* srv */
-    /*
-    for (i = 0; i < 4; i++)
-    {
-        char port[6];
-        memset(port, 0, 6);
-        snprintf(port, 5, "%d", 5080+i);
-        tmptun = mlvpn_rtun_new("0.0.0.0", port, NULL, NULL, 1);
-    }
-    */
     
     init_buffers();
 
@@ -916,4 +903,94 @@ int main(int argc, char **argv)
     }
 
     return 0;
+}
+
+int mlvpn_config(char *filename)
+{
+    config_t *config, *work;
+    char *lastSection = NULL;
+    int server_mode = 0;
+    mlvpn_tunnel_t *tmptun;
+    logfile_t *log;
+
+    log = (logfile_t *)malloc(sizeof(logfile_t));
+    log->fd = NULL;
+    log->filename = NULL;
+    log->name = "mlvpn";
+    log->level = 4;
+
+    work = config = _conf_parseConfig(filename);
+    if (! config)
+        goto error;
+
+    /* Debugging */
+    _conf_printConfig(config);
+
+    while (work)
+    {
+        if (work->section != NULL && (mystr_eq(work->section, lastSection) == 0))
+        {
+            lastSection = work->section;
+            _DEBUG("Section %s\n", lastSection);
+            if (mystr_eq(lastSection, "general"))
+            {
+                char *mode;
+                _conf_set_str_from_conf(config, lastSection, "logfile",
+                    &(log->filename), NULL, NULL, 0);
+                _conf_set_int_from_conf(config, lastSection, "loglevel",
+                    &(log->level), 4, NULL, 0);
+
+                _conf_set_str_from_conf(config, lastSection, "mode",
+                    &mode, NULL, "Operation mode is mandatory!", 1);
+                if (mystr_eq(mode, "server"))
+                    server_mode = 1;
+            } else {
+                char *bindaddr;
+                char *bindport;
+                char *dstaddr;
+                char *dstport;
+                int bwlimit = 0;
+
+                if (server_mode)
+                {
+                    _conf_set_str_from_conf(config, lastSection, "bindhost",
+                        &bindaddr, "0.0.0.0", "binding to host 0.0.0.0\n", 0);
+                    _conf_set_str_from_conf(config, lastSection, "bindport",
+                        &bindport, NULL, "bind port is mandatory in server mode!\n", 1);
+                    _conf_set_str_from_conf(config, lastSection, "remotehost",
+                        &dstaddr, NULL, NULL, 0);
+                    _conf_set_str_from_conf(config, lastSection, "remoteport",
+                        &dstport, NULL, NULL, 0);
+                    _conf_set_int_from_conf(config, lastSection, "bandwidth_download",
+                        &bwlimit, 0, NULL, 0);
+                } else {
+                    _conf_set_str_from_conf(config, lastSection, "bindhost",
+                        &bindaddr, "0.0.0.0", "binding to host 0.0.0.0\n", 0);
+                    _conf_set_str_from_conf(config, lastSection, "bindport",
+                        &bindport, NULL, NULL, 0);
+                    _conf_set_str_from_conf(config, lastSection, "remotehost",
+                        &dstaddr, NULL, "No remote address specified.\n", 1);
+                    _conf_set_str_from_conf(config, lastSection, "remoteport",
+                        &dstport, NULL, "No remote port specified.\n", 1);
+                    _conf_set_int_from_conf(config, lastSection, "bandwidth_upload",
+                        &bwlimit, 0, NULL, 0);
+                }
+                tmptun = mlvpn_rtun_new(bindaddr, bindport, dstaddr, dstport,
+                    server_mode);
+                if (bwlimit > 0)
+                    tmptun->sbuf->bandwidth = bwlimit;
+            }
+        } else if (lastSection == NULL) {
+            lastSection = work->section;
+        }
+
+        work = work->next;
+    }
+
+    logger_init(log);
+
+    return 0;
+error:
+    _ERROR("Error parsing config file.\n");
+    return 1;
 }

@@ -88,4 +88,6 @@ enum {
     ENCAP_PROTO_TCP
 };
 
+int mlvpn_config(char *filename);
+
 #endif
