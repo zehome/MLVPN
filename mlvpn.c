@@ -600,7 +600,7 @@ void mlvpn_rtun_check_timeout()
             }
 
             if ((t->last_packet_time != 0) && 
-                (t->last_packet_time + t->timeout) >= now)
+                (t->last_packet_time + t->timeout) < now)
             {
                 /* Timeout */
                 _INFO("Link %d timeout.\n", t->fd);
@@ -689,8 +689,6 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
     int pkts = 0;
     int last_shift = -1;
 
-    mlvpn_rtun_tick(tun);
-
     for (i = 0; i < tun->rbuf.len - (PKTHDRSIZ(pktdata)) ; i++)
     {
         void *rbuf = tun->rbuf.data + i;
@@ -754,6 +752,8 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
     int rlen;
     struct sockaddr_storage clientaddr;
     socklen_t addrlen = sizeof(clientaddr);
+
+    mlvpn_rtun_tick(tun);
 
     /* how much data we can handle right now ? */
     rlen = BUFSIZE - tun->rbuf.len;
@@ -899,7 +899,6 @@ void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
     tun->sbuf->len = 0;
     tun->hpsbuf->len = 0;
     tun->next_keepalive = 0;
-    mlvpn_rtun_reset_counters();
 }
 
 void init_buffers()
