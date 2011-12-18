@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <signal.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -33,6 +34,9 @@
 static struct tuntap_s tuntap;
 static pktbuffer_t *tap_send;
 static mlvpn_tunnel_t *rtun_start = NULL;
+
+/* Triggered by signal if sigint is raised */
+static int global_exit = 0;
 
 uint64_t mlvpn_millis()
 {
@@ -909,116 +913,6 @@ void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
     tun->next_keepalive = 0;
 }
 
-void init_buffers()
-{
-    tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    tap_send->len = 0;
-    tap_send->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
-    tap_send->bandwidth = 0;
-}
-
-int main(int argc, char **argv)
-{
-    int ret;
-    struct timeval timeout;
-    int maxfd = 0;
-    char *cfgfilename = NULL;
-    mlvpn_tunnel_t *tmptun;
-
-    printf("ML-VPN (c) 2012 Laurent Coustet\n\n");
-    
-    /* Command line option parsing */
-    if (argc < 2)
-    {
-        cfgfilename = "mlvpn.conf";
-    } else {
-        cfgfilename = argv[1];
-    }
-    mlvpn_config(cfgfilename);
-
-    /* tun/tap initialization */
-    memset(&tuntap, 0, sizeof(tuntap));
-    snprintf(tuntap.devname, IFNAMSIZ, "mlvpn%d", 0);
-    tuntap.mtu = 1500;
-    ret = mlvpn_tuntap_alloc();
-    if (ret <= 0)
-    {
-        _ERROR("Unable to create tunnel device.\n");
-        return 1;
-    } else {
-        _INFO("Created tap interface %s\n", tuntap.devname);
-    }
-    
-    init_buffers();
-
-    while (1) 
-    {
-        mlvpn_rtun_check_timeout();
-
-        /* Connect rtun if not connected. tick if connected */
-        mlvpn_rtun_tick_connect();
-        mlvpn_server_accept();
-
-        fd_set rfds, wfds;
-        
-        FD_ZERO(&rfds);
-        FD_ZERO(&wfds);
-        FD_SET(tuntap.fd, &rfds);
-        if (tuntap.fd > maxfd)
-            maxfd = tuntap.fd;
-
-        if (tap_send->len > 0)
-            FD_SET(tuntap.fd, &wfds);
-
-        /* set rfds/wfds for rtunnels */
-        tmptun = rtun_start;
-        while (tmptun)
-        {
-            if (tmptun->fd > 0)
-            {
-                if (tmptun->sbuf->len > 0 || tmptun->hpsbuf->len > 0)
-                    FD_SET(tmptun->fd, &wfds);
-                FD_SET(tmptun->fd, &rfds);
-                if (tmptun->fd > maxfd)
-                    maxfd = tmptun->fd;
-            }
-            tmptun = tmptun->next;
-        }
-
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 1000;
-
-        ret = select(maxfd+1, &rfds, &wfds, NULL, &timeout);
-        if (ret > 0)
-        {
-            if (FD_ISSET(tuntap.fd, &rfds))
-                mlvpn_tuntap_read();
-            if (FD_ISSET(tuntap.fd, &wfds))
-                mlvpn_tuntap_write();
-            tmptun = rtun_start;
-            while (tmptun)
-            {
-                if (tmptun->fd > 0)
-                {
-                    if (FD_ISSET(tmptun->fd, &rfds))
-                        mlvpn_rtun_read(tmptun);
-                    if (FD_ISSET(tmptun->fd, &wfds))
-                        mlvpn_rtun_timer_write(tmptun);
-                }
-                tmptun = tmptun->next;
-            }
-        } else if (ret == 0) {
-            /* timeout, check for "normalize sending" */
-
-        } else if (ret < 0) {
-            /* Error */
-            _ERROR("Select error: %s\n", strerror(errno));
-        }
-    }
-
-    return 0;
-}
-
 int mlvpn_config(char *filename)
 {
     config_t *config, *work;
@@ -1157,3 +1051,136 @@ error:
     _ERROR("Error parsing config file.\n");
     return 1;
 }
+
+void init_buffers()
+{
+    tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
+    tap_send->len = 0;
+    tap_send->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
+    tap_send->bandwidth = 0;
+}
+
+void signal_handler(int sig)
+{
+    global_exit = 1;
+}
+
+int main(int argc, char **argv)
+{
+    int ret;
+    struct timeval timeout;
+    int maxfd = 0;
+    char *cfgfilename = NULL;
+    mlvpn_tunnel_t *tmptun;
+
+    printf("ML-VPN (c) 2012 Laurent Coustet\n\n");
+    
+    signal(SIGINT, signal_handler);
+
+    /* Command line option parsing */
+    if (argc < 2)
+    {
+        cfgfilename = "mlvpn.conf";
+    } else {
+        cfgfilename = argv[1];
+    }
+    mlvpn_config(cfgfilename);
+
+    /* tun/tap initialization */
+    memset(&tuntap, 0, sizeof(tuntap));
+    snprintf(tuntap.devname, IFNAMSIZ, "mlvpn%d", 0);
+    tuntap.mtu = 1500;
+    ret = mlvpn_tuntap_alloc();
+    if (ret <= 0)
+    {
+        _ERROR("Unable to create tunnel device.\n");
+        return 1;
+    } else {
+        _INFO("Created tap interface %s\n", tuntap.devname);
+    }
+    
+    init_buffers();
+
+    while (1) 
+    {
+        mlvpn_rtun_check_timeout();
+
+        /* Connect rtun if not connected. tick if connected */
+        mlvpn_rtun_tick_connect();
+        mlvpn_server_accept();
+
+        fd_set rfds, wfds;
+        
+        FD_ZERO(&rfds);
+        FD_ZERO(&wfds);
+        FD_SET(tuntap.fd, &rfds);
+        if (tuntap.fd > maxfd)
+            maxfd = tuntap.fd;
+
+        if (tap_send->len > 0)
+            FD_SET(tuntap.fd, &wfds);
+
+        /* set rfds/wfds for rtunnels */
+        tmptun = rtun_start;
+        while (tmptun)
+        {
+            if (tmptun->fd > 0)
+            {
+                if (tmptun->sbuf->len > 0 || tmptun->hpsbuf->len > 0)
+                    FD_SET(tmptun->fd, &wfds);
+                FD_SET(tmptun->fd, &rfds);
+                if (tmptun->fd > maxfd)
+                    maxfd = tmptun->fd;
+            }
+            tmptun = tmptun->next;
+        }
+
+        timeout.tv_sec = 1;
+        timeout.tv_usec = 1000;
+
+        ret = select(maxfd+1, &rfds, &wfds, NULL, &timeout);
+        if (ret > 0)
+        {
+            if (FD_ISSET(tuntap.fd, &rfds))
+                mlvpn_tuntap_read();
+            if (FD_ISSET(tuntap.fd, &wfds))
+                mlvpn_tuntap_write();
+            tmptun = rtun_start;
+            while (tmptun)
+            {
+                if (tmptun->fd > 0)
+                {
+                    if (FD_ISSET(tmptun->fd, &rfds))
+                        mlvpn_rtun_read(tmptun);
+                    if (FD_ISSET(tmptun->fd, &wfds))
+                        mlvpn_rtun_timer_write(tmptun);
+                }
+                tmptun = tmptun->next;
+            }
+        } else if (ret == 0) {
+            /* timeout, check for "normalize sending" */
+
+        } else if (ret < 0) {
+            /* Error */
+            _ERROR("Select error: %s\n", strerror(errno));
+        }
+
+        if (global_exit > 0)
+        {
+            _INFO("Exit by signal %d.\n", global_exit);
+            tmptun = rtun_start;
+            while (tmptun)
+            {
+                if (tmptun->fd > 0)
+                    close(tmptun->fd);
+                if (tmptun->server_mode && tmptun->server_fd > 0)
+                    close(tmptun->server_fd);
+                tmptun = tmptun->next;
+            }
+            break;
+        }
+    }
+
+    return 0;
+}
+
