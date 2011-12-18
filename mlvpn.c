@@ -552,7 +552,9 @@ mlvpn_tunnel_t *mlvpn_rtun_choose()
 
     while (t)
     {
-        if (t->fd > 0 && t->activated)
+        if (t->fd > 0 && (
+            (t->server_mode == 1 && t->activated) ||
+            !t->server_mode))
         {
             tmp = (t->sendpackets * t->weight);
             if (tmp <= least)
@@ -705,10 +707,15 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                 /* This is a keepalive packet. Just send it back */
                 if (pktdata.len == 0)
                 {
-                    if (tun->hpsbuf->len+1 > PKTBUFSIZE)
-                        _ERROR("rtun %d buffer overflow.\n", tun->fd);
-                    else
-                        mlvpn_put_pkt(tun->hpsbuf, pktdata.data, pktdata.len);
+                    /* We don't want to send back the packet if we
+                     * are client side, as we would create a send/recv loop */
+                    if (tun->server_mode)
+                    {
+                        if (tun->hpsbuf->len+1 > PKTBUFSIZE)
+                            _ERROR("rtun %d buffer overflow.\n", tun->fd);
+                        else
+                            mlvpn_put_pkt(tun->hpsbuf, pktdata.data, pktdata.len);
+                    }
                 } else {
                     if (tap_send->len+1 > PKTBUFSIZE)
                     {
