@@ -796,8 +796,7 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                 if (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0)
                 {
                     mlvpn_rtun_reset_counters();
-                    _DEBUG("New UDP connection %s => %s\n",
-                        tun->addrinfo->ai_addr, clientaddr);
+                    _DEBUG("New UDP connection -> %s\n", clienthost);
                     memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
                     tun->activated = 1;
                 }
