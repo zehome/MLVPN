@@ -536,7 +536,10 @@ void mlvpn_rtun_reset_counters()
 {
     mlvpn_tunnel_t *t = rtun_start;
     while (t)
+    {
         t->sendpackets = 0;
+        t = t->next;
+    }
 }
 
 mlvpn_tunnel_t *mlvpn_rtun_choose()
