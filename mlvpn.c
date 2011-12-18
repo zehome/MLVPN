@@ -599,10 +599,11 @@ void mlvpn_rtun_check_timeout()
                 mlvpn_rtun_keepalive(t);
             }
 
-            if ((t->last_packet_time + t->timeout) >= now)
+            if ((t->last_packet_time != 0) && 
+                (t->last_packet_time + t->timeout) >= now)
             {
                 /* Timeout */
-                _INFO("Link %d timeout.\n");
+                _INFO("Link %d timeout.\n", t->fd);
                 mlvpn_rtun_close(t);
             }
         }
