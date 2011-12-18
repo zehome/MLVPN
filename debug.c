@@ -10,59 +10,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-
+#include <time.h>
 
 #include "debug.h"
 #include "tool.h"
-#include "time.h"
-#ifdef HAVE_CPIGE_THREAD
- #include "cpige2.h"
- #include "thread.h"
-#endif
+
+static int current_level;
 
 /* Main debug routine */
 void 
 __DEBUG(int _debug_line, const char *_debug_filename, 
-            int _debug_priority,  const char *_debug_message, ...)
+        int _debug_priority,  const char *_debug_message, ...)
 {
     char *z_format;
     va_list ap;
     time_t now;
     struct tm *curTime = NULL;
     FILE *output = NULL;
-    int level;
-#ifdef HAVE_CPIGE_THREAD
-    char *threadName;
-    cpige_thread_t *currentThread;
-
-    /* Resolve the right threadName */
-    currentThread = thread_get_current();
-    if (! currentThread)
-    {
-        threadName = "main";
-        output     = stderr;
-        level      = DEBUGLEVEL; /* Main debug level */
-    } else {
-        threadName = currentThread->log->name;
-        if (currentThread->log->fd != NULL)
-            output = currentThread->log->fd;
-        else
-            output = stderr;
-        level = currentThread->log->level;
- 
-        pthread_mutex_lock(&(currentThread->log->mutex));
-    }
-#else
     output = stdout;
-    level  = DEBUGLEVEL;
-#endif
 
     /* message de prioritée inférieure a notre prio, on vire */
-    if (_debug_priority > level)
+    if (_debug_priority > current_level)
         goto exit;
 
-    now = time(NULL);
+    now = time((time_t *)NULL);
     if (now == (time_t)-1)
     {
         fprintf(stderr, "Can't log line: time() failed.\n");
@@ -98,15 +69,13 @@ __DEBUG(int _debug_line, const char *_debug_filename,
     va_end(ap);
 
 exit:
-#ifdef HAVE_CPIGE_THREAD
-    if (currentThread != NULL)
-        pthread_mutex_unlock(&(currentThread->log->mutex));
-#endif
     return;
 }
 
 int logger_init(logfile_t *logfile)
 {
+    current_level = logfile->level;
+
     /* No filename: defaults stderr */
     if (! logfile->filename)
     {
