@@ -1013,7 +1013,6 @@ int main(int argc, char **argv)
         } else if (ret < 0) {
             /* Error */
             _ERROR("Select error: %s\n", strerror(errno));
-            return 2;
         }
     }
 
