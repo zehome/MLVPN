@@ -592,7 +592,7 @@ void mlvpn_rtun_check_timeout()
         if (t->fd > 0 && t->activated && t->timeout > 0)
         {
             if ((t->next_keepalive == 0) || 
-                (t->next_keepalive >= now))
+                (t->next_keepalive < now))
             {
                 /* Send a keepalive packet */
                 _DEBUG("Sending keepalive packet %d\n", t->fd);
