@@ -535,6 +535,7 @@ void print_frame(const char *frame)
 void mlvpn_rtun_reset_counters()
 {
     mlvpn_tunnel_t *t = rtun_start;
+    _DEBUG("mlvpn_rtun_reset_counters");
     while (t)
     {
         t->sendpackets = 0;
@@ -567,7 +568,7 @@ mlvpn_tunnel_t *mlvpn_rtun_choose()
     return lpt;
 }
 
-void mlvpn_rtun_keepalive(mlvpn_tunnel_t *t)
+void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
 {
     struct mlvpn_pktdata pkt;
     if (t->hpsbuf->len + 1 > PKTBUFSIZE)
@@ -579,7 +580,7 @@ void mlvpn_rtun_keepalive(mlvpn_tunnel_t *t)
         pkt.data[0] = 0;
         mlvpn_put_pkt(t->hpsbuf, pkt.data, pkt.len);
     }
-    t->next_keepalive = t->timeout/2;
+    t->next_keepalive = now + t->timeout/2;
 }
 
 void mlvpn_rtun_check_timeout()
@@ -596,7 +597,7 @@ void mlvpn_rtun_check_timeout()
             {
                 /* Send a keepalive packet */
                 _DEBUG("Sending keepalive packet %d\n", t->fd);
-                mlvpn_rtun_keepalive(t);
+                mlvpn_rtun_keepalive(now, t);
             }
 
             if ((t->last_packet_time != 0) && 
