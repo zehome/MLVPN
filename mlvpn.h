@@ -83,6 +83,7 @@ typedef struct mlvpn_tunnel_s
     int activated;
     time_t last_packet_time; /* Used to timeout the link */
     time_t timeout;
+    time_t next_keepalive; /* when to send the "next" keepalive packet */
 } mlvpn_tunnel_t;
 
 enum {
@@ -113,6 +114,8 @@ void mlvpn_rtun_reset_counters();
 void mlvpn_rtun_close(mlvpn_tunnel_t *tun);
 void mlvpn_rtun_tick(mlvpn_tunnel_t *t);
 void mlvpn_rtun_tick_connect();
+void mlvpn_rtun_keepalive(mlvpn_tunnel_t *t);
+void mlvpn_rtun_check_timeout();
 int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
 int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun);
