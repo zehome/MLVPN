@@ -15,10 +15,11 @@
 #include "tool.h"
 #include "configlib.h"
 #include "debug.h"
+#include "mlvpn.h"
 
 #define MAXLINE 1024
 
-config_t *_conf_parseConfig ( const char *filename ) 
+config_t *_conf_parseConfig ()
 {
   FILE *configFile;
   int size, i = 0;
@@ -33,12 +34,7 @@ config_t *_conf_parseConfig ( const char *filename )
   config_t *config;
   confObj_t *confObj;
 
-  if ( (configFile = fopen( filename, "r" )) == NULL )
-  {
-    _ERROR("Unable to open config file %s.\n", filename);
-    return NULL;
-  }
-  
+  configFile = priv_open_config();
   config = (config_t *)malloc(sizeof(config_t));
   config->next    = NULL;
   config->section = NULL;
@@ -55,7 +51,7 @@ config_t *_conf_parseConfig ( const char *filename )
         break;
       else
       {
-        _ERROR("Error reading config file %s.\n", filename);
+        _ERROR("Error reading config file");
         free(config);
         free(buf);
         return NULL;
@@ -538,7 +534,7 @@ _conf_set_str_from_conf(config_t *config, const char *section, const char *type,
   if (*value == NULL) 
   {
     if (errMsg)
-        fprintf(stderr, errMsg);
+        fprintf(stderr, "%s", errMsg);
     if (def != NULL)
       *value = strdup(def);
     if (exit_n > 0)
@@ -558,7 +554,7 @@ _conf_set_int_from_conf(config_t *config, const char *section, const char *type,
   if ( tmp == NULL )
   {
     if (errMsg)
-        fprintf(stderr, errMsg);
+        fprintf(stderr, "%s", errMsg);
     *value = def;
     if (exit_n > 0)
     {
@@ -580,7 +576,7 @@ _conf_set_bool_from_conf(config_t *config, const char *section, const char *type
   if ( tmp == NULL )
   {
     if (errMsg)
-        fprintf(stderr, errMsg);
+        fprintf(stderr, "%s", errMsg);
     *value = def;
     if (exit_n > 0)
     {

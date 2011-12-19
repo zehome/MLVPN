@@ -132,4 +132,13 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
 
 int mlvpn_server_accept();
 
+/* privsep */
+int priv_init(char *conf, char *argv[]);
+void send_fd(int sock, int fd);
+int receive_fd(int sock);
+FILE *priv_open_config(void);
+int priv_open_tun(char *devname);
+FILE *priv_open_log(const char *lognam);
+
+
 #endif
