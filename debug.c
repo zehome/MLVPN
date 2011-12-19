@@ -16,6 +16,7 @@
 #include "tool.h"
 
 static int current_level;
+static FILE *output_file = NULL;
 
 /* Main debug routine */
 void 
@@ -26,8 +27,13 @@ __DEBUG(int _debug_line, const char *_debug_filename,
     va_list ap;
     time_t now;
     struct tm curTime;
-    FILE *output = NULL;
-    output = stdout;
+    FILE *output;
+
+    if (output_file)
+        output = output_file;
+    else
+        output = stdout;
+
 
     /* message de prioritée inférieure a notre prio, on vire */
     if (_debug_priority > current_level)
@@ -72,7 +78,7 @@ int logger_init(logfile_t *logfile)
     if (logfile->fd == NULL)
     {
         /* Not opened */
-        logfile->fd = fopen(logfile->filename, "w+");
+        output_file = logfile->fd = fopen(logfile->filename, "w+");
         if (! logfile->fd)
         {
             fprintf(stderr, "Unable to open logfile %s for writing. Check permissions!\n", 
