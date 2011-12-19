@@ -29,11 +29,13 @@
 #include "mlvpn.h"
 #include "tool.h"
 #include "configlib.h"
+#include "ps_status.h"
 
 /* GLOBALS */
 static struct tuntap_s tuntap;
 static pktbuffer_t *tap_send;
 static mlvpn_tunnel_t *rtun_start = NULL;
+static char *progname;
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
@@ -1048,6 +1050,16 @@ int main(int argc, char **argv)
     char *cfgfilename = NULL;
     char *tundevname = NULL;
     mlvpn_tunnel_t *tmptun;
+
+    /* ps_status misc */
+    {
+        char *p;
+        progname = argv[0];
+        if ((p = strrchr(progname, '/')) != NULL)
+            progname = p+1;
+        argv = save_ps_display_args(argc, argv);
+        init_ps_display("", "", "", "mlvpn");
+    }
 
     printf("ML-VPN (c) 2012 Laurent Coustet\n\n");
     
