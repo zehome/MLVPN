@@ -886,7 +886,7 @@ void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
     tun->next_keepalive = 0;
 }
 
-int mlvpn_config(char *filename)
+int mlvpn_config(char *filename, char **tundevname)
 {
     config_t *config, *work;
     mlvpn_tunnel_t *tmptun;
@@ -938,6 +938,8 @@ int mlvpn_config(char *filename)
 
                 _conf_set_int_from_conf(config, lastSection,
                     "timeout", &default_timeout, 60, NULL, 0);
+                _conf_set_str_from_conf(config, lastSection,
+                    "interface_name", tundevname, "mlvpn0", NULL, 0);
 
                 if (mystr_eq(mode, "server"))
                     server_mode = 1;
@@ -1044,6 +1046,7 @@ int main(int argc, char **argv)
     struct timeval timeout;
     int maxfd = 0;
     char *cfgfilename = NULL;
+    char *tundevname = NULL;
     mlvpn_tunnel_t *tmptun;
 
     printf("ML-VPN (c) 2012 Laurent Coustet\n\n");
@@ -1058,11 +1061,12 @@ int main(int argc, char **argv)
         cfgfilename = argv[1];
     }
     priv_init(cfgfilename, argv);
-    mlvpn_config(cfgfilename);
+    mlvpn_config(cfgfilename, &tundevname);
 
     /* tun/tap initialization */
     memset(&tuntap, 0, sizeof(tuntap));
-    snprintf(tuntap.devname, IFNAMSIZ, "mlvpn%d", 0);
+    // TODO : paramétrage de l'interface après son "montage"
+    snprintf(tuntap.devname, IFNAMSIZ, "%s", tundevname);
     tuntap.mtu = 1500;
     ret = mlvpn_tuntap_alloc();
     if (ret <= 0)
