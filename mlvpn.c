@@ -418,40 +418,13 @@ int mlvpn_server_accept()
 
 int mlvpn_tuntap_alloc()
 {
-    struct ifreq ifr;
-    int fd, err;
+    int fd;
 
-    if ( (fd = open("/dev/net/tun", O_RDWR)) < 0 )
+    if ((fd = priv_open_tun(tuntap.devname)) < 0 )
     {
         _ERROR("Unable to open /dev/net/tun RW. Check permissions.\n");
         return fd;
     }
-    
-    memset(&ifr, 0, sizeof(ifr));
-    /* We do not want kernel packet info */
-    ifr.ifr_flags = IFF_TUN | IFF_NO_PI; 
-
-    /* Allocate with specified name, otherwise the kernel
-     * will find a name for us.
-     */
-    if (tuntap.devname)
-        strncpy(ifr.ifr_name, tuntap.devname, IFNAMSIZ);
-
-    /* ioctl to create the if */
-    if ( (err = ioctl(fd, TUNSETIFF, (void *) &ifr)) < 0)
-    {
-        _ERROR("Unable to create the device. Kernel returned %d: %s.\n", 
-            err, strerror(errno));
-        close(fd);
-        return err;
-    }
-
-    /* The kernel is the only one able to "name" the if.
-     * so we reread it to get the real name set by the kernel.
-     */
-    if (tuntap.devname)
-        strncpy(tuntap.devname, ifr.ifr_name, IFNAMSIZ);
-
     tuntap.fd = fd;
     return fd;
 }
@@ -1084,6 +1057,7 @@ int main(int argc, char **argv)
     } else {
         cfgfilename = argv[1];
     }
+    priv_init(cfgfilename, argv);
     mlvpn_config(cfgfilename);
 
     /* tun/tap initialization */
