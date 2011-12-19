@@ -1,4 +1,8 @@
 MLVPN need an unprivilegied user called 'mlvpn'
 
-useradd mlvpn -d /var/empty -c 'MLVPN user' -s /bin/false -r -M
-mkdir /var/empty
+Automatic:
+    $ sudo make adduser
+
+Manual:
+    # useradd mlvpn -d /var/empty -c 'MLVPN user' -s /bin/false -r -M
+    # mkdir /var/empty
