@@ -14,6 +14,7 @@
 
 #include "debug.h"
 #include "tool.h"
+#include "mlvpn.h"
 
 static int current_level;
 static FILE *output_file = NULL;
@@ -78,7 +79,7 @@ int logger_init(logfile_t *logfile)
     if (logfile->fd == NULL)
     {
         /* Not opened */
-        output_file = logfile->fd = fopen(logfile->filename, "w+");
+        output_file = logfile->fd = priv_open_log(logfile->filename);
         if (! logfile->fd)
         {
             fprintf(stderr, "Unable to open logfile %s for writing. Check permissions!\n", 

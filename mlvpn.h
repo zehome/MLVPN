@@ -138,6 +138,7 @@ void send_fd(int sock, int fd);
 int receive_fd(int sock);
 FILE *priv_open_config(void);
 int priv_open_tun(char *devname);
+FILE *priv_open_log(const char *lognam);
 
 
 #endif

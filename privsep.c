@@ -327,12 +327,13 @@ increase_state(int state)
 }
 
 /* Open log-file */
-int
+FILE *
 priv_open_log(const char *lognam)
 {
 	char path[MAXPATHLEN];
 	int cmd, fd;
 	size_t path_len;
+	FILE *fp;
 
 	if (priv_fd < 0)
 		errx(1, "%s: called from privileged child", "priv_open_log");
@@ -345,7 +346,18 @@ priv_open_log(const char *lognam)
 	must_write(priv_fd, &path_len, sizeof(size_t));
 	must_write(priv_fd, path, path_len);
 	fd = receive_fd(priv_fd);
-	return fd;
+
+	if (fd < 0)
+		return NULL;
+
+	fp = fdopen(fd, "a");
+	if (!fp) {
+		warn("priv_open_log: fdopen() failed");
+		close(fd);
+		return NULL;
+	}
+
+	return fp;
 }
 
 /* Open mlvpn config file for reading */
