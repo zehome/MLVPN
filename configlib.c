@@ -538,7 +538,7 @@ _conf_set_str_from_conf(config_t *config, const char *section, const char *type,
   if (*value == NULL) 
   {
     if (errMsg)
-        fprintf(stderr, errMsg);
+        fprintf(stderr, "%s", errMsg);
     if (def != NULL)
       *value = strdup(def);
     if (exit_n > 0)
@@ -558,7 +558,7 @@ _conf_set_int_from_conf(config_t *config, const char *section, const char *type,
   if ( tmp == NULL )
   {
     if (errMsg)
-        fprintf(stderr, errMsg);
+        fprintf(stderr, "%s", errMsg);
     *value = def;
     if (exit_n > 0)
     {
@@ -580,7 +580,7 @@ _conf_set_bool_from_conf(config_t *config, const char *section, const char *type
   if ( tmp == NULL )
   {
     if (errMsg)
-        fprintf(stderr, errMsg);
+        fprintf(stderr, "%s", errMsg);
     *value = def;
     if (exit_n > 0)
     {
