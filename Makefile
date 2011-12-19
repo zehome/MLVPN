@@ -1,7 +1,7 @@
 CC ?= gcc
 CFLAGS += -Wall -ggdb
 
-OBJS = configlib.o tool.o debug.o mlvpn.o buffer.o
+OBJS = configlib.o tool.o debug.o mlvpn.o buffer.o privsep_fdpass.o privsep.o
 
 all: mlvpn
 
