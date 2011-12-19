@@ -22,10 +22,10 @@ void
 __DEBUG(int _debug_line, const char *_debug_filename, 
         int _debug_priority,  const char *_debug_message, ...)
 {
-    char *z_format;
+    char z_format[1024] = {0};
     va_list ap;
     time_t now;
-    struct tm *curTime = NULL;
+    struct tm curTime;
     FILE *output = NULL;
     output = stdout;
 
@@ -41,20 +41,13 @@ __DEBUG(int _debug_line, const char *_debug_filename,
         return;
     }
   
-#ifndef WIN32
-    curTime = (struct tm *) malloc(sizeof(struct tm));
-    localtime_r(&now, curTime); /* Get the current time */
-#else
-    curTime = localtime(&now);
-#endif
-    if (curTime == NULL)
+    if (localtime_r(&now, &curTime) == NULL)
     {
-        fprintf(stderr, "Can't log line: localtime(_r)() failed.\n");
+        fprintf(stderr, "Can't log line: localtime_r() failed.\n");
         return;
     }
-    z_format = calloc(1024, 1);
     snprintf(z_format, 1023, "[%.2d:%.2d:%.2d][%s:%d] %s", 
-            curTime->tm_hour, curTime->tm_min, curTime->tm_sec, 
+            curTime.tm_hour, curTime.tm_min, curTime.tm_sec, 
             _debug_filename, _debug_line, _debug_message);
   
     va_start(ap, _debug_message);  
@@ -62,10 +55,6 @@ __DEBUG(int _debug_line, const char *_debug_filename,
     
     fflush(output);
   
-#ifndef WIN32
-    (void)free(curTime);
-#endif
-    (void)free(z_format);
     va_end(ap);
 }
 
