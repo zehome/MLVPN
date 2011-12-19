@@ -31,14 +31,14 @@ __DEBUG(int _debug_line, const char *_debug_filename,
 
     /* message de prioritée inférieure a notre prio, on vire */
     if (_debug_priority > current_level)
-        goto exit;
+        return;
 
     now = time((time_t *)NULL);
     if (now == (time_t)-1)
     {
         fprintf(stderr, "Can't log line: time() failed.\n");
         perror("time");
-        goto exit;
+        return;
     }
   
 #ifndef WIN32
@@ -50,7 +50,7 @@ __DEBUG(int _debug_line, const char *_debug_filename,
     if (curTime == NULL)
     {
         fprintf(stderr, "Can't log line: localtime(_r)() failed.\n");
-        goto exit;
+        return;
     }
     z_format = calloc(1024, 1);
     snprintf(z_format, 1023, "[%.2d:%.2d:%.2d][%s:%d] %s", 
@@ -67,9 +67,6 @@ __DEBUG(int _debug_line, const char *_debug_filename,
 #endif
     (void)free(z_format);
     va_end(ap);
-
-exit:
-    return;
 }
 
 int logger_init(logfile_t *logfile)
