@@ -24,7 +24,7 @@ typedef struct config_t
 } config_t;
 
 config_t *
-_conf_parseConfig ( const char *filename );
+_conf_parseConfig ();
 
 char *
 _conf_strip_comment ( char *line, unsigned int size );

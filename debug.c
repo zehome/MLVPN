@@ -14,47 +14,47 @@
 
 #include "debug.h"
 #include "tool.h"
+#include "mlvpn.h"
 
 static int current_level;
+static FILE *output_file = NULL;
 
 /* Main debug routine */
 void 
 __DEBUG(int _debug_line, const char *_debug_filename, 
         int _debug_priority,  const char *_debug_message, ...)
 {
-    char *z_format;
+    char z_format[1024] = {0};
     va_list ap;
     time_t now;
-    struct tm *curTime = NULL;
-    FILE *output = NULL;
-    output = stdout;
+    struct tm curTime;
+    FILE *output;
+
+    if (output_file)
+        output = output_file;
+    else
+        output = stdout;
+
 
     /* message de prioritée inférieure a notre prio, on vire */
     if (_debug_priority > current_level)
-        goto exit;
+        return;
 
     now = time((time_t *)NULL);
     if (now == (time_t)-1)
     {
         fprintf(stderr, "Can't log line: time() failed.\n");
         perror("time");
-        goto exit;
+        return;
     }
   
-#ifndef WIN32
-    curTime = (struct tm *) malloc(sizeof(struct tm));
-    localtime_r(&now, curTime); /* Get the current time */
-#else
-    curTime = localtime(&now);
-#endif
-    if (curTime == NULL)
+    if (localtime_r(&now, &curTime) == NULL)
     {
-        fprintf(stderr, "Can't log line: localtime(_r)() failed.\n");
-        goto exit;
+        fprintf(stderr, "Can't log line: localtime_r() failed.\n");
+        return;
     }
-    z_format = calloc(1024, 1);
     snprintf(z_format, 1023, "[%.2d:%.2d:%.2d][%s:%d] %s", 
-            curTime->tm_hour, curTime->tm_min, curTime->tm_sec, 
+            curTime.tm_hour, curTime.tm_min, curTime.tm_sec, 
             _debug_filename, _debug_line, _debug_message);
   
     va_start(ap, _debug_message);  
@@ -62,14 +62,7 @@ __DEBUG(int _debug_line, const char *_debug_filename,
     
     fflush(output);
   
-#ifndef WIN32
-    (void)free(curTime);
-#endif
-    (void)free(z_format);
     va_end(ap);
-
-exit:
-    return;
 }
 
 int logger_init(logfile_t *logfile)
@@ -86,7 +79,7 @@ int logger_init(logfile_t *logfile)
     if (logfile->fd == NULL)
     {
         /* Not opened */
-        logfile->fd = fopen(logfile->filename, "w+");
+        output_file = logfile->fd = priv_open_log(logfile->filename);
         if (! logfile->fd)
         {
             fprintf(stderr, "Unable to open logfile %s for writing. Check permissions!\n", 
