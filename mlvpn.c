@@ -102,31 +102,29 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     new->weight = 1;
     new->activated = 0;
     new->encap_prot = ENCAP_PROTO_UDP;
-    new->addrinfo = (struct addrinfo *)malloc(sizeof(struct addrinfo));
-    memset(new->addrinfo, 0, sizeof(struct addrinfo));
-    new->addrinfo->ai_addr = (struct sockaddr *)malloc(sizeof(struct sockaddr));
+    new->addrinfo = NULL;
 
     if (bindaddr)
     {
-        new->bindaddr = malloc(MLVPN_MAXHNAMSTR+1);
+        new->bindaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
         strncpy(new->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
     }
 
     if (bindport)
     {
-        new->bindport = malloc(MLVPN_MAXPORTSTR+1);
+        new->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
         strncpy(new->bindport, bindport, MLVPN_MAXPORTSTR);
     }
 
     if (destaddr)
     {
-        new->destaddr = malloc(MLVPN_MAXHNAMSTR+1);
+        new->destaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
         strncpy(new->destaddr, destaddr, MLVPN_MAXHNAMSTR);
     }
 
     if (destport)
     {
-        new->destport = malloc(MLVPN_MAXPORTSTR+1);
+        new->destport = calloc(1, MLVPN_MAXPORTSTR+1);
         strncpy(new->destport, destport, MLVPN_MAXPORTSTR);
     }
 
@@ -164,8 +162,8 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
 int
 mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 {
-    struct addrinfo hints, res;
-    struct sockaddr addr;
+    struct addrinfo hints, *res;
+    char *bindaddr, *bindport;
     int n, fd;
     memset(&hints, 0, sizeof(struct addrinfo));
     /* AI_PASSIVE flag: the resulting address is used to bind
@@ -184,22 +182,26 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
     } else {
         hints.ai_socktype = SOCK_DGRAM;
     }
-    n = priv_getaddrinfo(t->bindaddr, t->bindport, 
-        &addr, sizeof(struct addrinfo),
-        &hints);
+
+    bindaddr = t->bindaddr;
+    bindport = t->bindport;
+
+    if (t->bindaddr == NULL)
+        bindaddr = "0.0.0.0";
+    if (t->bindport == NULL)
+        bindport = "0";
+
+    n = priv_getaddrinfo(bindaddr, bindport, &res, &hints);
     if (n < 0)
     {
-        _ERROR("getaddrinfo(%s,%d) failed: %s\n",
-            t->bindaddr, t->bindport, gai_strerror(n));
+        _ERROR("getaddrinfo error.\n");
         return -1;
     }
-    res.ai_addr = &addr;
-    res.ai_addrlen = n;
 
     /* Try open socket with each address getaddrinfo returned,
        until getting a valid listening socket. */
     _INFO("Binding socket %d to %s\n", fd, t->bindaddr);
-    n = bind(fd, res.ai_addr, res.ai_addrlen);
+    n = bind(fd, res->ai_addr, res->ai_addrlen);
     if (n < 0)
     {
         _ERROR("Bind error on %d: %s\n", strerror(errno));
@@ -212,7 +214,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
 {
     int ret, fd;
     char *addr, *port;
-    struct addrinfo hints, *res;
+    struct addrinfo hints;
 
     fd = t->fd;
     if (t->server_mode)
@@ -239,19 +241,16 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     }
     
     ret = priv_getaddrinfo(addr, port, 
-        t->addrinfo->ai_addr, sizeof(struct addrinfo),
-        &hints);
+        &t->addrinfo, &hints);
     if (ret < 0)
     {
         _ERROR("getaddrinfo(%s,%d) failed: %s\n",
             addr, port, gai_strerror(ret));
         return -1;
     }
-    t->addrinfo->ai_addrlen = ret;
-    res = t->addrinfo;
 
     /* creation de la socket(2) */
-    if ( (fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0)
+    if ( (fd = socket(t->addrinfo->ai_family, t->addrinfo->ai_socktype, t->addrinfo->ai_protocol)) < 0)
     {
         _ERROR("Socket creation error while connecting to %s:%s: %s\n",
             addr, port, strerror(fd));
@@ -292,7 +291,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                 /* client mode */
                 _ERROR("Connecting to [%s]:%s\n", addr, port);
                 /* connect(2) */
-                if (connect(fd, res->ai_addr, res->ai_addrlen) == 0)
+                if (connect(fd, t->addrinfo->ai_addr, t->addrinfo->ai_addrlen) == 0)
                 {
                     _ERROR("Successfully connected to [%s]:%s.\n",
                         addr, port);

@@ -279,7 +279,6 @@ priv_init(char *conf, char *argv[])
                     res = res->ai_next;
                 }
                 must_write(socks[0], &addrinfo_len, sizeof(int));
-                printf("1\n");
 
                 res = res0;
                 while (res)
