@@ -149,7 +149,7 @@ priv_init(char *conf, char *argv[], char *username)
     sa.sa_flags |= SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa, NULL);
 
-    init_ps_display("", "", "", "%s [priv]", argv[0]);
+    init_ps_display("", "", "", "mlvpn [priv]");
     close(socks[1]);
 
     /* Save the config file specified by the child process */
