@@ -22,6 +22,10 @@
 #include <sys/param.h>
 #include <sys/queue.h>
 #include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <netdb.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -32,6 +36,7 @@
 #include <unistd.h>
 #include <grp.h>
 #include "mlvpn.h"
+#include "ps_status.h"
 
 /*
  * mlvpn can only go forward in these states; each state should represent
@@ -58,6 +63,7 @@ enum cmd_types {
 	PRIV_OPEN_LOG,		/* open logfile for appending */
 	PRIV_OPEN_CONFIG,	/* open config file for reading only */
 	PRIV_OPEN_TUN,
+    PRIV_GETADDRINFO,
 	PRIV_DONE_CONFIG_PARSE	/* signal that the initial config parse is done */
 };
 
@@ -87,11 +93,14 @@ int
 priv_init(char *conf, char *argv[])
 {
 	int i, fd, socks[2], cmd, restart;
+    int hostname_len, servname_len, addr_len;
 	size_t path_len;
 	char path[MAXPATHLEN];
 	struct ifreq ifr;
 	struct passwd *pw;
 	struct sigaction sa;
+    struct addrinfo hints, *res0;
+    char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
 
 	memset(&sa, 0, sizeof(sa));
 	sigemptyset(&sa.sa_mask);
@@ -240,7 +249,35 @@ priv_init(char *conf, char *argv[])
 			if (fd >= 0)
 				close(fd);
 			break;
+        case PRIV_GETADDRINFO:
+            /* Expecting: len, hostname, len, servname, hints */
+            must_read(socks[0], &hostname_len, sizeof(size_t));
+            if (hostname_len == 0 || hostname_len > sizeof(hostname))
+                _exit(0);
+            must_read(socks[0], &hostname, hostname_len);
+            hostname[hostname_len - 1] = '\0';
 
+            must_read(socks[0], &servname_len, sizeof(size_t));
+            if (servname_len == 0 || servname_len > sizeof(servname))
+                _exit(0);
+            must_read(socks[0], &servname, servname_len);
+            servname[servname_len - 1] = '\0';
+
+            memset(&hints, '\0', sizeof(struct addrinfo));
+            must_read(socks[0], &hints, sizeof(struct addrinfo));
+
+            i = getaddrinfo(hostname, servname, &hints, &res0);
+            if (i != 0 || res0 == NULL) {
+                addr_len = 0;
+                must_write(socks[0], &addr_len, sizeof(int));
+            } else {
+                /* Just send the first address */
+                i = res0->ai_addrlen;
+                must_write(socks[0], &i, sizeof(int));
+                must_write(socks[0], res0->ai_addr, i);
+                freeaddrinfo(res0);
+            }
+            break;
 		case PRIV_DONE_CONFIG_PARSE:
 			//dprintf("[priv]: msg PRIV_DONE_CONFIG_PARSE received\n");
 			increase_state(STATE_RUNNING);
@@ -412,6 +449,50 @@ int priv_open_tun(char *devname)
 	devname[path_len] = '\0';
 	fd = receive_fd(priv_fd);
 	return fd;
+}
+
+/* Name/service to address translation.  Response is placed into addr, and
+ * the length is returned (zero on error) */
+int
+priv_getaddrinfo(char *host, char *serv, struct sockaddr *addr,
+    size_t addr_len, struct addrinfo *hints)
+{
+    char hostcpy[MLVPN_MAXHNAMSTR], servcpy[MLVPN_MAXHNAMSTR];
+    int cmd, ret_len;
+    size_t hostname_len, servname_len;
+
+    if (priv_fd < 0)
+        errx(1, "%s: called from privileged portion", "priv_gethostserv");
+
+    strncpy(hostcpy, host, sizeof(hostcpy));
+    hostname_len = strlen(hostcpy) + 1;
+    strncpy(servcpy, serv, sizeof(servcpy));
+    servname_len = strlen(servcpy) + 1;
+
+    cmd = PRIV_GETADDRINFO;
+    must_write(priv_fd, &cmd, sizeof(int));
+    must_write(priv_fd, &hostname_len, sizeof(size_t));
+    must_write(priv_fd, hostcpy, hostname_len);
+    must_write(priv_fd, &servname_len, sizeof(size_t));
+    must_write(priv_fd, servcpy, servname_len);
+    must_write(priv_fd, hints, sizeof(struct addrinfo));
+
+    /* Expect back an integer size, and then a string of that length */
+    must_read(priv_fd, &ret_len, sizeof(int));
+
+    /* Check there was no error (indicated by a return of 0) */
+    if (!ret_len)
+        return 0;
+
+    /* Make sure we aren't overflowing the passed in buffer */
+    if (addr_len < ret_len)
+        errx(1, "%s: overflow attempt in return", "priv_gethostserv");
+
+    /* Read the resolved address and make sure we got all of it */
+    memset(addr, 0, addr_len);
+    must_read(priv_fd, addr, ret_len);
+
+    return ret_len;
 }
 
 /* Child can signal that its initial parsing is done, so that parent
