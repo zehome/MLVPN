@@ -1,4 +1,4 @@
-/*	$OpenBSD: privsep.c,v 1.34 2008/11/23 04:29:42 brad Exp $	*/
+/*    $OpenBSD: privsep.c,v 1.34 2008/11/23 04:29:42 brad Exp $    */
 
 /*
  * Copyright (c) 2003 Anil Madhavapeddy <anil@recoil.org>
@@ -53,18 +53,18 @@
  * the priv parent restarts itself.
  */
 enum priv_state {
-	STATE_INIT,		/* just started up */
-	STATE_CONFIG,		/* parsing config file for first time */
-	STATE_RUNNING,		/* running and accepting network traffic */
-	STATE_QUIT		/* shutting down */
+    STATE_INIT,        /* just started up */
+    STATE_CONFIG,        /* parsing config file for first time */
+    STATE_RUNNING,        /* running and accepting network traffic */
+    STATE_QUIT        /* shutting down */
 };
 
 enum cmd_types {
-	PRIV_OPEN_LOG,		/* open logfile for appending */
-	PRIV_OPEN_CONFIG,	/* open config file for reading only */
-	PRIV_OPEN_TUN,
+    PRIV_OPEN_LOG,        /* open logfile for appending */
+    PRIV_OPEN_CONFIG,    /* open config file for reading only */
+    PRIV_OPEN_TUN,
     PRIV_GETADDRINFO,
-	PRIV_DONE_CONFIG_PARSE	/* signal that the initial config parse is done */
+    PRIV_DONE_CONFIG_PARSE    /* signal that the initial config parse is done */
 };
 
 static int priv_fd = -1;
@@ -75,15 +75,14 @@ static volatile sig_atomic_t cur_state = STATE_INIT;
 
 /* Queue for the allowed logfiles */
 struct logname {
-	char path[MAXPATHLEN];
-	TAILQ_ENTRY(logname) next;
+    char path[MAXPATHLEN];
+    TAILQ_ENTRY(logname) next;
 };
 static TAILQ_HEAD(, logname) lognames;
 
 static void check_log_name(char *, size_t);
 static int open_file(char *);
 static void increase_state(int);
-//static void sig_pass_to_chld(int);
 static void sig_got_chld(int);
 static void must_read(int, void *, size_t);
 static void must_write(int, void *, size_t);
@@ -92,163 +91,161 @@ static int  may_read(int, void *, size_t);
 int
 priv_init(char *conf, char *argv[])
 {
-	int i, fd, socks[2], cmd, restart;
+    int i, fd, socks[2], cmd, restart;
     int hostname_len, servname_len, addrinfo_len;
-	size_t path_len;
-	char path[MAXPATHLEN];
-	struct ifreq ifr;
-	struct passwd *pw;
-	struct sigaction sa;
+    int nullfd;
+    size_t path_len;
+    char path[MAXPATHLEN];
+    struct ifreq ifr;
+    struct passwd *pw;
+    struct sigaction sa;
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
 
-	memset(&sa, 0, sizeof(sa));
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_RESTART;
-	sa.sa_handler = SIG_DFL;
-	for (i = 1; i < _NSIG; i++)
-		sigaction(i, &sa, NULL);
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sa.sa_handler = SIG_DFL;
+    for (i = 1; i < _NSIG; i++)
+        sigaction(i, &sa, NULL);
 
-	/* Create sockets */
-	if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, socks) == -1)
-		err(1, "socketpair() failed");
+    /* Create sockets */
+    if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, socks) == -1)
+        err(1, "socketpair() failed");
 
-	pw = getpwnam("mlvpn");
-	if (pw == NULL)
-		errx(1, "unknown user mlvpn");
+    pw = getpwnam("mlvpn");
+    if (pw == NULL)
+        errx(1, "unknown user mlvpn");
 
-	child_pid = fork();
-	if (child_pid < 0)
-		err(1, "fork() failed");
+    child_pid = fork();
+    if (child_pid < 0)
+        err(1, "fork() failed");
 
-	if (!child_pid) {
-		/* Child - drop privileges and return */
-		if (chroot(pw->pw_dir) != 0)
-			err(1, "unable to chroot");
-		if (chdir("/") != 0)
-			err(1, "unable to chdir");
+    if (!child_pid) {
+        /* Child - drop privileges and return */
+        if (chroot(pw->pw_dir) != 0)
+            err(1, "unable to chroot");
+        if (chdir("/") != 0)
+            err(1, "unable to chdir");
 
-		if (setgroups(1, &pw->pw_gid) == -1)
-			err(1, "setgroups() failed");
-		if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
-			err(1, "setresgid() failed");
-		if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
-			err(1, "setresuid() failed");
-		close(socks[0]);
-		priv_fd = socks[1];
-		return 0;
-	}
+        if (setgroups(1, &pw->pw_gid) == -1)
+            err(1, "setgroups() failed");
+        if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
+            err(1, "setresgid() failed");
+        if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
+            err(1, "setresuid() failed");
+        close(socks[0]);
+        priv_fd = socks[1];
+        return 0;
+    }
+    /* Father */
+    /* Pass TERM/HUP/INT/QUIT through to child, and accept CHLD */
+    //sa.sa_handler = sig_pass_to_chld;
+    //sigaction(SIGTERM, &sa, NULL);
+    //sigaction(SIGHUP, &sa, NULL);
+    //sigaction(SIGINT, &sa, NULL);
+    //sigaction(SIGQUIT, &sa, NULL);
+    sa.sa_handler = sig_got_chld;
+    sa.sa_flags |= SA_NOCLDSTOP;
+    sigaction(SIGCHLD, &sa, NULL);
 
-	/* PHIL: TODO */
-	/*
-	if (!Debug) {
-		close(lockfd);
-		dup2(nullfd, STDIN_FILENO);
-		dup2(nullfd, STDOUT_FILENO);
-		dup2(nullfd, STDERR_FILENO);
-	}
-	*/
+    init_ps_display("", "", "", "mlvpn [priv]");
+    close(socks[1]);
 
-	//if (nullfd > 2)
-	//close(nullfd);
+    /* Save the config file specified by the child process */
+    strncpy(config_file, conf, sizeof config_file);
 
-	/* Father */
-	/* Pass TERM/HUP/INT/QUIT through to child, and accept CHLD */
-	//sa.sa_handler = sig_pass_to_chld;
-	//sigaction(SIGTERM, &sa, NULL);
-	//sigaction(SIGHUP, &sa, NULL);
-	//sigaction(SIGINT, &sa, NULL);
-	//sigaction(SIGQUIT, &sa, NULL);
-	sa.sa_handler = sig_got_chld;
-	sa.sa_flags |= SA_NOCLDSTOP;
-	sigaction(SIGCHLD, &sa, NULL);
+    if (stat(config_file, &cf_info) < 0)
+        err(1, "stat config file failed");
 
-	init_ps_display("", "", "", "mlvpn [priv]");
-	close(socks[1]);
+    TAILQ_INIT(&lognames);
+    increase_state(STATE_CONFIG);
+    restart = 0;
 
-	/* Save the config file specified by the child process */
-	strncpy(config_file, conf, sizeof config_file);
+    nullfd = open("/dev/null", O_RDONLY);
+    if (nullfd < 0) {
+        perror("/dev/null");
+        _exit(1);
+    }
+    dup2(nullfd, 0);
+    dup2(nullfd, 1);
+    dup2(nullfd, 2);
+    if (nullfd > 2)
+        close(nullfd);
 
-	if (stat(config_file, &cf_info) < 0)
-		err(1, "stat config file failed");
+    while (cur_state < STATE_QUIT) {
+        if (may_read(socks[0], &cmd, sizeof(int)))
+            break;
+        switch (cmd) {
+        case PRIV_OPEN_LOG:
+            //dprintf("[priv]: msg PRIV_OPEN_LOG received\n")
+            /* Expecting: length, path */
+            must_read(socks[0], &path_len, sizeof(size_t));
+            if (path_len == 0 || path_len > sizeof(path))
+                _exit(0);
+            must_read(socks[0], &path, path_len);
+            path[path_len - 1] = '\0';
+            check_log_name(path, path_len);
+            fd = open_file(path);
+            send_fd(socks[0], fd);
+            if (fd < 0)
+                warnx("priv_open_log failed");
+            else
+                close(fd);
+            break;
 
-	TAILQ_INIT(&lognames);
-	increase_state(STATE_CONFIG);
-	restart = 0;
+        case PRIV_OPEN_CONFIG:
+            //dprintf("[priv]: msg PRIV_OPEN_CONFIG received\n");
+            stat(config_file, &cf_info);
+            fd = open(config_file, O_RDONLY|O_NONBLOCK, 0);
+            send_fd(socks[0], fd);
+            if (fd < 0)
+                warnx("priv_open_config failed");
+            else
+                close(fd);
+            break;
 
-	while (cur_state < STATE_QUIT) {
-		if (may_read(socks[0], &cmd, sizeof(int)))
-			break;
-		switch (cmd) {
-		case PRIV_OPEN_LOG:
-			//dprintf("[priv]: msg PRIV_OPEN_LOG received\n")
-			/* Expecting: length, path */
-			must_read(socks[0], &path_len, sizeof(size_t));
-			if (path_len == 0 || path_len > sizeof(path))
-				_exit(0);
-			must_read(socks[0], &path, path_len);
-			path[path_len - 1] = '\0';
-			check_log_name(path, path_len);
-			fd = open_file(path);
-			send_fd(socks[0], fd);
-			if (fd < 0)
-				warnx("priv_open_log failed");
-			else
-				close(fd);
-			break;
+        case PRIV_OPEN_TUN:
+            must_read(socks[0], &path_len, sizeof(size_t));
 
-		case PRIV_OPEN_CONFIG:
-			//dprintf("[priv]: msg PRIV_OPEN_CONFIG received\n");
-			stat(config_file, &cf_info);
-			fd = open(config_file, O_RDONLY|O_NONBLOCK, 0);
-			send_fd(socks[0], fd);
-			if (fd < 0)
-				warnx("priv_open_config failed");
-			else
-				close(fd);
-			break;
+            if (path_len > sizeof(path))
+                _exit(0);
+            else if (path_len > 0) {
+                must_read(socks[0], &path, path_len);
+                path[path_len-1] = '\0';
+            } else {
+                path[0] = '\0';
+            }
 
-		case PRIV_OPEN_TUN:
-			must_read(socks[0], &path_len, sizeof(size_t));
+            fd = open("/dev/net/tun", O_RDWR);
 
-			if (path_len > sizeof(path))
-				_exit(0);
-			else if (path_len > 0) {
-				must_read(socks[0], &path, path_len);
-				path[path_len-1] = '\0';
-			} else {
-				path[0] = '\0';
-			}
+            if (fd < 0) {
+                warnx("priv_open_tun failed");
+                must_write(socks[0], 0, sizeof(size_t));
+            } else {
+                memset(&ifr, 0, sizeof(ifr));
+                /* We do not want kernel packet info */
+                ifr.ifr_flags = IFF_TUN | IFF_NO_PI; 
+                /* Allocate with specified name, otherwise the kernel
+                 * will find a name for us. */
+                if (path_len)
+                    strncpy(ifr.ifr_name, path, IFNAMSIZ);
 
-			fd = open("/dev/net/tun", O_RDWR);
+                /* ioctl to create the if */
+                if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
+                    warn("priv_open_tun failed");
 
-			if (fd < 0) {
-				warnx("priv_open_tun failed");
-				must_write(socks[0], 0, sizeof(size_t));
-			} else {
-				memset(&ifr, 0, sizeof(ifr));
-				/* We do not want kernel packet info */
-				ifr.ifr_flags = IFF_TUN | IFF_NO_PI; 
-				/* Allocate with specified name, otherwise the kernel
-				 * will find a name for us. */
-				if (path_len)
-					strncpy(ifr.ifr_name, path, IFNAMSIZ);
+                path_len = strlen(ifr.ifr_name);
+                /* The kernel is the only one able to "name" the if.
+                 * so we reread it to get the real name set by the kernel. */
 
-				/* ioctl to create the if */
-				if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
-					warn("priv_open_tun failed");
-
-				path_len = strlen(ifr.ifr_name);
-				/* The kernel is the only one able to "name" the if.
-				 * so we reread it to get the real name set by the kernel. */
-
-				must_write(socks[0], &path_len, sizeof(path_len));
-				must_write(socks[0], ifr.ifr_name, path_len);
-			}
-			send_fd(socks[0], fd);
-			if (fd >= 0)
-				close(fd);
-			break;
+                must_write(socks[0], &path_len, sizeof(path_len));
+                must_write(socks[0], ifr.ifr_name, path_len);
+            }
+            send_fd(socks[0], fd);
+            if (fd >= 0)
+                close(fd);
+            break;
         case PRIV_GETADDRINFO:
             /* Expecting: len, hostname, len, servname, hints */
             must_read(socks[0], &hostname_len, sizeof(size_t));
@@ -294,36 +291,36 @@ priv_init(char *conf, char *argv[])
                 freeaddrinfo(res0);
             }
             break;
-		case PRIV_DONE_CONFIG_PARSE:
-			//dprintf("[priv]: msg PRIV_DONE_CONFIG_PARSE received\n");
-			increase_state(STATE_RUNNING);
-			break;
+        case PRIV_DONE_CONFIG_PARSE:
+            //dprintf("[priv]: msg PRIV_DONE_CONFIG_PARSE received\n");
+            increase_state(STATE_RUNNING);
+            break;
 
-		default:
-			errx(1, "unknown command %d", cmd);
-			break;
-		}
-	}
+        default:
+            errx(1, "unknown command %d", cmd);
+            break;
+        }
+    }
 
-	close(socks[0]);
+    close(socks[0]);
 
-	if (restart) {
-		int r;
+    if (restart) {
+        int r;
 
-		wait(&r);
-		execvp(argv[0], argv);
-	}
-	_exit(1);
+        wait(&r);
+        execvp(argv[0], argv);
+    }
+    _exit(1);
 }
 
 static int
 open_file(char *path)
 {
-	/* must not start with | */
-	if (path[0] == '|')
-		return (-1);
+    /* must not start with | */
+    if (path[0] == '|')
+        return (-1);
 
-	return (open(path, O_WRONLY|O_APPEND|O_NONBLOCK, 0));
+    return (open(path, O_WRONLY|O_APPEND|O_NONBLOCK, 0));
 }
 
 /* If we are in the initial configuration state, accept a logname and add
@@ -333,138 +330,138 @@ open_file(char *path)
 static void
 check_log_name(char *lognam, size_t loglen)
 {
-	struct logname *lg;
-	char *p;
+    struct logname *lg;
+    char *p;
 
-	/* Any path containing '..' is invalid.  */
-	for (p = lognam; *p && (p - lognam) < loglen; p++)
-		if (*p == '.' && *(p + 1) == '.')
-			goto bad_path;
+    /* Any path containing '..' is invalid.  */
+    for (p = lognam; *p && (p - lognam) < loglen; p++)
+        if (*p == '.' && *(p + 1) == '.')
+            goto bad_path;
 
-	switch (cur_state) {
-	case STATE_CONFIG:
-		lg = malloc(sizeof(struct logname));
-		if (!lg)
-			err(1, "check_log_name() malloc");
-		strncpy(lg->path, lognam, MAXPATHLEN);
-		TAILQ_INSERT_TAIL(&lognames, lg, next);
-		break;
-	case STATE_RUNNING:
-		TAILQ_FOREACH(lg, &lognames, next)
-			if (!strcmp(lg->path, lognam))
-				return;
-		goto bad_path;
-		break;
-	default:
-		/* Any other state should just refuse the request */
-		goto bad_path;
-		break;
-	}
-	return;
+    switch (cur_state) {
+    case STATE_CONFIG:
+        lg = malloc(sizeof(struct logname));
+        if (!lg)
+            err(1, "check_log_name() malloc");
+        strncpy(lg->path, lognam, MAXPATHLEN);
+        TAILQ_INSERT_TAIL(&lognames, lg, next);
+        break;
+    case STATE_RUNNING:
+        TAILQ_FOREACH(lg, &lognames, next)
+            if (!strcmp(lg->path, lognam))
+                return;
+        goto bad_path;
+        break;
+    default:
+        /* Any other state should just refuse the request */
+        goto bad_path;
+        break;
+    }
+    return;
 
 bad_path:
-	warnx("%s: invalid attempt to open %s: rewriting to /dev/null",
-	    "check_log_name", lognam);
-	strncpy(lognam, "/dev/null", loglen);
+    warnx("%s: invalid attempt to open %s: rewriting to /dev/null",
+        "check_log_name", lognam);
+    strncpy(lognam, "/dev/null", loglen);
 }
 
 /* Crank our state into less permissive modes */
 static void
 increase_state(int state)
 {
-	if (state <= cur_state)
-		errx(1, "attempt to decrease or match current state");
-	if (state < STATE_INIT || state > STATE_QUIT)
-		errx(1, "attempt to switch to invalid state");
-	cur_state = state;
+    if (state <= cur_state)
+        errx(1, "attempt to decrease or match current state");
+    if (state < STATE_INIT || state > STATE_QUIT)
+        errx(1, "attempt to switch to invalid state");
+    cur_state = state;
 }
 
 /* Open log-file */
 FILE *
 priv_open_log(const char *lognam)
 {
-	char path[MAXPATHLEN];
-	int cmd, fd;
-	size_t path_len;
-	FILE *fp;
+    char path[MAXPATHLEN];
+    int cmd, fd;
+    size_t path_len;
+    FILE *fp;
 
-	if (priv_fd < 0)
-		errx(1, "%s: called from privileged child", "priv_open_log");
+    if (priv_fd < 0)
+        errx(1, "%s: called from privileged child", "priv_open_log");
 
-	strncpy(path, lognam, sizeof path);
-	path_len = strlen(path) + 1;
+    strncpy(path, lognam, sizeof path);
+    path_len = strlen(path) + 1;
 
-	cmd = PRIV_OPEN_LOG;
-	must_write(priv_fd, &cmd, sizeof(int));
-	must_write(priv_fd, &path_len, sizeof(size_t));
-	must_write(priv_fd, path, path_len);
-	fd = receive_fd(priv_fd);
+    cmd = PRIV_OPEN_LOG;
+    must_write(priv_fd, &cmd, sizeof(int));
+    must_write(priv_fd, &path_len, sizeof(size_t));
+    must_write(priv_fd, path, path_len);
+    fd = receive_fd(priv_fd);
 
-	if (fd < 0)
-		return NULL;
+    if (fd < 0)
+        return NULL;
 
-	fp = fdopen(fd, "a");
-	if (!fp) {
-		warn("priv_open_log: fdopen() failed");
-		close(fd);
-		return NULL;
-	}
+    fp = fdopen(fd, "a");
+    if (!fp) {
+        warn("priv_open_log: fdopen() failed");
+        close(fd);
+        return NULL;
+    }
 
-	return fp;
+    return fp;
 }
 
 /* Open mlvpn config file for reading */
 FILE *
 priv_open_config(void)
 {
-	int cmd, fd;
-	FILE *fp;
+    int cmd, fd;
+    FILE *fp;
 
-	if (priv_fd < 0)
-		errx(1, "%s: called from privileged portion", "priv_open_config");
+    if (priv_fd < 0)
+        errx(1, "%s: called from privileged portion", "priv_open_config");
 
-	cmd = PRIV_OPEN_CONFIG;
-	must_write(priv_fd, &cmd, sizeof(int));
-	fd = receive_fd(priv_fd);
-	if (fd < 0)
-		return NULL;
+    cmd = PRIV_OPEN_CONFIG;
+    must_write(priv_fd, &cmd, sizeof(int));
+    fd = receive_fd(priv_fd);
+    if (fd < 0)
+        return NULL;
 
-	fp = fdopen(fd, "r");
-	if (!fp) {
-		warn("priv_open_config: fdopen() failed");
-		close(fd);
-		return NULL;
-	}
+    fp = fdopen(fd, "r");
+    if (!fp) {
+        warn("priv_open_config: fdopen() failed");
+        close(fd);
+        return NULL;
+    }
 
-	return fp;
+    return fp;
 }
 
 /* Open tun */
 int priv_open_tun(char *devname)
 {
-	char path[IFNAMSIZ];
-	int cmd, fd;
-	size_t path_len;
+    char path[IFNAMSIZ];
+    int cmd, fd;
+    size_t path_len;
 
-	if (priv_fd < 0)
-		errx(1, "priv_open_tun: called from privileged portion");
+    if (priv_fd < 0)
+        errx(1, "priv_open_tun: called from privileged portion");
 
-	strncpy(path, devname, sizeof path);
-	path_len = strlen(path) + 1;
+    strncpy(path, devname, sizeof path);
+    path_len = strlen(path) + 1;
 
-	cmd = PRIV_OPEN_TUN;
-	must_write(priv_fd, &cmd, sizeof(int));
-	must_write(priv_fd, &path_len, sizeof(size_t));
-	must_write(priv_fd, path, path_len);
-	must_read(priv_fd, &path_len, sizeof(size_t));
+    cmd = PRIV_OPEN_TUN;
+    must_write(priv_fd, &cmd, sizeof(int));
+    must_write(priv_fd, &path_len, sizeof(size_t));
+    must_write(priv_fd, path, path_len);
+    must_read(priv_fd, &path_len, sizeof(size_t));
 
-	if (path_len > 0) {
-		must_read(priv_fd, devname, path_len);
-	}
+    if (path_len > 0) {
+        must_read(priv_fd, devname, path_len);
+    }
 
-	devname[path_len] = '\0';
-	fd = receive_fd(priv_fd);
-	return fd;
+    devname[path_len] = '\0';
+    fd = receive_fd(priv_fd);
+    return fd;
 }
 
 /* Name/service to address translation.  Response is placed into addr, and
@@ -529,14 +526,14 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
 void
 priv_config_parse_done(void)
 {
-	int cmd;
+    int cmd;
 
-	if (priv_fd < 0)
-		errx(1, "%s: called from privileged portion",
-		    "priv_config_parse_done");
+    if (priv_fd < 0)
+        errx(1, "%s: called from privileged portion",
+            "priv_config_parse_done");
 
-	cmd = PRIV_DONE_CONFIG_PARSE;
-	must_write(priv_fd, &cmd, sizeof(int));
+    cmd = PRIV_DONE_CONFIG_PARSE;
+    must_write(priv_fd, &cmd, sizeof(int));
 }
 
 /* When child dies, move into the shutdown state */
@@ -544,37 +541,37 @@ priv_config_parse_done(void)
 static void
 sig_got_chld(int sig)
 {
-	int save_errno = errno;
-	pid_t	pid;
+    int save_errno = errno;
+    pid_t    pid;
 
-	do {
-		pid = waitpid(WAIT_ANY, NULL, WNOHANG);
-		if (pid == child_pid && cur_state < STATE_QUIT)
-			cur_state = STATE_QUIT;
-	} while (pid > 0 || (pid == -1 && errno == EINTR));
-	errno = save_errno;
+    do {
+        pid = waitpid(WAIT_ANY, NULL, WNOHANG);
+        if (pid == child_pid && cur_state < STATE_QUIT)
+            cur_state = STATE_QUIT;
+    } while (pid > 0 || (pid == -1 && errno == EINTR));
+    errno = save_errno;
 }
 
 /* Read all data or return 1 for error.  */
 static int
 may_read(int fd, void *buf, size_t n)
 {
-	char *s = buf;
-	ssize_t res, pos = 0;
+    char *s = buf;
+    ssize_t res, pos = 0;
 
-	while (n > pos) {
-		res = read(fd, s + pos, n - pos);
-		switch (res) {
-		case -1:
-			if (errno == EINTR || errno == EAGAIN)
-				continue;
-		case 0:
-			return (1);
-		default:
-			pos += res;
-		}
-	}
-	return (0);
+    while (n > pos) {
+        res = read(fd, s + pos, n - pos);
+        switch (res) {
+        case -1:
+            if (errno == EINTR || errno == EAGAIN)
+                continue;
+        case 0:
+            return (1);
+        default:
+            pos += res;
+        }
+    }
+    return (0);
 }
 
 /* Read data with the assertion that it all must come through, or
@@ -582,21 +579,21 @@ may_read(int fd, void *buf, size_t n)
 static void
 must_read(int fd, void *buf, size_t n)
 {
-	char *s = buf;
-	ssize_t res, pos = 0;
+    char *s = buf;
+    ssize_t res, pos = 0;
 
-	while (n > pos) {
-		res = read(fd, s + pos, n - pos);
-		switch (res) {
-		case -1:
-			if (errno == EINTR || errno == EAGAIN)
-				continue;
-		case 0:
-			_exit(0);
-		default:
-			pos += res;
-		}
-	}
+    while (n > pos) {
+        res = read(fd, s + pos, n - pos);
+        switch (res) {
+        case -1:
+            if (errno == EINTR || errno == EAGAIN)
+                continue;
+        case 0:
+            _exit(0);
+        default:
+            pos += res;
+        }
+    }
 }
 
 /* Write data with the assertion that it all has to be written, or
@@ -604,19 +601,19 @@ must_read(int fd, void *buf, size_t n)
 static void
 must_write(int fd, void *buf, size_t n)
 {
-	char *s = buf;
-	ssize_t res, pos = 0;
+    char *s = buf;
+    ssize_t res, pos = 0;
 
-	while (n > pos) {
-		res = write(fd, s + pos, n - pos);
-		switch (res) {
-		case -1:
-			if (errno == EINTR || errno == EAGAIN)
-				continue;
-		case 0:
-			_exit(0);
-		default:
-			pos += res;
-		}
-	}
+    while (n > pos) {
+        res = write(fd, s + pos, n - pos);
+        switch (res) {
+        case -1:
+            if (errno == EINTR || errno == EAGAIN)
+                continue;
+        case 0:
+            _exit(0);
+        default:
+            pos += res;
+        }
+    }
 }
