@@ -93,13 +93,13 @@ int
 priv_init(char *conf, char *argv[])
 {
 	int i, fd, socks[2], cmd, restart;
-    int hostname_len, servname_len, addr_len;
+    int hostname_len, servname_len, addrinfo_len;
 	size_t path_len;
 	char path[MAXPATHLEN];
 	struct ifreq ifr;
 	struct passwd *pw;
 	struct sigaction sa;
-    struct addrinfo hints, *res0;
+    struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
 
 	memset(&sa, 0, sizeof(sa));
@@ -252,13 +252,13 @@ priv_init(char *conf, char *argv[])
         case PRIV_GETADDRINFO:
             /* Expecting: len, hostname, len, servname, hints */
             must_read(socks[0], &hostname_len, sizeof(size_t));
-            if (hostname_len == 0 || hostname_len > sizeof(hostname))
+            if (hostname_len > sizeof(hostname))
                 _exit(0);
             must_read(socks[0], &hostname, hostname_len);
             hostname[hostname_len - 1] = '\0';
 
             must_read(socks[0], &servname_len, sizeof(size_t));
-            if (servname_len == 0 || servname_len > sizeof(servname))
+            if (servname_len > sizeof(servname))
                 _exit(0);
             must_read(socks[0], &servname, servname_len);
             servname[servname_len - 1] = '\0';
@@ -268,13 +268,30 @@ priv_init(char *conf, char *argv[])
 
             i = getaddrinfo(hostname, servname, &hints, &res0);
             if (i != 0 || res0 == NULL) {
-                addr_len = 0;
-                must_write(socks[0], &addr_len, sizeof(int));
+                addrinfo_len = 0;
+                must_write(socks[0], &addrinfo_len, sizeof(int));
             } else {
-                /* Just send the first address */
-                i = res0->ai_addrlen;
-                must_write(socks[0], &i, sizeof(int));
-                must_write(socks[0], res0->ai_addr, i);
+                addrinfo_len = 0;
+                res = res0;
+                while (res)
+                {
+                    addrinfo_len++;
+                    res = res->ai_next;
+                }
+                must_write(socks[0], &addrinfo_len, sizeof(int));
+                printf("1\n");
+
+                res = res0;
+                while (res)
+                {
+                    must_write(socks[0], &res->ai_flags, sizeof(int));
+                    must_write(socks[0], &res->ai_family, sizeof(int));
+                    must_write(socks[0], &res->ai_socktype, sizeof(int));
+                    must_write(socks[0], &res->ai_protocol, sizeof(int));
+                    must_write(socks[0], &res->ai_addrlen, sizeof(size_t));
+                    must_write(socks[0], res->ai_addr, res->ai_addrlen);
+                    res = res->ai_next;
+                }
                 freeaddrinfo(res0);
             }
             break;
@@ -454,12 +471,13 @@ int priv_open_tun(char *devname)
 /* Name/service to address translation.  Response is placed into addr, and
  * the length is returned (zero on error) */
 int
-priv_getaddrinfo(char *host, char *serv, struct sockaddr *addr,
-    size_t addr_len, struct addrinfo *hints)
+priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
+    struct addrinfo *hints)
 {
     char hostcpy[MLVPN_MAXHNAMSTR], servcpy[MLVPN_MAXHNAMSTR];
-    int cmd, ret_len;
+    int cmd, ret_len, i;
     size_t hostname_len, servname_len;
+    struct addrinfo *new, *last = NULL;
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_gethostserv");
@@ -477,20 +495,32 @@ priv_getaddrinfo(char *host, char *serv, struct sockaddr *addr,
     must_write(priv_fd, servcpy, servname_len);
     must_write(priv_fd, hints, sizeof(struct addrinfo));
 
-    /* Expect back an integer size, and then a string of that length */
+    /* How much addrinfo we have */
     must_read(priv_fd, &ret_len, sizeof(int));
 
     /* Check there was no error (indicated by a return of 0) */
     if (!ret_len)
         return 0;
 
-    /* Make sure we aren't overflowing the passed in buffer */
-    if (addr_len < ret_len)
-        errx(1, "%s: overflow attempt in return", "priv_gethostserv");
-
-    /* Read the resolved address and make sure we got all of it */
-    memset(addr, 0, addr_len);
-    must_read(priv_fd, addr, ret_len);
+    for (i=0; i < ret_len; i++)
+    {
+        new = (struct addrinfo *)malloc(sizeof(struct addrinfo));
+        must_read(priv_fd, &new->ai_flags, sizeof(int));
+        must_read(priv_fd, &new->ai_family, sizeof(int));
+        must_read(priv_fd, &new->ai_socktype, sizeof(int));
+        must_read(priv_fd, &new->ai_protocol, sizeof(int));
+        must_read(priv_fd, &new->ai_addrlen, sizeof(size_t));
+        new->ai_addr = (struct sockaddr *)malloc(new->ai_addrlen);
+        must_read(priv_fd, new->ai_addr, new->ai_addrlen);
+        new->ai_canonname = NULL;
+        new->ai_next = NULL;
+        
+        if (i == 0)
+            *addrinfo = new;
+        if (last)
+            last->ai_next = new;
+        last = new;
+    }
 
     return ret_len;
 }

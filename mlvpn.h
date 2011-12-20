@@ -140,7 +140,7 @@ FILE *priv_open_config(void);
 int priv_open_tun(char *devname);
 FILE *priv_open_log(const char *lognam);
 int 
-priv_getaddrinfo(char *host, char *serv, struct sockaddr *addr,
-    size_t addr_len, struct addrinfo *hints);
+priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
+    struct addrinfo *hints);
 
 #endif
