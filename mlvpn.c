@@ -36,6 +36,7 @@ static struct tuntap_s tuntap;
 static pktbuffer_t *tap_send;
 static mlvpn_tunnel_t *rtun_start = NULL;
 static char *progname;
+static char *tundevname = NULL;
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
@@ -905,7 +906,7 @@ void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
     tun->next_keepalive = 0;
 }
 
-int mlvpn_config(char *filename, char **tundevname)
+int mlvpn_config(char *filename)
 {
     config_t *config, *work;
     mlvpn_tunnel_t *tmptun;
@@ -958,7 +959,7 @@ int mlvpn_config(char *filename, char **tundevname)
                 _conf_set_int_from_conf(config, lastSection,
                     "timeout", &default_timeout, 60, NULL, 0);
                 _conf_set_str_from_conf(config, lastSection,
-                    "interface_name", tundevname, "mlvpn0", NULL, 0);
+                    "interface_name", &tundevname, "mlvpn0", NULL, 0);
 
                 if (mystr_eq(mode, "server"))
                     server_mode = 1;
@@ -1065,7 +1066,6 @@ int main(int argc, char **argv)
     struct timeval timeout;
     int maxfd = 0;
     char *cfgfilename = NULL;
-    char *tundevname = NULL;
     mlvpn_tunnel_t *tmptun;
 
     /* ps_status misc */
@@ -1089,8 +1089,9 @@ int main(int argc, char **argv)
     } else {
         cfgfilename = argv[1];
     }
-    priv_init(cfgfilename, argv);
-    mlvpn_config(cfgfilename, &tundevname);
+    priv_init(cfgfilename, argv, "mlvpn");
+    
+    mlvpn_config(cfgfilename);
 
     /* tun/tap initialization */
     memset(&tuntap, 0, sizeof(tuntap));

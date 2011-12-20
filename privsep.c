@@ -89,7 +89,7 @@ static void must_write(int, void *, size_t);
 static int  may_read(int, void *, size_t);
 
 int
-priv_init(char *conf, char *argv[])
+priv_init(char *conf, char *argv[], char *username)
 {
     int i, fd, socks[2], cmd, restart;
     int hostname_len, servname_len, addrinfo_len;
@@ -113,9 +113,9 @@ priv_init(char *conf, char *argv[])
     if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, socks) == -1)
         err(1, "socketpair() failed");
 
-    pw = getpwnam("mlvpn");
+    pw = getpwnam(username);
     if (pw == NULL)
-        errx(1, "unknown user mlvpn");
+        errx(1, "unknown user %s", username);
 
     child_pid = fork();
     if (child_pid < 0)
@@ -149,7 +149,7 @@ priv_init(char *conf, char *argv[])
     sa.sa_flags |= SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa, NULL);
 
-    init_ps_display("", "", "", "mlvpn [priv]");
+    init_ps_display("", "", "", "%s [priv]", argv[0]);
     close(socks[1]);
 
     /* Save the config file specified by the child process */
