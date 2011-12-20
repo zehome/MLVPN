@@ -212,9 +212,9 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 
 int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
 {
-    int ret, fd;
+    int ret, fd = -1;
     char *addr, *port;
-    struct addrinfo hints;
+    struct addrinfo hints, *res;
 
     fd = t->fd;
     if (t->server_mode)
@@ -249,79 +249,94 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         return -1;
     }
 
-    /* creation de la socket(2) */
-    if ( (fd = socket(t->addrinfo->ai_family, t->addrinfo->ai_socktype, t->addrinfo->ai_protocol)) < 0)
+    while (res)
     {
-        _ERROR("Socket creation error while connecting to %s:%s: %s\n",
-            addr, port, strerror(fd));
-    } else {
-        _ERROR("Created socket %d.\n", fd);
-        if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
-            t->server_fd = fd;
-        else
-            t->fd = fd;
-
-        /* setup non blocking sockets */
-        int val = 1;
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-            &val, sizeof(int));
-        if (t->encap_prot == ENCAP_PROTO_TCP)
-            setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY,
-                &val, sizeof(int));
-        if (t->bindaddr)
+        /* creation de la socket(2) */
+        if ( (fd = socket(t->addrinfo->ai_family,
+                        t->addrinfo->ai_socktype,
+                        t->addrinfo->ai_protocol)) < 0)
         {
-            if (mlvpn_rtun_bind(t) < 0)
-            {
-                _ERROR("Unable to bind socket %d.\n", fd);
-                if (t->server_mode)
-                    return -2;
-            }
-        }
-        if (t->encap_prot == ENCAP_PROTO_TCP)
-        {
-            if (t->server_mode)
-            {
-                /* listen, only allow 1 socket in accept() queue */
-                if ((ret = listen(fd, 1)) < 0)
-                {
-                    _ERROR("Unable to listen on socket %d.\n", fd);
-                    return -3;
-                }
-            } else {
-                /* client mode */
-                _ERROR("Connecting to [%s]:%s\n", addr, port);
-                /* connect(2) */
-                if (connect(fd, t->addrinfo->ai_addr, t->addrinfo->ai_addrlen) == 0)
-                {
-                    _ERROR("Successfully connected to [%s]:%s.\n",
-                        addr, port);
-                    mlvpn_rtun_tick(t);
-                    mlvpn_rtun_reset_counters();
-                } else {
-                    _ERROR("Connection to [%s]:%s failed: %s\n",
-                        addr, port, strerror(errno));
-                    close(fd);
-                    t->fd = -1;
-                    t->activated = 0;
-                    return -4;
-                }
-            }
-        }
-        /* set non blocking after connect... May lockup the entiere process */
-        long fl = fcntl(fd, F_GETFL);
-        if (fl < 0)
-        {
-            _ERROR("Error during fcntl on %d: %s\n", fd, strerror(errno));
+            _ERROR("Socket creation error while connecting to %s:%s: %s\n",
+                addr, port, strerror(fd));
         } else {
-            fl |= O_NONBLOCK;
-            if (fcntl(fd, F_SETFL, fl) < 0)
+            _DEBUG("Created socket %d.\n", fd);
+            if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
+                t->server_fd = fd;
+            else
+                t->fd = fd;
+            break;
+        }
+        res = res->ai_next;
+    }
+
+    if (fd < 0)
+    {
+        _ERROR("Connection failed. Check DNS?\n");
+        return 1;
+    }
+
+    /* setup non blocking sockets */
+    int val = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+        &val, sizeof(int));
+    if (t->encap_prot == ENCAP_PROTO_TCP)
+        setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY,
+            &val, sizeof(int));
+    if (t->bindaddr)
+    {
+        if (mlvpn_rtun_bind(t) < 0)
+        {
+            _ERROR("Unable to bind socket %d.\n", fd);
+            if (t->server_mode)
+                return -2;
+        }
+    }
+
+    if (t->encap_prot == ENCAP_PROTO_TCP)
+    {
+        if (t->server_mode)
+        {
+            /* listen, only allow 1 socket in accept() queue */
+            if ((ret = listen(fd, 1)) < 0)
             {
-                _ERROR("Unable to set socket %d non blocking: %s\n",
-                    fd, strerror(errno));
+                _ERROR("Unable to listen on socket %d.\n", fd);
+                return -3;
+            }
+        } else {
+            /* client mode */
+            _ERROR("Connecting to [%s]:%s\n", addr, port);
+            /* connect(2) */
+            if (connect(fd, t->addrinfo->ai_addr, t->addrinfo->ai_addrlen) == 0)
+            {
+                _ERROR("Successfully connected to [%s]:%s.\n",
+                    addr, port);
+                mlvpn_rtun_tick(t);
+                mlvpn_rtun_reset_counters();
+            } else {
+                _ERROR("Connection to [%s]:%s failed: %s\n",
+                    addr, port, strerror(errno));
+                close(fd);
+                t->fd = -1;
+                t->activated = 0;
+                return -4;
             }
         }
     }
-    
+
+    /* set non blocking after connect... May lockup the entiere process */
+    long fl = fcntl(fd, F_GETFL);
+    if (fl < 0)
+    {
+        _ERROR("Error during fcntl on %d: %s\n", fd, strerror(errno));
+    } else {
+        fl |= O_NONBLOCK;
+        if (fcntl(fd, F_SETFL, fl) < 0)
+        {
+            _ERROR("Unable to set socket %d non blocking: %s\n",
+                fd, strerror(errno));
+        }
+    }
+
     return 0;
 }
 
