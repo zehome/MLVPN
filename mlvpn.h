@@ -17,6 +17,8 @@
 #define MLVPN_MAXPORTSTR 5
 #define MLVPN_MAGIC 0xFFEEDD00
 
+#define MLVPN_MAX_COMMAND_ARGS 32
+
 /* 4 Kbytes re-assembly buffer */
 #define BUFSIZE 1024 * 4
 /* Number of packets in the queue. Each pkt is ~ 1520 */
@@ -62,6 +64,7 @@ struct mlvpn_buffer
 
 typedef struct mlvpn_tunnel_s
 {
+    char *name;           /* tunnel name */
     char *bindaddr;       /* packets source */
     char *bindport;       /* packets port source (or NULL) */
     char *destaddr;       /* remote server ip (can be hostname) */
@@ -90,6 +93,7 @@ enum {
     ENCAP_PROTO_UDP,
     ENCAP_PROTO_TCP
 };
+
 
 int mlvpn_config(char *filename);
 void init_buffers();
@@ -126,7 +130,8 @@ int mlvpn_rtun_timer_write(mlvpn_tunnel_t *t);
 mlvpn_tunnel_t *mlvpn_rtun_last();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
 mlvpn_tunnel_t *
-mlvpn_rtun_new(const char *bindaddr, const char *bindport,
+mlvpn_rtun_new(const char *name,
+               const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
                int server_mode);
 

@@ -37,6 +37,7 @@ static pktbuffer_t *tap_send;
 static mlvpn_tunnel_t *rtun_start = NULL;
 static char *progname;
 static char *tundevname = NULL;
+static char *status_command = NULL;
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
@@ -71,7 +72,8 @@ mlvpn_rtun_tick(mlvpn_tunnel_t *t)
 
 
 mlvpn_tunnel_t *
-mlvpn_rtun_new(const char *bindaddr, const char *bindport,
+mlvpn_rtun_new(const char *name,
+               const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
                int server_mode)
 {
@@ -97,6 +99,7 @@ mlvpn_rtun_new(const char *bindaddr, const char *bindport,
     new = (mlvpn_tunnel_t *)calloc(1, sizeof(mlvpn_tunnel_t));
     /* other values are enforced by calloc to 0/NULL */
 
+    new->name = strdup(name);
     new->fd = -1;
     new->server_mode = server_mode;
     new->server_fd = -1;
@@ -311,6 +314,10 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             {
                 _ERROR("Successfully connected to [%s]:%s.\n",
                     addr, port);
+                {
+                    char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
+                    priv_run_script(3, cmdargs);
+                }
                 mlvpn_rtun_tick(t);
                 mlvpn_rtun_reset_counters();
             } else {
@@ -446,8 +453,10 @@ int mlvpn_tuntap_alloc()
         return fd;
     }
     tuntap.fd = fd;
-    char *args[2] = {"up", NULL};
-    priv_run_script(1, args);
+    {
+        char *args[3] = {tuntap.devname, "tuntap_up", NULL};
+        priv_run_script(2, args);
+    }
     return fd;
 }
 
@@ -807,6 +816,11 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                     _DEBUG("New UDP connection -> %s\n", clienthost);
                     memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
                     tun->activated = 1;
+
+                    {
+                        char *cmdargs[4] = {tuntap.devname, "rtun_up", tun->name, NULL};
+                        priv_run_script(3, cmdargs);
+                    }
                 }
             }
         }
@@ -906,6 +920,10 @@ void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
     tun->sbuf->len = 0;
     tun->hpsbuf->len = 0;
     tun->next_keepalive = 0;
+    {
+        char *cmdargs[4] = {tuntap.devname, "rtun_down", tun->name, NULL};
+        priv_run_script(3, cmdargs);
+    }
 }
 
 int mlvpn_config(char *filename)
@@ -918,7 +936,6 @@ int mlvpn_config(char *filename)
     int default_protocol = ENCAP_PROTO_UDP;
     int default_timeout = 60;
     int server_mode = 0;
-    char *cmd = NULL;
 
     log = (logfile_t *)malloc(sizeof(logfile_t));
     log->fd = NULL;
@@ -942,7 +959,7 @@ int mlvpn_config(char *filename)
                 char *mode;
 
                 _conf_set_str_from_conf(config, lastSection,
-                    "cmd", &cmd, NULL, NULL, 0);
+                    "statuscommand", &status_command, NULL, NULL, 0);
                 _conf_set_str_from_conf(config, lastSection,
                     "logfile", &(log->filename), NULL, NULL, 0);
                 _conf_set_int_from_conf(config, lastSection,
@@ -1026,7 +1043,7 @@ int mlvpn_config(char *filename)
                     }
                 }
 
-                tmptun = mlvpn_rtun_new(bindaddr, bindport, dstaddr, dstport,
+                tmptun = mlvpn_rtun_new(lastSection, bindaddr, bindport, dstaddr, dstport,
                     server_mode);
                 tmptun->encap_prot = protocol;
 
@@ -1045,8 +1062,8 @@ int mlvpn_config(char *filename)
     }
 
     logger_init(log);
-    if (cmd)
-        priv_init_script(cmd);
+    if (status_command)
+        priv_init_script(status_command);
     return 0;
 error:
     _ERROR("Error parsing config file.\n");
@@ -1194,6 +1211,10 @@ int main(int argc, char **argv)
             }
             break;
         }
+    }
+    {
+        char *cmdargs[3] = {tuntap.devname, "tuntap_up", NULL};
+        priv_run_script(2, cmdargs);
     }
 
     return 0;
