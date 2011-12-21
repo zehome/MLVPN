@@ -306,7 +306,7 @@ priv_init(char *conf, char *argv[], char *username)
             if (script_argc == 0)
                 _exit(0);
 
-            script_argv = (char **)malloc(script_argc+1);
+            script_argv = (char **)malloc((script_argc+1)*sizeof(char *));
             for(i = 0; i < script_argc; i++)
             {
                 must_read(socks[0], &len, sizeof(size_t));
@@ -440,7 +440,7 @@ launch_script(char *setup_script, int argc, char **argv)
             }
         }
 
-        newargs = (char **)malloc(argc+2);
+        newargs = (char **)malloc((argc+2)*sizeof(char *));
         newargs[0] = setup_script;
         for(i = 0; i < argc; i++)
             newargs[i+1] = argv[i];
