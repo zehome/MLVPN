@@ -79,7 +79,7 @@ static char allowed_logfile[MAXPATHLEN];
 
 static void check_log_name(char *, size_t);
 static int open_file(char *);
-static int launch_script(const char *, const char *);
+static int launch_script(char *, int, char **);
 static void increase_state(int);
 static void sig_got_chld(int);
 static void must_read(int, void *, size_t);
@@ -92,6 +92,7 @@ priv_init(char *conf, char *argv[], char *username)
     int i, fd, socks[2], cmd, restart;
     int hostname_len, servname_len, addrinfo_len;
     int nullfd;
+    size_t len;
     size_t path_len;
     char path[MAXPATHLEN];
     struct ifreq ifr;
@@ -100,6 +101,8 @@ priv_init(char *conf, char *argv[], char *username)
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
     char script_path[MAXPATHLEN] = {0};
+    char **script_argv;
+    int script_argc;
     struct stat st;
 
     memset(&sa, 0, sizeof(sa));
@@ -292,16 +295,38 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_RUN_SCRIPT:
-            must_read(socks[0], &path_len, sizeof(path_len));
-            if (path_len == 0 || path_len > sizeof(path))
-                _exit(0);
-            must_read(socks[0], &path, path_len);
-            path[path_len] = '\0';
-            if (*script_path)
-                i = launch_script(script_path, path);
-            else
+            if (! *script_path)
+            {
                 i = -1;
-            must_write(socks[0], &i, sizeof(i));
+                must_write(socks[0], &i, sizeof(int));
+                break;
+            }
+
+            must_read(socks[0], &script_argc, sizeof(int));
+            if (script_argc == 0)
+                _exit(0);
+
+            script_argv = (char **)malloc(script_argc+1);
+            for(i = 0; i < script_argc; i++)
+            {
+                must_read(socks[0], &len, sizeof(size_t));
+                if (len == 0)
+                {
+                    script_argv[i] = NULL;
+                    break;
+                }
+                script_argv[i] = (char *)malloc(len+1);
+                must_read(socks[0], script_argv[i], len);
+                script_argv[len] = 0;
+            }
+            script_argv[i] = NULL;
+
+            i = launch_script(script_path, script_argc, script_argv);
+            must_write(socks[0], &i, sizeof(int));
+            
+            for(i = 0; i < script_argc; i++)
+                free(script_argv[i]);
+            free(script_argv);
             break;
 
         case PRIV_INIT_SCRIPT:
@@ -392,12 +417,12 @@ bad_path:
 }
 
 static int
-launch_script(const char *setup_script, const char *arg)
+launch_script(char *setup_script, int argc, char **argv)
 {
     sigset_t oldmask, mask;
     int pid, status;
-    char *args[3];
-    char **parg;
+    int open_max, i;
+    char **newargs;
 
     sigemptyset(&mask);
     sigaddset(&mask, SIGCHLD);
@@ -406,8 +431,7 @@ launch_script(const char *setup_script, const char *arg)
     /* try to launch network script */
     pid = fork();
     if (pid == 0) {
-        int open_max = sysconf(_SC_OPEN_MAX), i;
-
+        open_max = sysconf(_SC_OPEN_MAX);
         for (i = 0; i < open_max; i++) {
             if (i != STDIN_FILENO &&
                 i != STDOUT_FILENO &&
@@ -415,11 +439,16 @@ launch_script(const char *setup_script, const char *arg)
                 close(i);
             }
         }
-        parg = args;
-        *parg++ = (char *)setup_script;
-        *parg++ = (char *)arg;
-        *parg = NULL;
-        execv(setup_script, args);
+
+        newargs = (char **)malloc(argc+2);
+        newargs[0] = setup_script;
+        for(i = 0; i < argc; i++)
+            newargs[i+1] = argv[i];
+        newargs[i+1] = NULL;
+
+        chdir("/");
+
+        execv(setup_script, newargs);
         _exit(1);
     } else if (pid > 0) {
         while (waitpid(pid, &status, 0) != pid) {
@@ -448,7 +477,7 @@ increase_state(int state)
 
 /* Open log-file */
 FILE *
-priv_open_log(const char *lognam)
+priv_open_log(char *lognam)
 {
     char path[MAXPATHLEN];
     int cmd, fd;
@@ -611,9 +640,10 @@ priv_init_script(char *path)
 
 /* run script */
 int
-priv_run_script(char *arg)
+priv_run_script(int argc, char **argv)
 {
     int cmd, retval;
+    int i;
     size_t len;
 
     if (priv_fd < 0)
@@ -622,9 +652,15 @@ priv_run_script(char *arg)
 
     cmd = PRIV_RUN_SCRIPT;
     must_write(priv_fd, &cmd, sizeof(cmd));
-    len = strlen(arg);
-    must_write(priv_fd, &len, sizeof(len));
-    must_write(priv_fd, arg, len);
+
+    must_write(priv_fd, &argc, sizeof(int));
+    for (i=0; i < argc; i++)
+    {
+        len = strlen(argv[i]);
+        must_write(priv_fd, &len, sizeof(size_t));
+        must_write(priv_fd, argv[i], len);
+    }
+    
     must_read(priv_fd, &retval, sizeof(retval));
     return retval;
 }

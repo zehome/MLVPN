@@ -138,12 +138,12 @@ void send_fd(int sock, int fd);
 int receive_fd(int sock);
 FILE *priv_open_config(void);
 int priv_open_tun(char *devname);
-FILE *priv_open_log(const char *lognam);
+FILE *priv_open_log(char *lognam);
 int 
 priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     struct addrinfo *hints);
 void priv_config_parse_done(void);
 void priv_init_script(char *);
-int priv_run_script(char *);
+int priv_run_script(int argc, char **argv);
 
 #endif

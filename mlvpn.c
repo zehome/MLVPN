@@ -446,7 +446,8 @@ int mlvpn_tuntap_alloc()
         return fd;
     }
     tuntap.fd = fd;
-    priv_run_script("up");
+    char *args[2] = {"up", NULL};
+    priv_run_script(1, args);
     return fd;
 }
 
