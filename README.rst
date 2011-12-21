@@ -72,13 +72,16 @@ garantir une latence faible.
 Compatiblité
 ============
 Linux seulement.
+
 D'autre systèmes UNIX viendrons s'ajouter a la liste, comme FreeBSD ou OpenBSD.
 Le portage n'est pas une priorité pour ce projet dans l'immédiat.
 
 Contributeurs au projet
 =======================
 Laurent Coustet, auteur et mainteneur du projet.
+
 Philippe Pepiot, contributeur (séparation de privilèges, bugfixes, ...)
+
 Ghislain Lévèque, contributeur
 
 LICENCE
