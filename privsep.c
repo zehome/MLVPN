@@ -41,7 +41,7 @@
 /*
  * mlvpn can only go forward in these states; each state should represent
  * less privilege.   After STATE_INIT, the child is allowed to parse its
- * config file once, and communicate the information regarding what logfiles
+ * config file once, and communicate the information regarding what logfile
  * it needs access to back to the parent.  When that is done, it sends a
  * message to the priv parent revoking this access, moving to STATE_RUNNING.
  * In this state, any log-files not in the access list are rejected.
@@ -62,6 +62,8 @@ enum priv_state {
 enum cmd_types {
     PRIV_OPEN_LOG,        /* open logfile for appending */
     PRIV_OPEN_CONFIG,    /* open config file for reading only */
+    PRIV_INIT_SCRIPT,   /* set allowed status script */
+    PRIV_RUN_SCRIPT,    /* run status script */
     PRIV_OPEN_TUN,
     PRIV_GETADDRINFO,
     PRIV_DONE_CONFIG_PARSE    /* signal that the initial config parse is done */
@@ -73,15 +75,12 @@ static char config_file[MAXPATHLEN];
 static struct stat cf_info;
 static volatile sig_atomic_t cur_state = STATE_INIT;
 
-/* Queue for the allowed logfiles */
-struct logname {
-    char path[MAXPATHLEN];
-    TAILQ_ENTRY(logname) next;
-};
-static TAILQ_HEAD(, logname) lognames;
+/* Allowed logfile */
+static char allowed_logfile[MAXPATHLEN];
 
 static void check_log_name(char *, size_t);
 static int open_file(char *);
+static int launch_script(const char *, const char *);
 static void increase_state(int);
 static void sig_got_chld(int);
 static void must_read(int, void *, size_t);
@@ -101,6 +100,8 @@ priv_init(char *conf, char *argv[], char *username)
     struct sigaction sa;
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
+    char script_path[MAXPATHLEN] = {0};
+    struct stat st;
 
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
@@ -158,7 +159,6 @@ priv_init(char *conf, char *argv[], char *username)
     if (stat(config_file, &cf_info) < 0)
         err(1, "stat config file failed");
 
-    TAILQ_INIT(&lognames);
     increase_state(STATE_CONFIG);
     restart = 0;
 
@@ -291,6 +291,39 @@ priv_init(char *conf, char *argv[], char *username)
                 freeaddrinfo(res0);
             }
             break;
+
+        case PRIV_RUN_SCRIPT:
+            must_read(socks[0], &path_len, sizeof(path_len));
+            if (path_len == 0 || path_len > sizeof(path))
+                _exit(0);
+            must_read(socks[0], &path, path_len);
+            path[path_len] = '\0';
+            if (*script_path)
+                i = launch_script(script_path, path);
+            else
+                i = -1;
+            must_write(socks[0], &i, sizeof(i));
+            break;
+
+        case PRIV_INIT_SCRIPT:
+            if (cur_state != STATE_CONFIG)
+                _exit(0);
+            must_read(socks[0], &path_len, sizeof(path_len));
+            if (path_len == 0 || path_len > sizeof(script_path))
+                _exit(0);
+            must_read(socks[0], &path, path_len);
+            path[path_len] = '\0';
+            if (stat(path, &st) < 0)
+                warn("stat: %s", path);
+            else if (st.st_mode & (S_IRWXG|S_IRWXO))
+                warnx("file %s is group or other accessible", path);
+            else if (!(st.st_mode & S_IXUSR))
+                warnx("file %s is not executable", path);
+            /* TODO check directory + check owner */
+            else
+                strncpy(script_path, path, path_len);
+            break;
+
         case PRIV_DONE_CONFIG_PARSE:
             //dprintf("[priv]: msg PRIV_DONE_CONFIG_PARSE received\n");
             increase_state(STATE_RUNNING);
@@ -330,7 +363,6 @@ open_file(char *path)
 static void
 check_log_name(char *lognam, size_t loglen)
 {
-    struct logname *lg;
     char *p;
 
     /* Any path containing '..' is invalid.  */
@@ -340,16 +372,11 @@ check_log_name(char *lognam, size_t loglen)
 
     switch (cur_state) {
     case STATE_CONFIG:
-        lg = malloc(sizeof(struct logname));
-        if (!lg)
-            err(1, "check_log_name() malloc");
-        strncpy(lg->path, lognam, MAXPATHLEN);
-        TAILQ_INSERT_TAIL(&lognames, lg, next);
+        strncpy(allowed_logfile, lognam, MAXPATHLEN);
         break;
     case STATE_RUNNING:
-        TAILQ_FOREACH(lg, &lognames, next)
-            if (!strcmp(lg->path, lognam))
-                return;
+        if (!strcmp(allowed_logfile, lognam))
+            return;
         goto bad_path;
         break;
     default:
@@ -363,6 +390,50 @@ bad_path:
     warnx("%s: invalid attempt to open %s: rewriting to /dev/null",
         "check_log_name", lognam);
     strncpy(lognam, "/dev/null", loglen);
+}
+
+static int
+launch_script(const char *setup_script, const char *arg)
+{
+    sigset_t oldmask, mask;
+    int pid, status;
+    char *args[3];
+    char **parg;
+
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask, &oldmask);
+
+    /* try to launch network script */
+    pid = fork();
+    if (pid == 0) {
+        int open_max = sysconf(_SC_OPEN_MAX), i;
+
+        for (i = 0; i < open_max; i++) {
+            if (i != STDIN_FILENO &&
+                i != STDOUT_FILENO &&
+                i != STDERR_FILENO) {
+                close(i);
+            }
+        }
+        parg = args;
+        *parg++ = (char *)setup_script;
+        *parg++ = (char *)arg;
+        *parg = NULL;
+        execv(setup_script, args);
+        _exit(1);
+    } else if (pid > 0) {
+        while (waitpid(pid, &status, 0) != pid) {
+            /* loop */
+        }
+        sigprocmask(SIG_SETMASK, &oldmask, NULL);
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            return status;
+        }
+    }
+    fprintf(stderr, "%s: could not launch network script\n", setup_script);
+    return -1;
 }
 
 /* Crank our state into less permissive modes */
@@ -519,6 +590,44 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     }
 
     return ret_len;
+}
+
+/* init script path */
+void
+priv_init_script(char *path)
+{
+    int cmd;
+    size_t len;
+
+    if (priv_fd < 0)
+        errx(1, "%s: called from privileged portion",
+                "priv_init_script");
+
+    cmd = PRIV_INIT_SCRIPT;
+    must_write(priv_fd, &cmd, sizeof(cmd));
+    len = strlen(path);
+    must_write(priv_fd, &len, sizeof(len));
+    must_write(priv_fd, path, len);
+}
+
+/* run script */
+int
+priv_run_script(char *arg)
+{
+    int cmd, retval;
+    size_t len;
+
+    if (priv_fd < 0)
+        errx(1, "%s: called from privileged portion",
+                "priv_run_script");
+
+    cmd = PRIV_RUN_SCRIPT;
+    must_write(priv_fd, &cmd, sizeof(cmd));
+    len = strlen(arg);
+    must_write(priv_fd, &len, sizeof(len));
+    must_write(priv_fd, arg, len);
+    must_read(priv_fd, &retval, sizeof(retval));
+    return retval;
 }
 
 /* Child can signal that its initial parsing is done, so that parent
