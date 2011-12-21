@@ -41,7 +41,7 @@
 /*
  * mlvpn can only go forward in these states; each state should represent
  * less privilege.   After STATE_INIT, the child is allowed to parse its
- * config file once, and communicate the information regarding what logfiles
+ * config file once, and communicate the information regarding what logfile
  * it needs access to back to the parent.  When that is done, it sends a
  * message to the priv parent revoking this access, moving to STATE_RUNNING.
  * In this state, any log-files not in the access list are rejected.
@@ -73,12 +73,8 @@ static char config_file[MAXPATHLEN];
 static struct stat cf_info;
 static volatile sig_atomic_t cur_state = STATE_INIT;
 
-/* Queue for the allowed logfiles */
-struct logname {
-    char path[MAXPATHLEN];
-    TAILQ_ENTRY(logname) next;
-};
-static TAILQ_HEAD(, logname) lognames;
+/* Allowed logfile */
+static char allowed_logfile[MAXPATHLEN];
 
 static void check_log_name(char *, size_t);
 static int open_file(char *);
@@ -158,7 +154,6 @@ priv_init(char *conf, char *argv[], char *username)
     if (stat(config_file, &cf_info) < 0)
         err(1, "stat config file failed");
 
-    TAILQ_INIT(&lognames);
     increase_state(STATE_CONFIG);
     restart = 0;
 
@@ -330,7 +325,6 @@ open_file(char *path)
 static void
 check_log_name(char *lognam, size_t loglen)
 {
-    struct logname *lg;
     char *p;
 
     /* Any path containing '..' is invalid.  */
@@ -340,16 +334,11 @@ check_log_name(char *lognam, size_t loglen)
 
     switch (cur_state) {
     case STATE_CONFIG:
-        lg = malloc(sizeof(struct logname));
-        if (!lg)
-            err(1, "check_log_name() malloc");
-        strncpy(lg->path, lognam, MAXPATHLEN);
-        TAILQ_INSERT_TAIL(&lognames, lg, next);
+        strncpy(allowed_logfile, lognam, MAXPATHLEN);
         break;
     case STATE_RUNNING:
-        TAILQ_FOREACH(lg, &lognames, next)
-            if (!strcmp(lg->path, lognam))
-                return;
+        if (!strcmp(allowed_logfile, lognam))
+            return;
         goto bad_path;
         break;
     default:
