@@ -446,6 +446,7 @@ int mlvpn_tuntap_alloc()
         return fd;
     }
     tuntap.fd = fd;
+    priv_run_script("up");
     return fd;
 }
 
@@ -916,6 +917,7 @@ int mlvpn_config(char *filename)
     int default_protocol = ENCAP_PROTO_UDP;
     int default_timeout = 60;
     int server_mode = 0;
+    char *cmd = NULL;
 
     log = (logfile_t *)malloc(sizeof(logfile_t));
     log->fd = NULL;
@@ -938,6 +940,8 @@ int mlvpn_config(char *filename)
             {
                 char *mode;
 
+                _conf_set_str_from_conf(config, lastSection,
+                    "cmd", &cmd, NULL, NULL, 0);
                 _conf_set_str_from_conf(config, lastSection,
                     "logfile", &(log->filename), NULL, NULL, 0);
                 _conf_set_int_from_conf(config, lastSection,
@@ -1040,7 +1044,8 @@ int mlvpn_config(char *filename)
     }
 
     logger_init(log);
-
+    if (cmd)
+        priv_init_script(cmd);
     return 0;
 error:
     _ERROR("Error parsing config file.\n");

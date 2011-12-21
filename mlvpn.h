@@ -142,5 +142,8 @@ FILE *priv_open_log(const char *lognam);
 int 
 priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     struct addrinfo *hints);
+void priv_config_parse_done(void);
+void priv_init_script(char *);
+int priv_run_script(char *);
 
 #endif
