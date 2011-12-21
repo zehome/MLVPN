@@ -52,15 +52,15 @@
  * the priv parent restarts itself.
  */
 enum priv_state {
-    STATE_INIT,        /* just started up */
-    STATE_CONFIG,        /* parsing config file for first time */
-    STATE_RUNNING,        /* running and accepting network traffic */
+    STATE_INIT,       /* just started up */
+    STATE_CONFIG,     /* parsing config file for first time */
+    STATE_RUNNING,    /* running and accepting network traffic */
     STATE_QUIT        /* shutting down */
 };
 
 enum cmd_types {
-    PRIV_OPEN_LOG,        /* open logfile for appending */
-    PRIV_OPEN_CONFIG,    /* open config file for reading only */
+    PRIV_OPEN_LOG,      /* open logfile for appending */
+    PRIV_OPEN_CONFIG,   /* open config file for reading only */
     PRIV_INIT_SCRIPT,   /* set allowed status script */
     PRIV_RUN_SCRIPT,    /* run status script */
     PRIV_OPEN_TUN,
