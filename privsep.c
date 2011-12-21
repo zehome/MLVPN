@@ -420,7 +420,7 @@ static int
 launch_script(char *setup_script, int argc, char **argv)
 {
     sigset_t oldmask, mask;
-    int pid, status;
+    int pid, status = -1;
     int open_max, i;
     char **newargs;
 
@@ -461,7 +461,7 @@ launch_script(char *setup_script, int argc, char **argv)
         }
     }
     fprintf(stderr, "%s: could not launch network script\n", setup_script);
-    return -1;
+    return status;
 }
 
 /* Crank our state into less permissive modes */
