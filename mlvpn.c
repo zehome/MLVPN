@@ -1092,6 +1092,7 @@ int main(int argc, char **argv)
     priv_init(cfgfilename, argv, "mlvpn");
     
     mlvpn_config(cfgfilename);
+    priv_config_parse_done();
 
     /* tun/tap initialization */
     memset(&tuntap, 0, sizeof(tuntap));
