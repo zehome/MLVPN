@@ -315,9 +315,9 @@ priv_init(char *conf, char *argv[], char *username)
                     script_argv[i] = NULL;
                     break;
                 }
-                script_argv[i] = (char *)malloc(len+1);
+                script_argv[i] = (char *)malloc(len);
                 must_read(socks[0], script_argv[i], len);
-                script_argv[len] = 0;
+                script_argv[i][len-1] = 0;
             }
             script_argv[i] = NULL;
 
@@ -656,7 +656,7 @@ priv_run_script(int argc, char **argv)
     must_write(priv_fd, &argc, sizeof(int));
     for (i=0; i < argc; i++)
     {
-        len = strlen(argv[i]);
+        len = strlen(argv[i])+1;
         must_write(priv_fd, &len, sizeof(size_t));
         must_write(priv_fd, argv[i], len);
     }
