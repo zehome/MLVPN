@@ -89,7 +89,7 @@ typedef struct mlvpn_tunnel_s
     int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
     struct addrinfo *addrinfo;
     int status;           /* CHAP status */
-    char chap_sha1[MLVPN_CHAP_DIGEST]; /* CHAP sha1 challenge */
+    unsigned char chap_sha1[MLVPN_CHAP_DIGEST]; /* CHAP sha1 challenge */
     time_t last_packet_time; /* Used to timeout the link */
     time_t timeout;
     time_t next_keepalive; /* when to send the "next" keepalive packet */
