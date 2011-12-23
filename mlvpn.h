@@ -163,6 +163,6 @@ void priv_config_parse_done(void);
 void priv_init_script(char *);
 int priv_run_script(int argc, char **argv);
 void priv_init_chap(char *password);
-void priv_chap(char *challenge, int challenge_len, unsigned char *sha1sum);
+void priv_chap(char *challenge, size_t challenge_len, unsigned char *sha1sum);
 
 #endif

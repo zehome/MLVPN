@@ -178,7 +178,7 @@ priv_init(char *conf, char *argv[], char *username)
     }
     dup2(nullfd, 0);
     dup2(nullfd, 1);
-    dup2(nullfd, 2);
+    //dup2(nullfd, 2);
     if (nullfd > 2)
         close(nullfd);
 
@@ -302,13 +302,6 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_RUN_SCRIPT:
-            if (! *script_path)
-            {
-                i = -1;
-                must_write(socks[0], &i, sizeof(int));
-                break;
-            }
-
             must_read(socks[0], &script_argc, sizeof(int));
             if (script_argc == 0)
                 _exit(0);
@@ -328,7 +321,12 @@ priv_init(char *conf, char *argv[], char *username)
             }
             script_argv[i] = NULL;
 
-            i = launch_script(script_path, script_argc, script_argv);
+            if (! *script_path)
+            {
+                i = -1;
+            } else {
+                i = launch_script(script_path, script_argc, script_argv);
+            }
             must_write(socks[0], &i, sizeof(int));
             
             for(i = 0; i < script_argc; i++)
@@ -366,10 +364,14 @@ priv_init(char *conf, char *argv[], char *username)
 
         case PRIV_CHAP:
             if (! *chap_password)
+            {
                 _exit(0);
+            }
             must_read(socks[0], &len, sizeof(len));
-            if (len == 0 || len > MLVPN_CHALLENGE_MAX)
+            if (len ==0 || len > MLVPN_CHALLENGE_MAX)
+            {
                 _exit(0);
+            }
             must_read(socks[0], chap_challenge, len);
 
             compute_challenge(chap_password, chap_challenge, len, sha1sum);
@@ -726,11 +728,11 @@ priv_init_chap(char *password)
 }
 
 void
-priv_chap(char *challenge, int challenge_len, unsigned char *sha1sum)
+priv_chap(char *challenge, size_t challenge_len, unsigned char *sha1sum)
 {
     int cmd;
     size_t len;
-    
+
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion",
                 "priv_chap");

@@ -352,7 +352,7 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 {
     char buffer[DEFAULT_MTU];
     int i;
-    int len = 128;
+    size_t len = 128;
 
     for(i = 0; i < len; i++)
         buffer[i] = (char)rand();
@@ -391,19 +391,25 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
     if (t->server_mode)
     {
         /* server side */
-        if (len > MLVPN_CHALLENGE_MAX)
+        if (t->status == MLVPN_CHAP_DISCONNECTED)
         {
-            _ERROR("CHAP challenge %d too big.\n", len);
-            return;
+            if (len > MLVPN_CHALLENGE_MAX)
+            {
+                _ERROR("CHAP challenge %d too big.\n", len);
+                return;
+            }
+            priv_chap(buffer, len, sha1sum);
+            if (t->hpsbuf->len+1 > PKTBUFSIZE)
+            {
+                _WARNING("TUN %d buffer overflow.\n", t->fd);
+                t->hpsbuf->len = 0;
+            }
+            mlvpn_put_pkt(t->hpsbuf, sha1sum, MLVPN_CHAP_DIGEST);
+            t->status = MLVPN_CHAP_AUTHSENT;
+        } else if (t->status == MLVPN_CHAP_AUTHSENT) {
+            _INFO("TUN %d authenticated.\n", t->fd);
+            t->status = MLVPN_CHAP_AUTHOK;
         }
-        priv_chap(buffer, len, sha1sum);
-        if (t->hpsbuf->len+1 > PKTBUFSIZE)
-        {
-            _WARNING("TUN %d buffer overflow.\n", t->fd);
-            t->hpsbuf->len = 0;
-        }
-        mlvpn_put_pkt(t->hpsbuf, sha1sum, MLVPN_CHAP_DIGEST);
-        t->status = MLVPN_CHAP_AUTHSENT;
     } else {
         /* client side */
         if (t->status == MLVPN_CHAP_AUTHSENT)
@@ -453,8 +459,11 @@ void mlvpn_rtun_tick_connect()
             }
         }
 
-        if (t->fd > 0 && t->status == MLVPN_CHAP_DISCONNECTED)
+        if (! t->server_mode && 
+            (t->fd > 0 && t->status == MLVPN_CHAP_DISCONNECTED))
+        {
             mlvpn_rtun_challenge_send(t);
+        }
 
         t = t->next;
     }
