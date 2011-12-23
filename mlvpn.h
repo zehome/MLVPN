@@ -17,6 +17,10 @@
 #define MLVPN_MAXPORTSTR 5
 #define MLVPN_MAGIC 0xFFEEDD00
 
+/* Password max length */
+#define MLVPN_CHAP_MAX 128
+#define MLVPN_CHALLANGE_MAX 256
+
 #define MLVPN_MAX_COMMAND_ARGS 32
 
 /* 4 Kbytes re-assembly buffer */
@@ -150,5 +154,7 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
 void priv_config_parse_done(void);
 void priv_init_script(char *);
 int priv_run_script(int argc, char **argv);
+void priv_init_chap(char *password);
+void priv_chap(char *challange, int challange_len, unsigned char *sha1sum);
 
 #endif
