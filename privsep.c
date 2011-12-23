@@ -65,7 +65,7 @@ enum cmd_types {
     PRIV_INIT_SCRIPT,   /* set allowed status script */
     PRIV_RUN_SCRIPT,    /* run status script */
     PRIV_INIT_CHAP,     /* initialize chap password */
-    PRIV_CHAP,          /* challange hash */
+    PRIV_CHAP,          /* challenge hash */
     PRIV_OPEN_TUN,
     PRIV_GETADDRINFO,
     PRIV_DONE_CONFIG_PARSE    /* signal that the initial config parse is done */
@@ -88,7 +88,7 @@ static void sig_got_chld(int);
 static void must_read(int, void *, size_t);
 static void must_write(int, void *, size_t);
 static int  may_read(int, void *, size_t);
-static void compute_challange(char *, char *, int, unsigned char *);
+static void compute_challenge(char *, char *, int, unsigned char *);
 
 int
 priv_init(char *conf, char *argv[], char *username)
@@ -106,7 +106,7 @@ priv_init(char *conf, char *argv[], char *username)
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
     char script_path[MAXPATHLEN] = {0};
     char chap_password[MLVPN_CHAP_MAX] = {0};
-    char chap_challange[MLVPN_CHALLANGE_MAX];
+    char chap_challenge[MLVPN_CHALLENGE_MAX];
     unsigned char sha1sum[SHA_DIGEST_LENGTH];
     char **script_argv;
     int script_argc;
@@ -368,11 +368,11 @@ priv_init(char *conf, char *argv[], char *username)
             if (! *chap_password)
                 _exit(0);
             must_read(socks[0], &len, sizeof(len));
-            if (len == 0 || len > MLVPN_CHALLANGE_MAX)
+            if (len == 0 || len > MLVPN_CHALLENGE_MAX)
                 _exit(0);
-            must_read(socks[0], chap_challange, len);
+            must_read(socks[0], chap_challenge, len);
 
-            compute_challange(chap_password, chap_challange, len, sha1sum);
+            compute_challenge(chap_password, chap_challenge, len, sha1sum);
 
             len = SHA_DIGEST_LENGTH;
             must_write(socks[0], &len, sizeof(len));
@@ -495,14 +495,14 @@ launch_script(char *setup_script, int argc, char **argv)
 }
 
 static void 
-compute_challange(char *password, char *challange, int len, 
+compute_challenge(char *password, char *challenge, int len, 
         unsigned char *sha1sum)
 {
-    /* Concatenate password with challange, then sha1sum */
-    char answer[MLVPN_CHALLANGE_MAX+MLVPN_CHAP_MAX+1];
+    /* Concatenate password with challenge, then sha1sum */
+    char answer[MLVPN_CHALLENGE_MAX+MLVPN_CHAP_MAX+1];
     memset(answer, 0, sizeof(answer));
     strncat(answer, password, MLVPN_CHAP_MAX);
-    strncat(answer, challange, MLVPN_CHALLANGE_MAX+MLVPN_CHAP_MAX);
+    strncat(answer, challenge, MLVPN_CHALLENGE_MAX+MLVPN_CHAP_MAX);
     SHA1((unsigned char *)answer, strlen(answer), sha1sum);
 }
 
@@ -726,7 +726,7 @@ priv_init_chap(char *password)
 }
 
 void
-priv_chap(char *challange, int challange_len, unsigned char *sha1sum)
+priv_chap(char *challenge, int challenge_len, unsigned char *sha1sum)
 {
     int cmd;
     size_t len;
@@ -738,8 +738,8 @@ priv_chap(char *challange, int challange_len, unsigned char *sha1sum)
     cmd = PRIV_CHAP;
     must_write(priv_fd, &cmd, sizeof(cmd));
 
-    must_write(priv_fd, &challange_len, sizeof(challange_len));
-    must_write(priv_fd, challange, challange_len);
+    must_write(priv_fd, &challenge_len, sizeof(challenge_len));
+    must_write(priv_fd, challenge, challenge_len);
 
     must_read(priv_fd, &len, sizeof(len));
     if (len == 0 || len > SHA_DIGEST_LENGTH)

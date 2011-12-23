@@ -19,7 +19,8 @@
 
 /* Password max length */
 #define MLVPN_CHAP_MAX 128
-#define MLVPN_CHALLANGE_MAX 256
+#define MLVPN_CHALLENGE_MAX 256
+#define MLVPN_CHAP_DIGEST 20
 
 #define MLVPN_MAX_COMMAND_ARGS 32
 
@@ -87,7 +88,8 @@ typedef struct mlvpn_tunnel_s
     struct mlvpn_tunnel_s *next; /* chained list to next element */
     int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
     struct addrinfo *addrinfo;
-    int activated;
+    int status;           /* CHAP status */
+    char chap_sha1[MLVPN_CHAP_DIGEST]; /* CHAP sha1 challenge */
     time_t last_packet_time; /* Used to timeout the link */
     time_t timeout;
     time_t next_keepalive; /* when to send the "next" keepalive packet */
@@ -98,6 +100,12 @@ enum {
     ENCAP_PROTO_TCP
 };
 
+/* CHAP */
+enum {
+    MLVPN_CHAP_DISCONNECTED,
+    MLVPN_CHAP_AUTHSENT,
+    MLVPN_CHAP_AUTHOK
+};
 
 int mlvpn_config(char *filename);
 void init_buffers();
@@ -155,6 +163,6 @@ void priv_config_parse_done(void);
 void priv_init_script(char *);
 int priv_run_script(int argc, char **argv);
 void priv_init_chap(char *password);
-void priv_chap(char *challange, int challange_len, unsigned char *sha1sum);
+void priv_chap(char *challenge, int challenge_len, unsigned char *sha1sum);
 
 #endif
