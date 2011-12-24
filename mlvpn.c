@@ -833,7 +833,7 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                 /* shift read buffer to the right */
                 /* -1 because of i++ in the loop */
                 i += (PKTHDRSIZ(pktdata) + pktdata.len - 1); 
-                last_shift = i;
+                last_shift = i+1;
                 /* Overkill */
                 memset(&pktdata, 0, sizeof(pktdata));
                 pkts++;
