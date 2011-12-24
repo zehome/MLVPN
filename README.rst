@@ -19,6 +19,7 @@ Fonctionnalités
   * File d'émission "haute performance" sans limitation de débit (QoS)
   * Haute-Disponibilité (supporte la perte de liens)
   * Sécurité par séparation des privilèges
+  * Authentification du client
 
 Fonctions non supporté
 ======================
@@ -27,10 +28,7 @@ MLVPN ne cherche pas a faire de la sécurité au niveau des paquets qu'il traite.
 Il n'y a **pas** de cryptage, ni de compression, 
 ni de vérification des paquets qu'il relaye.
 
-MLVPN ne gère pour l'instant aucun "handshake" ni aucune couche de sécurité
-visant a limiter l'accès a ses services de l'extérieur.
-
-Il conviens donc de faire *TRES* attention à la mise en place de ce système
+Il conviens donc de faire attention à la mise en place de ce système
 en mettant en place les protections indispensables au niveau du noyau
 des machines hôtes. (iptables, pf, ...)
 
@@ -68,6 +66,23 @@ paquets, via un calcul savant.
 
 Ainsi on évite la file d'attente au niveau de l'opérateur, ce qui permet de 
 garantir une latence faible.
+
+Authentification
+----------------
+Ce système permet de gérer correctement les timeout. Il n'a pas pour but
+d'améliorer la sécurité du système.
+
+Un mot de passe partagé entre les 2 parties est stocké dans le fichier de configuration.
+
+Le client ne relaye les paquets qu'il reçoit que si la communication a été
+authentifié via ce mot de passe.
+
+Le principe est (trop) simple:
+  - client envoie un challenge aléatoire
+  - serveur reçoit le challenge, y contatene le mot de passe
+  - serveur renvoie un hash sha1 du motdepasse+challenge
+  - client vérifie que le hash correspond a ce qu'il a lui même calculé
+
 
 Compatiblité
 ============
