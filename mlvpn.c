@@ -321,7 +321,6 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                     char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
                     priv_run_script(3, cmdargs);
                 }
-                mlvpn_rtun_tick(t);
                 mlvpn_rtun_reset_counters();
             } else {
                 _ERROR("Connection to [%s]:%s failed: %s\n",
@@ -348,6 +347,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         }
     }
 
+    mlvpn_rtun_tick(t);
     return 0;
 }
 
