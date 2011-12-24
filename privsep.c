@@ -34,6 +34,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <grp.h>
+#include <openssl/sha.h>
 #include "mlvpn.h"
 #include "ps_status.h"
 
@@ -171,7 +172,7 @@ priv_init(char *conf, char *argv[], char *username)
     }
     dup2(nullfd, 0);
     dup2(nullfd, 1);
-    dup2(nullfd, 2);
+    //dup2(nullfd, 2);
     if (nullfd > 2)
         close(nullfd);
 
@@ -248,6 +249,7 @@ priv_init(char *conf, char *argv[], char *username)
             if (fd >= 0)
                 close(fd);
             break;
+
         case PRIV_GETADDRINFO:
             /* Expecting: len, hostname, len, servname, hints */
             must_read(socks[0], &hostname_len, sizeof(size_t));
@@ -295,13 +297,6 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_RUN_SCRIPT:
-            if (! *script_path)
-            {
-                i = -1;
-                must_write(socks[0], &i, sizeof(int));
-                break;
-            }
-
             must_read(socks[0], &script_argc, sizeof(int));
             if (script_argc == 0)
                 _exit(0);
@@ -321,7 +316,12 @@ priv_init(char *conf, char *argv[], char *username)
             }
             script_argv[i] = NULL;
 
-            i = launch_script(script_path, script_argc, script_argv);
+            if (! *script_path)
+            {
+                i = -1;
+            } else {
+                i = launch_script(script_path, script_argc, script_argv);
+            }
             must_write(socks[0], &i, sizeof(int));
             
             for(i = 0; i < script_argc; i++)
@@ -347,7 +347,6 @@ priv_init(char *conf, char *argv[], char *username)
             else
                 strncpy(script_path, path, path_len);
             break;
-
         case PRIV_DONE_CONFIG_PARSE:
             //dprintf("[priv]: msg PRIV_DONE_CONFIG_PARSE received\n");
             increase_state(STATE_RUNNING);
