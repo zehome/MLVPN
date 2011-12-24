@@ -67,6 +67,7 @@ mlvpn_rtun_last()
 void
 mlvpn_rtun_tick(mlvpn_tunnel_t *t)
 {
+    _DEBUG("mlvpn_rtun_tick(%d)\n", t->fd);
     t->last_packet_time = time((time_t *)NULL);
 }
 
@@ -364,8 +365,8 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
         t->hpsbuf->len = 0;
     }
     mlvpn_put_pkt(t->hpsbuf, buffer, len);
-    memcpy(t->chap_sha1, buffer, len);
     t->status = MLVPN_CHAP_AUTHSENT;
+    _DEBUG("mlvpn_rtun_challenge_send %d\n", t->fd);
 }
 
 /* when tun->status is != MLVPN_CHAP_AUTHOK,
@@ -387,6 +388,8 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
 {
     unsigned char sha1sum[MLVPN_CHAP_DIGEST];
+    _DEBUG("dispatch chap t:%d server_mode:%d status: %d\n", t->fd,
+        t->server_mode, t->status);
 
     if (t->server_mode)
     {
@@ -404,6 +407,7 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
                 _WARNING("TUN %d buffer overflow.\n", t->fd);
                 t->hpsbuf->len = 0;
             }
+            _DEBUG("server sent answer\n");
             mlvpn_put_pkt(t->hpsbuf, sha1sum, MLVPN_CHAP_DIGEST);
             t->status = MLVPN_CHAP_AUTHSENT;
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
@@ -419,6 +423,7 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
                 _WARNING("Received digest from server of invalid length: %d.\n", len);
                 return;
             }
+            memcpy(sha1sum, buffer, len);
             if (memcmp(sha1sum, t->chap_sha1, len) == 0)
             {
                 _INFO("Connection on tun %d accepted.\n", t->fd);
@@ -633,7 +638,7 @@ void print_frame(const char *frame)
 void mlvpn_rtun_reset_counters()
 {
     mlvpn_tunnel_t *t = rtun_start;
-    _DEBUG("mlvpn_rtun_reset_counters");
+    _DEBUG("mlvpn_rtun_reset_counters\n");
     while (t)
     {
         t->sendpackets = 0;
@@ -668,15 +673,11 @@ mlvpn_tunnel_t *mlvpn_rtun_choose()
 
 void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
 {
-    struct mlvpn_pktdata pkt;
     if (t->hpsbuf->len + 1 > PKTBUFSIZE)
     {
         _ERROR("rtun %d buffer overflow.\n", t->fd);
     } else {
-        pkt.magic = MLVPN_MAGIC;
-        pkt.len = 0;
-        pkt.data[0] = 0;
-        mlvpn_put_pkt(t->hpsbuf, pkt.data, pkt.len);
+        mlvpn_put_pkt(t->hpsbuf, NULL, 0);
     }
     t->next_keepalive = now + t->timeout/2;
 }
@@ -729,6 +730,7 @@ int mlvpn_tuntap_read()
     {
         _ERROR("Error during read on %d: %s",
             tuntap.fd, strerror(errno));
+        exit(1);
     } else if (len > 0) {
         struct mlvpn_ipv4 ip4;
         decap_ip4_frame(&ip4, buffer);
@@ -795,6 +797,7 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
         memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata));
         if (pktdata.magic == MLVPN_MAGIC)
         {
+            mlvpn_rtun_tick(tun);
             if (tun->rbuf.len - i >= pktdata.len+PKTHDRSIZ(pktdata))
             {
                 /* Valid packet, copy the rest */
@@ -812,8 +815,7 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                             _WARNING("rtun %d buffer overflow.\n", tun->fd);
                             tun->hpsbuf->len = 0;
                         }
-                        mlvpn_put_pkt(tun->hpsbuf, pktdata.data, pktdata.len);
-                        mlvpn_rtun_tick(tun);
+                        mlvpn_put_pkt(tun->hpsbuf, NULL, 0);
                     }
                 } else {
                     if (tun->status == MLVPN_CHAP_AUTHOK)
