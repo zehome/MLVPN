@@ -64,8 +64,6 @@ enum cmd_types {
     PRIV_OPEN_CONFIG,   /* open config file for reading only */
     PRIV_INIT_SCRIPT,   /* set allowed status script */
     PRIV_RUN_SCRIPT,    /* run status script */
-    PRIV_INIT_CHAP,     /* initialize chap password */
-    PRIV_CHAP,          /* challenge hash */
     PRIV_OPEN_TUN,
     PRIV_GETADDRINFO,
     PRIV_DONE_CONFIG_PARSE    /* signal that the initial config parse is done */
@@ -88,7 +86,6 @@ static void sig_got_chld(int);
 static void must_read(int, void *, size_t);
 static void must_write(int, void *, size_t);
 static int  may_read(int, void *, size_t);
-static void compute_challenge(char *, char *, int, unsigned char *);
 
 int
 priv_init(char *conf, char *argv[], char *username)
@@ -105,9 +102,6 @@ priv_init(char *conf, char *argv[], char *username)
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
     char script_path[MAXPATHLEN] = {0};
-    char chap_password[MLVPN_CHAP_MAX] = {0};
-    char chap_challenge[MLVPN_CHALLENGE_MAX];
-    unsigned char sha1sum[SHA_DIGEST_LENGTH];
     char **script_argv;
     int script_argc;
     struct stat st;
@@ -255,6 +249,7 @@ priv_init(char *conf, char *argv[], char *username)
             if (fd >= 0)
                 close(fd);
             break;
+
         case PRIV_GETADDRINFO:
             /* Expecting: len, hostname, len, servname, hints */
             must_read(socks[0], &hostname_len, sizeof(size_t));
@@ -351,34 +346,6 @@ priv_init(char *conf, char *argv[], char *username)
             /* TODO check directory + check owner */
             else
                 strncpy(script_path, path, path_len);
-            break;
-        case PRIV_INIT_CHAP:
-            if (cur_state != STATE_CONFIG)
-                _exit(0);
-            must_read(socks[0], &len, sizeof(len));
-            if (len == 0 || len > MLVPN_CHAP_MAX)
-                _exit(0);
-            must_read(socks[0], chap_password, len);
-            chap_password[len] = '\0';
-            break;
-
-        case PRIV_CHAP:
-            if (! *chap_password)
-            {
-                _exit(0);
-            }
-            must_read(socks[0], &len, sizeof(len));
-            if (len ==0 || len > MLVPN_CHALLENGE_MAX)
-            {
-                _exit(0);
-            }
-            must_read(socks[0], chap_challenge, len);
-
-            compute_challenge(chap_password, chap_challenge, len, sha1sum);
-
-            len = SHA_DIGEST_LENGTH;
-            must_write(socks[0], &len, sizeof(len));
-            must_write(socks[0], sha1sum, len);
             break;
         case PRIV_DONE_CONFIG_PARSE:
             //dprintf("[priv]: msg PRIV_DONE_CONFIG_PARSE received\n");
@@ -494,18 +461,6 @@ launch_script(char *setup_script, int argc, char **argv)
     }
     fprintf(stderr, "%s: could not launch network script\n", setup_script);
     return status;
-}
-
-static void 
-compute_challenge(char *password, char *challenge, int len, 
-        unsigned char *sha1sum)
-{
-    /* Concatenate password with challenge, then sha1sum */
-    char answer[MLVPN_CHALLENGE_MAX+MLVPN_CHAP_MAX+1];
-    memset(answer, 0, sizeof(answer));
-    strncat(answer, password, MLVPN_CHAP_MAX);
-    strncat(answer, challenge, MLVPN_CHALLENGE_MAX+MLVPN_CHAP_MAX);
-    SHA1((unsigned char *)answer, strlen(answer), sha1sum);
 }
 
 /* Crank our state into less permissive modes */
@@ -707,47 +662,6 @@ priv_run_script(int argc, char **argv)
     
     must_read(priv_fd, &retval, sizeof(retval));
     return retval;
-}
-
-void
-priv_init_chap(char *password)
-{
-    int cmd;
-    size_t len;
-    
-    if (priv_fd < 0)
-        errx(1, "%s: called from privileged portion",
-                "priv_init_chap");
-
-    cmd = PRIV_INIT_CHAP;
-    must_write(priv_fd, &cmd, sizeof(cmd));
-    len = strlen(password);
-
-    must_write(priv_fd, &len, sizeof(len));
-    must_write(priv_fd, password, len);
-}
-
-void
-priv_chap(char *challenge, size_t challenge_len, unsigned char *sha1sum)
-{
-    int cmd;
-    size_t len;
-
-    if (priv_fd < 0)
-        errx(1, "%s: called from privileged portion",
-                "priv_chap");
-
-    cmd = PRIV_CHAP;
-    must_write(priv_fd, &cmd, sizeof(cmd));
-
-    must_write(priv_fd, &challenge_len, sizeof(challenge_len));
-    must_write(priv_fd, challenge, challenge_len);
-
-    must_read(priv_fd, &len, sizeof(len));
-    if (len == 0 || len > SHA_DIGEST_LENGTH)
-        return;
-
-    must_read(priv_fd, sha1sum, len);
 }
 
 /* Child can signal that its initial parsing is done, so that parent

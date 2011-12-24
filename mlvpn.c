@@ -29,6 +29,7 @@
 #include "mlvpn.h"
 #include "tool.h"
 #include "configlib.h"
+#include "chap.h"
 #include "ps_status.h"
 
 /* GLOBALS */
@@ -38,6 +39,7 @@ static mlvpn_tunnel_t *rtun_start = NULL;
 static char *progname;
 static char *tundevname = NULL;
 static char *status_command = NULL;
+static char *mlvpn_password = {0};
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
@@ -358,7 +360,7 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
     for(i = 0; i < len; i++)
         buffer[i] = (char)rand();
 
-    priv_chap(buffer, len, t->chap_sha1);
+    mlvpn_compute_challenge(mlvpn_password, buffer, len, t->chap_sha1);
     if (t->hpsbuf->len+1 > PKTBUFSIZE)
     {
         _WARNING("TUN %d buffer overflow.\n", t->fd);
@@ -375,7 +377,7 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
  * The client is the initiator of the handshake,
  * it will send a first packet with a challenge.
  * 
- * We use priv_chap to make a sha1 digest.
+ * We use mlvpn_compute_challenge to make a sha1 digest.
  * The server then sends back the digest.
  * The client checks if that's the expected result.
  * If yes, client sends a "keepalive" (0 length) packet
@@ -388,9 +390,6 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
 {
     unsigned char sha1sum[MLVPN_CHAP_DIGEST];
-    _DEBUG("dispatch chap t:%d server_mode:%d status: %d\n", t->fd,
-        t->server_mode, t->status);
-
     if (t->server_mode)
     {
         /* server side */
@@ -401,13 +400,12 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
                 _ERROR("CHAP challenge %d too big.\n", len);
                 return;
             }
-            priv_chap(buffer, len, sha1sum);
+            mlvpn_compute_challenge(mlvpn_password, buffer, len, sha1sum);
             if (t->hpsbuf->len+1 > PKTBUFSIZE)
             {
                 _WARNING("TUN %d buffer overflow.\n", t->fd);
                 t->hpsbuf->len = 0;
             }
-            _DEBUG("server sent answer\n");
             mlvpn_put_pkt(t->hpsbuf, sha1sum, MLVPN_CHAP_DIGEST);
             t->status = MLVPN_CHAP_AUTHSENT;
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
@@ -689,22 +687,22 @@ void mlvpn_rtun_check_timeout()
 
     while (t)
     {
-        if (t->fd > 0 && t->status == MLVPN_CHAP_AUTHOK && t->timeout > 0)
+        if (t->fd > 0 && t->status >= MLVPN_CHAP_AUTHSENT && t->timeout > 0)
         {
-            if ((t->next_keepalive == 0) || 
-                (t->next_keepalive < now))
-            {
-                /* Send a keepalive packet */
-                _DEBUG("Sending keepalive packet %d\n", t->fd);
-                mlvpn_rtun_keepalive(now, t);
-            }
-
             if ((t->last_packet_time != 0) && 
                 (t->last_packet_time + t->timeout) < now)
             {
                 /* Timeout */
                 _INFO("Link %d timeout.\n", t->fd);
                 mlvpn_rtun_close(t);
+            } else if (t->status == MLVPN_CHAP_AUTHOK) {
+                if ((t->next_keepalive == 0) || 
+                    (t->next_keepalive < now))
+                {
+                    /* Send a keepalive packet */
+                    _DEBUG("Sending keepalive packet %d\n", t->fd);
+                    mlvpn_rtun_keepalive(now, t);
+                }
             }
         }
         t = t->next;
@@ -790,7 +788,7 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
     int pkts = 0;
     int last_shift = -1;
 
-    for (i = 0; i < tun->rbuf.len - (PKTHDRSIZ(pktdata)) ; i++)
+    for (i = 0; i <= tun->rbuf.len - (PKTHDRSIZ(pktdata)) ; i++)
     {
         void *rbuf = tun->rbuf.data + i;
         /* Finding the magic and re-assemble valid pkt */
@@ -826,7 +824,6 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                             tap_send->len = 0;
                         }
                         mlvpn_put_pkt(tap_send, pktdata.data, pktdata.len);
-                        mlvpn_rtun_tick(tun);
                     } else {
                         mlvpn_rtun_chap_dispatch(tun, pktdata.data, pktdata.len);
                     }
@@ -1053,7 +1050,6 @@ int mlvpn_config(char *filename)
             if (mystr_eq(lastSection, "general"))
             {
                 char *mode;
-                char *password;
 
                 _conf_set_str_from_conf(config, lastSection,
                     "statuscommand", &status_command, NULL, NULL, 0);
@@ -1080,9 +1076,8 @@ int mlvpn_config(char *filename)
                 _conf_set_str_from_conf(config, lastSection,
                     "interface_name", &tundevname, "mlvpn0", NULL, 0);
                 _conf_set_str_from_conf(config, lastSection,
-                    "password", &password, NULL, "Password is mandatory.", 1);
-
-                priv_init_chap(password);
+                    "password", &mlvpn_password, NULL, 
+                    "Password is mandatory.", 1);
 
                 if (mystr_eq(mode, "server"))
                     server_mode = 1;

@@ -5,9 +5,11 @@
 #include <arpa/inet.h>
 #include <linux/if_tun.h>
 #include <linux/if.h>
+#include <stdio.h>
 
 #include "pkt.h"
 #include "buffer.h"
+#include "chap.h"
 
 #define MLVPN_ETH_IP4 0x0800
 #define MLVPN_ETH_IP6 0x86DD
@@ -16,11 +18,6 @@
 #define MLVPN_MAXHNAMSTR 1024
 #define MLVPN_MAXPORTSTR 5
 #define MLVPN_MAGIC 0xFFEEDD00
-
-/* Password max length */
-#define MLVPN_CHAP_MAX 128
-#define MLVPN_CHALLENGE_MAX 256
-#define MLVPN_CHAP_DIGEST 20
 
 #define MLVPN_MAX_COMMAND_ARGS 32
 
@@ -100,13 +97,6 @@ enum {
     ENCAP_PROTO_TCP
 };
 
-/* CHAP */
-enum {
-    MLVPN_CHAP_DISCONNECTED,
-    MLVPN_CHAP_AUTHSENT,
-    MLVPN_CHAP_AUTHOK
-};
-
 int mlvpn_config(char *filename);
 void init_buffers();
 
@@ -162,7 +152,5 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
 void priv_config_parse_done(void);
 void priv_init_script(char *);
 int priv_run_script(int argc, char **argv);
-void priv_init_chap(char *password);
-void priv_chap(char *challenge, size_t challenge_len, unsigned char *sha1sum);
 
 #endif

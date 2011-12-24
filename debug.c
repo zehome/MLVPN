@@ -37,7 +37,7 @@ __DEBUG(int _debug_line, const char *_debug_filename,
 
 
     /* message de prioritée inférieure a notre prio, on vire */
-    if (_debug_priority > current_level)
+    if (_debug_priority >= current_level)
         return;
 
     now = time((time_t *)NULL);
