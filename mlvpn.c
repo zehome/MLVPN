@@ -317,10 +317,6 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             {
                 _ERROR("Successfully connected to [%s]:%s.\n",
                     addr, port);
-                {
-                    char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
-                    priv_run_script(3, cmdargs);
-                }
                 mlvpn_rtun_reset_counters();
             } else {
                 _ERROR("Connection to [%s]:%s failed: %s\n",
@@ -426,6 +422,10 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
             {
                 _INFO("Connection on tun %d accepted.\n", t->fd);
                 t->status = MLVPN_CHAP_AUTHOK;
+                {
+                    char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
+                    priv_run_script(3, cmdargs);
+                }
                 /* send a keepalive packet */
                 mlvpn_rtun_keepalive(time((time_t *)NULL), t);
             }
@@ -910,10 +910,6 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                     _DEBUG("New UDP connection -> %s\n", clienthost);
                     memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
                     tun->status = MLVPN_CHAP_DISCONNECTED;
-                    {
-                        char *cmdargs[4] = {tuntap.devname, "rtun_up", tun->name, NULL};
-                        priv_run_script(3, cmdargs);
-                    }
                 }
             }
         }
