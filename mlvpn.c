@@ -198,10 +198,7 @@ void mlvpn_rtun_recalc_weight()
         {
             /* useless, but we want to be sure not to divide by 0 ! */
             if (t->sbuf->bandwidth > 0 && bandwidth_max > 0)
-            {
                 t->weight = (t->sbuf->bandwidth/bandwidth_max);
-                printf("tun %s weight=%f\n", t->name, t->weight);
-            }
             t = t->next;
         }
     }
@@ -358,7 +355,6 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             {
                 _ERROR("Successfully connected to [%s]:%s.\n",
                     addr, port);
-                mlvpn_rtun_reset_counters();
             } else {
                 _ERROR("Connection to [%s]:%s failed: %s\n",
                     addr, port, strerror(errno));
@@ -388,6 +384,18 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     mlvpn_rtun_recalc_weight();
     mlvpn_rtun_tick(t);
     return 0;
+}
+
+void
+mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
+{
+    char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
+    t->status = MLVPN_CHAP_AUTHOK;
+    priv_run_script(3, cmdargs);
+    mlvpn_rtun_reset_counters();
+    mlvpn_rtun_wrr_init(rtun_start);
+    /* send a keepalive packet */
+    mlvpn_rtun_keepalive(time((time_t *)NULL), t);
 }
 
 void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
@@ -449,11 +457,7 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
             t->status = MLVPN_CHAP_AUTHSENT;
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
             _INFO("TUN %d authenticated.\n", t->fd);
-            t->status = MLVPN_CHAP_AUTHOK;
-            {
-                char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
-                priv_run_script(3, cmdargs);
-            }
+            mlvpn_rtun_status_up(t);
         }
     } else {
         /* client side */
@@ -468,13 +472,7 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
             if (memcmp(sha1sum, t->chap_sha1, len) == 0)
             {
                 _INFO("Connection on tun %d accepted.\n", t->fd);
-                t->status = MLVPN_CHAP_AUTHOK;
-                {
-                    char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
-                    priv_run_script(3, cmdargs);
-                }
-                /* send a keepalive packet */
-                mlvpn_rtun_keepalive(time((time_t *)NULL), t);
+                mlvpn_rtun_status_up(t);
             }
         }
     }
@@ -562,7 +560,6 @@ int mlvpn_server_accept()
                     mlvpn_rtun_close(t);
                 }
                 t->fd = fd;
-                mlvpn_rtun_reset_counters();
 
                 long fl = fcntl(t->fd, F_GETFL);
                 if (fl < 0)
@@ -693,27 +690,11 @@ void mlvpn_rtun_reset_counters()
 
 mlvpn_tunnel_t *mlvpn_rtun_choose()
 {
-    mlvpn_tunnel_t *t = rtun_start;
-    mlvpn_tunnel_t *lpt = t;
-    double max = 0-1; /* max value */
-    double tmp;
-
-    while (t)
-    {
-        if (t->fd > 0 && t->status == MLVPN_CHAP_AUTHOK)
-        {
-            tmp = 1/(t->sendpackets * t->weight);
-            if (tmp <= max)
-            {
-                max = tmp;
-                lpt = t;
-            }
-        }
-        t = t->next;
-    }
-    if (lpt)
-        lpt->sendpackets++;
-    return lpt;
+    mlvpn_tunnel_t *tun;
+    tun = mlvpn_rtun_wrr_choose();
+    if (tun)
+        tun->sendpackets++;
+    return tun;
 }
 
 void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
@@ -953,7 +934,6 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                     tun->addrinfo->ai_addrlen = addrlen;
                 if (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0)
                 {
-                    mlvpn_rtun_reset_counters();
                     _DEBUG("New UDP connection -> %s\n", clienthost);
                     memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
                     tun->status = MLVPN_CHAP_DISCONNECTED;
