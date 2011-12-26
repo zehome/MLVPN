@@ -407,6 +407,10 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
             _INFO("TUN %d authenticated.\n", t->fd);
             t->status = MLVPN_CHAP_AUTHOK;
+            {
+                char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
+                priv_run_script(3, cmdargs);
+            }
         }
     } else {
         /* client side */
