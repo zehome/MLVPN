@@ -391,11 +391,13 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
 {
     char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
     t->status = MLVPN_CHAP_AUTHOK;
-    priv_run_script(3, cmdargs);
-    mlvpn_rtun_reset_counters();
+    t->sendpackets = 0;
+
     mlvpn_rtun_wrr_init(rtun_start);
-    /* send a keepalive packet */
-    mlvpn_rtun_keepalive(time((time_t *)NULL), t);
+    if (! t->server_mode)
+        mlvpn_rtun_keepalive(time((time_t *)NULL), t);
+
+    priv_run_script(3, cmdargs);
 }
 
 void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
@@ -440,6 +442,7 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
     if (t->server_mode)
     {
         /* server side */
+        _DEBUG("chap_dispatch(tunnel=%s status=%d\n", t->name, t->status);
         if (t->status == MLVPN_CHAP_DISCONNECTED)
         {
             if (len > MLVPN_CHALLENGE_MAX)
@@ -674,17 +677,6 @@ void print_frame(const char *frame)
         decap_ip4_frame(&ip4, frame+sizeof(struct mlvpn_ether));
         decap_ip4_frame(&ip4, frame);
         print_ip4(&ip4);
-    }
-}
-
-void mlvpn_rtun_reset_counters()
-{
-    mlvpn_tunnel_t *t = rtun_start;
-    _DEBUG("mlvpn_rtun_reset_counters\n");
-    while (t)
-    {
-        t->sendpackets = 0;
-        t = t->next;
     }
 }
 
