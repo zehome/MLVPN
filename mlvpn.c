@@ -702,7 +702,7 @@ mlvpn_tunnel_t *mlvpn_rtun_choose()
     {
         if (t->fd > 0 && t->status == MLVPN_CHAP_AUTHOK)
         {
-            tmp = (t->sendpackets * t->weight);
+            tmp = 1/(t->sendpackets * t->weight);
             if (tmp <= max)
             {
                 max = tmp;
