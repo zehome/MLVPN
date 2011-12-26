@@ -106,7 +106,7 @@ mlvpn_rtun_new(const char *name,
     new->fd = -1;
     new->server_mode = server_mode;
     new->server_fd = -1;
-    new->weight = 1;
+    new->weight = 1.0;
     new->status = MLVPN_CHAP_DISCONNECTED;
     new->encap_prot = ENCAP_PROTO_UDP;
     new->addrinfo = NULL;
@@ -172,7 +172,7 @@ mlvpn_rtun_new(const char *name,
 void mlvpn_rtun_recalc_weight()
 {
     mlvpn_tunnel_t *t = rtun_start;
-    float bandwidth_max = 0.0;
+    double bandwidth_max = 0.0;
     int warned = 0;
 
     /* If the bandwidth limit is not set on all interfaces, then
@@ -199,8 +199,8 @@ void mlvpn_rtun_recalc_weight()
             /* useless, but we want to be sure not to divide by 0 ! */
             if (t->sbuf->bandwidth > 0 && bandwidth_max > 0)
             {
-                t->weight = (t->sbuf->bandwidth/bandwidth_max)*100.0;
-                printf("tun %s weight=%d\n", t->name, t->weight);
+                t->weight = (t->sbuf->bandwidth/bandwidth_max);
+                printf("tun %s weight=%f\n", t->name, t->weight);
             }
             t = t->next;
         }
@@ -695,17 +695,17 @@ mlvpn_tunnel_t *mlvpn_rtun_choose()
 {
     mlvpn_tunnel_t *t = rtun_start;
     mlvpn_tunnel_t *lpt = t;
-    uint64_t least = 0-1; /* max value */
-    uint64_t tmp;
+    double max = 0-1; /* max value */
+    double tmp;
 
     while (t)
     {
         if (t->fd > 0 && t->status == MLVPN_CHAP_AUTHOK)
         {
             tmp = (t->sendpackets * t->weight);
-            if (tmp <= least)
+            if (tmp <= max)
             {
-                least = tmp;
+                max = tmp;
                 lpt = t;
             }
         }
