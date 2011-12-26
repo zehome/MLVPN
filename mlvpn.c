@@ -166,6 +166,46 @@ mlvpn_rtun_new(const char *name,
     return new;
 }
 
+/* Based on tunnel bandwidth, compute a "weight" value
+ * to balance correctly the round robin rtun_choose.
+ */
+void mlvpn_rtun_recalc_weight()
+{
+    mlvpn_tunnel_t *t = rtun_start;
+    double bandwidth_max = 0.0;
+    int warned = 0;
+
+    /* If the bandwidth limit is not set on all interfaces, then
+     * it's impossible to balance correctly! */
+    while (t)
+    {
+        if (t->sbuf->bandwidth == 0)
+        {
+            _WARNING("MLVPN can't balance correctly the traffic on"
+                " tunnels if bandwidth limit is disabled! (tun '%s')\n",
+                t->name);
+            warned++;
+        }
+        if (t->sbuf->bandwidth > bandwidth_max)
+            bandwidth_max = t->sbuf->bandwidth;
+        t = t->next;
+    }
+
+    if (warned == 0)
+    {
+        t = rtun_start;
+        while (t)
+        {
+            /* useless, but we want to be sure not to divide by 0 ! */
+            if (t->sbuf->bandwidth > 0)
+            {
+                t->weight = (int)(((double)t->sbuf->bandwidth/(double)bandwidth_max)*1000.0);
+            }
+            t = t->next;
+        }
+    }
+}
+
 int
 mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 {
@@ -343,6 +383,8 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         }
     }
 
+    /* re-compute rtun weight based on bandwidth allocation */
+    mlvpn_rtun_recalc_weight();
     mlvpn_rtun_tick(t);
     return 0;
 }

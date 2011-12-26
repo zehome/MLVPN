@@ -122,6 +122,7 @@ void mlvpn_rtun_tick(mlvpn_tunnel_t *t);
 void mlvpn_rtun_tick_connect();
 void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t);
 void mlvpn_rtun_check_timeout();
+void mlvpn_rtun_recalc_weight();
 int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
 int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun);
