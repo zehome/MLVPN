@@ -294,6 +294,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         return -1;
     }
 
+    res = t->addrinfo;
     while (res)
     {
         /* creation de la socket(2) */
@@ -408,6 +409,8 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 
     for(i = 0; i < len; i++)
         buffer[i] = (char)rand();
+
+    buffer[i] = '\0';
 
     mlvpn_compute_challenge(mlvpn_password, buffer, len, t->chap_sha1);
     if (t->hpsbuf->len+1 > PKTBUFSIZE)
