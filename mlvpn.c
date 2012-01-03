@@ -71,7 +71,6 @@ mlvpn_rtun_tick(mlvpn_tunnel_t *t)
     int now = time((time_t *)NULL);
     _DEBUG("mlvpn_rtun_tick(%d)\n", t->fd);
     t->last_packet_time = now;
-    t->next_keepalive = now + t->timeout/2;
 }
 
 
@@ -828,7 +827,7 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                 memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata)+pktdata.len);
 
                 /* This is a keepalive packet. Just send it back */
-                if (pktdata.len == 0)
+                if (pktdata.len == 0 && tun->status == MLVPN_CHAP_AUTHOK)
                 {
                     /* We don't want to send back the packet if we
                      * are client side, as we would create a send/recv loop */
