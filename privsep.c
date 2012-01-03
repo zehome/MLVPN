@@ -91,10 +91,10 @@ int
 priv_init(char *conf, char *argv[], char *username)
 {
     int i, fd, socks[2], cmd, restart;
-    int hostname_len, servname_len, addrinfo_len;
     int nullfd;
     size_t len;
     size_t path_len;
+    size_t hostname_len, servname_len, addrinfo_len;
     char path[MAXPATHLEN];
     struct ifreq ifr;
     struct passwd *pw;
@@ -177,13 +177,13 @@ priv_init(char *conf, char *argv[], char *username)
         close(nullfd);
 
     while (cur_state < STATE_QUIT) {
-        if (may_read(socks[0], &cmd, sizeof(int)))
+        if (may_read(socks[0], &cmd, sizeof(cmd)))
             break;
         switch (cmd) {
         case PRIV_OPEN_LOG:
             //dprintf("[priv]: msg PRIV_OPEN_LOG received\n")
             /* Expecting: length, path */
-            must_read(socks[0], &path_len, sizeof(size_t));
+            must_read(socks[0], &path_len, sizeof(path_len));
             if (path_len == 0 || path_len > sizeof(path))
                 _exit(0);
             must_read(socks[0], &path, path_len);
@@ -209,7 +209,7 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_OPEN_TUN:
-            must_read(socks[0], &path_len, sizeof(size_t));
+            must_read(socks[0], &path_len, sizeof(path_len));
 
             if (path_len > sizeof(path))
                 _exit(0);
@@ -224,7 +224,7 @@ priv_init(char *conf, char *argv[], char *username)
 
             if (fd < 0) {
                 warnx("priv_open_tun failed");
-                must_write(socks[0], 0, sizeof(size_t));
+                must_write(socks[0], &fd, sizeof(fd));
             } else {
                 memset(&ifr, 0, sizeof(ifr));
                 /* We do not want kernel packet info */
@@ -252,13 +252,13 @@ priv_init(char *conf, char *argv[], char *username)
 
         case PRIV_GETADDRINFO:
             /* Expecting: len, hostname, len, servname, hints */
-            must_read(socks[0], &hostname_len, sizeof(size_t));
+            must_read(socks[0], &hostname_len, sizeof(hostname_len));
             if (hostname_len > sizeof(hostname))
                 _exit(0);
             must_read(socks[0], &hostname, hostname_len);
             hostname[hostname_len - 1] = '\0';
 
-            must_read(socks[0], &servname_len, sizeof(size_t));
+            must_read(socks[0], &servname_len, sizeof(servname_len));
             if (servname_len > sizeof(servname))
                 _exit(0);
             must_read(socks[0], &servname, servname_len);
@@ -270,7 +270,7 @@ priv_init(char *conf, char *argv[], char *username)
             i = getaddrinfo(hostname, servname, &hints, &res0);
             if (i != 0 || res0 == NULL) {
                 addrinfo_len = 0;
-                must_write(socks[0], &addrinfo_len, sizeof(int));
+                must_write(socks[0], &addrinfo_len, sizeof(addrinfo_len));
             } else {
                 addrinfo_len = 0;
                 res = res0;
@@ -279,16 +279,16 @@ priv_init(char *conf, char *argv[], char *username)
                     addrinfo_len++;
                     res = res->ai_next;
                 }
-                must_write(socks[0], &addrinfo_len, sizeof(int));
+                must_write(socks[0], &addrinfo_len, sizeof(addrinfo_len));
 
                 res = res0;
                 while (res)
                 {
-                    must_write(socks[0], &res->ai_flags, sizeof(int));
-                    must_write(socks[0], &res->ai_family, sizeof(int));
-                    must_write(socks[0], &res->ai_socktype, sizeof(int));
-                    must_write(socks[0], &res->ai_protocol, sizeof(int));
-                    must_write(socks[0], &res->ai_addrlen, sizeof(size_t));
+                    must_write(socks[0], &res->ai_flags, sizeof(res->ai_flags));
+                    must_write(socks[0], &res->ai_family, sizeof(res->ai_family));
+                    must_write(socks[0], &res->ai_socktype, sizeof(res->ai_socktype));
+                    must_write(socks[0], &res->ai_protocol, sizeof(res->ai_protocol));
+                    must_write(socks[0], &res->ai_addrlen, sizeof(res->ai_addrlen));
                     must_write(socks[0], res->ai_addr, res->ai_addrlen);
                     res = res->ai_next;
                 }
@@ -297,14 +297,14 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_RUN_SCRIPT:
-            must_read(socks[0], &script_argc, sizeof(int));
+            must_read(socks[0], &script_argc, sizeof(script_argc));
             if (script_argc == 0)
                 _exit(0);
 
             script_argv = (char **)malloc((script_argc+1)*sizeof(char *));
             for(i = 0; i < script_argc; i++)
             {
-                must_read(socks[0], &len, sizeof(size_t));
+                must_read(socks[0], &len, sizeof(len));
                 if (len == 0)
                 {
                     script_argv[i] = NULL;
@@ -322,7 +322,7 @@ priv_init(char *conf, char *argv[], char *username)
             } else {
                 i = launch_script(script_path, script_argc, script_argv);
             }
-            must_write(socks[0], &i, sizeof(int));
+            must_write(socks[0], &i, sizeof(i));
             
             for(i = 0; i < script_argc; i++)
                 free(script_argv[i]);
@@ -490,8 +490,8 @@ priv_open_log(char *lognam)
     path_len = strlen(path) + 1;
 
     cmd = PRIV_OPEN_LOG;
-    must_write(priv_fd, &cmd, sizeof(int));
-    must_write(priv_fd, &path_len, sizeof(size_t));
+    must_write(priv_fd, &cmd, sizeof(cmd));
+    must_write(priv_fd, &path_len, sizeof(path_len));
     must_write(priv_fd, path, path_len);
     fd = receive_fd(priv_fd);
 
@@ -519,7 +519,7 @@ priv_open_config(void)
         errx(1, "%s: called from privileged portion", "priv_open_config");
 
     cmd = PRIV_OPEN_CONFIG;
-    must_write(priv_fd, &cmd, sizeof(int));
+    must_write(priv_fd, &cmd, sizeof(cmd));
     fd = receive_fd(priv_fd);
     if (fd < 0)
         return NULL;
@@ -548,14 +548,13 @@ int priv_open_tun(char *devname)
     path_len = strlen(path) + 1;
 
     cmd = PRIV_OPEN_TUN;
-    must_write(priv_fd, &cmd, sizeof(int));
-    must_write(priv_fd, &path_len, sizeof(size_t));
+    must_write(priv_fd, &cmd, sizeof(cmd));
+    must_write(priv_fd, &path_len, sizeof(path_len));
     must_write(priv_fd, path, path_len);
-    must_read(priv_fd, &path_len, sizeof(size_t));
+    must_read(priv_fd, &path_len, sizeof(path_len));
 
-    if (path_len > 0) {
+    if (path_len > 0)
         must_read(priv_fd, devname, path_len);
-    }
 
     devname[path_len] = '\0';
     fd = receive_fd(priv_fd);
@@ -569,8 +568,8 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     struct addrinfo *hints)
 {
     char hostcpy[MLVPN_MAXHNAMSTR], servcpy[MLVPN_MAXHNAMSTR];
-    int cmd, ret_len, i;
-    size_t hostname_len, servname_len;
+    int cmd, i;
+    size_t hostname_len, servname_len, ret_len;
     struct addrinfo *new, *last = NULL;
 
     if (priv_fd < 0)
@@ -582,15 +581,15 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     servname_len = strlen(servcpy) + 1;
 
     cmd = PRIV_GETADDRINFO;
-    must_write(priv_fd, &cmd, sizeof(int));
-    must_write(priv_fd, &hostname_len, sizeof(size_t));
+    must_write(priv_fd, &cmd, sizeof(cmd));
+    must_write(priv_fd, &hostname_len, sizeof(hostname_len));
     must_write(priv_fd, hostcpy, hostname_len);
-    must_write(priv_fd, &servname_len, sizeof(size_t));
+    must_write(priv_fd, &servname_len, sizeof(servname_len));
     must_write(priv_fd, servcpy, servname_len);
     must_write(priv_fd, hints, sizeof(struct addrinfo));
 
     /* How much addrinfo we have */
-    must_read(priv_fd, &ret_len, sizeof(int));
+    must_read(priv_fd, &ret_len, sizeof(ret_len));
 
     /* Check there was no error (indicated by a return of 0) */
     if (!ret_len)
@@ -599,11 +598,11 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     for (i=0; i < ret_len; i++)
     {
         new = (struct addrinfo *)malloc(sizeof(struct addrinfo));
-        must_read(priv_fd, &new->ai_flags, sizeof(int));
-        must_read(priv_fd, &new->ai_family, sizeof(int));
-        must_read(priv_fd, &new->ai_socktype, sizeof(int));
-        must_read(priv_fd, &new->ai_protocol, sizeof(int));
-        must_read(priv_fd, &new->ai_addrlen, sizeof(size_t));
+        must_read(priv_fd, &new->ai_flags, sizeof(new->ai_flags));
+        must_read(priv_fd, &new->ai_family, sizeof(new->ai_family));
+        must_read(priv_fd, &new->ai_socktype, sizeof(new->ai_socktype));
+        must_read(priv_fd, &new->ai_protocol, sizeof(new->ai_protocol));
+        must_read(priv_fd, &new->ai_addrlen, sizeof(new->ai_addrlen));
         new->ai_addr = (struct sockaddr *)malloc(new->ai_addrlen);
         must_read(priv_fd, new->ai_addr, new->ai_addrlen);
         new->ai_canonname = NULL;
@@ -652,11 +651,11 @@ priv_run_script(int argc, char **argv)
     cmd = PRIV_RUN_SCRIPT;
     must_write(priv_fd, &cmd, sizeof(cmd));
 
-    must_write(priv_fd, &argc, sizeof(int));
+    must_write(priv_fd, &argc, sizeof(argc));
     for (i=0; i < argc; i++)
     {
         len = strlen(argv[i])+1;
-        must_write(priv_fd, &len, sizeof(size_t));
+        must_write(priv_fd, &len, sizeof(len));
         must_write(priv_fd, argv[i], len);
     }
     
@@ -676,7 +675,7 @@ priv_config_parse_done(void)
             "priv_config_parse_done");
 
     cmd = PRIV_DONE_CONFIG_PARSE;
-    must_write(priv_fd, &cmd, sizeof(int));
+    must_write(priv_fd, &cmd, sizeof(cmd));
 }
 
 /* When child dies, move into the shutdown state */
