@@ -105,7 +105,7 @@ mlvpn_rtun_new(const char *name,
     new->fd = -1;
     new->server_mode = server_mode;
     new->server_fd = -1;
-    new->weight = 1.0;
+    new->weight = 1;
     new->status = MLVPN_CHAP_DISCONNECTED;
     new->encap_prot = ENCAP_PROTO_UDP;
     new->addrinfo = NULL;
@@ -197,7 +197,10 @@ void mlvpn_rtun_recalc_weight()
         {
             /* useless, but we want to be sure not to divide by 0 ! */
             if (t->sbuf->bandwidth > 0 && bandwidth_max > 0)
-                t->weight = (t->sbuf->bandwidth/bandwidth_max);
+            {
+                t->weight = (int)((t->sbuf->bandwidth/bandwidth_max) * 10.0);
+                _DEBUG("tun %s weight = %d\n", t->name, t->weight);
+            }
             t = t->next;
         }
     }

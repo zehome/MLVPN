@@ -1,6 +1,9 @@
 #include "mlvpn.h"
 #include "debug.h"
 
+/* Fairly big no ? */
+#define MAX_TUNNELS 128
+
 struct mlvpn_wrr {
     mlvpn_tunnel_t *start;
     int len;
@@ -8,6 +11,7 @@ struct mlvpn_wrr {
     int maxw;
     int curw;
     int curi;
+    mlvpn_tunnel_t *tunnels[MAX_TUNNELS];
 };
 
 static struct mlvpn_wrr wrr = {
@@ -63,52 +67,50 @@ int wrr_max_weight()
     return max;
 }
 
-int wrr_len(mlvpn_tunnel_t *start)
-{
-    mlvpn_tunnel_t *t = start;
-    int len = 0;
-    while (t)
-    {
-        if (t->status >= MLVPN_CHAP_AUTHOK)
-            len++;
-        t = t->next;
-    }
-    return len;
-}
-
 /* initialize wrr system */
 int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
 {
+    mlvpn_tunnel_t *t = wrr.start;
+
     wrr.start = start;
     wrr.gcd = wrr_gcd_weight(wrr.start);
     wrr.curw = 0;
     wrr.curi = -1;
-    wrr.len = wrr_len(wrr.start);
     wrr.maxw = wrr_max_weight(wrr.start);
+
+    wrr.len = 0;
+    while (t)
+    {
+        if (t->status >= MLVPN_CHAP_AUTHOK)
+        {
+            if (wrr.len >= MAX_TUNNELS)
+            {
+                _ERROR("You have too much tunnels declared! (> %d)\n", wrr.len);
+                return 1;
+            }
+            wrr.tunnels[wrr.len++] = t;
+        }
+        t = t->next;
+    }
+    
     return 0;
 }
 
 mlvpn_tunnel_t *
 mlvpn_rtun_wrr_choose()
 {
-    mlvpn_tunnel_t *t = wrr.start;
-
-    while (t)
+    while (1)
     {
-        if (t->status >= MLVPN_CHAP_AUTHOK)
+        wrr.curi = (wrr.curi + 1) % wrr.len;
+        if (wrr.curi == 0)
         {
-            wrr.curi = (wrr.curi + 1) % wrr.len;
-            if (wrr.curi == 0)
-            {
-                wrr.curw -= wrr.gcd;
-                if (wrr.curw <= 0)
-                    wrr.curw = wrr.maxw;
-            }
-            if (t->weight >= wrr.curw)
-                goto out;
+            wrr.curw -= wrr.gcd;
+            if (wrr.curw <= 0)
+                wrr.curw = wrr.maxw;
         }
-        t = t->next;
+        if (wrr.tunnels[wrr.curi]->weight >= wrr.curw)
+            break;
     }
-out:
-    return t;
+
+    return wrr.tunnels[wrr.curi];
 }
