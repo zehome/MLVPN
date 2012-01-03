@@ -172,8 +172,9 @@ mlvpn_rtun_new(const char *name,
 void mlvpn_rtun_recalc_weight()
 {
     mlvpn_tunnel_t *t = rtun_start;
-    double bandwidth_max = 0.0;
+    int bandwidth_max = 0;
     int warned = 0;
+    int tunnels = 0;
 
     /* If the bandwidth limit is not set on all interfaces, then
      * it's impossible to balance correctly! */
@@ -189,6 +190,7 @@ void mlvpn_rtun_recalc_weight()
         if (t->sbuf->bandwidth > bandwidth_max)
             bandwidth_max = t->sbuf->bandwidth;
         t = t->next;
+        tunnels++;
     }
 
     if (warned == 0)
@@ -199,8 +201,9 @@ void mlvpn_rtun_recalc_weight()
             /* useless, but we want to be sure not to divide by 0 ! */
             if (t->sbuf->bandwidth > 0 && bandwidth_max > 0)
             {
-                t->weight = (int)((t->sbuf->bandwidth/bandwidth_max) * 100.0);
-                _DEBUG("tun %s weight = %d\n", t->name, t->weight);
+                t->weight = ((double)t->sbuf->bandwidth/(double)bandwidth_max) * 100.0 / tunnels;
+                _DEBUG("tun %s weight = %d (%d %d)\n", t->name, t->weight,
+                    t->sbuf->bandwidth,  bandwidth_max);
             }
             t = t->next;
         }
