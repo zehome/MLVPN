@@ -68,8 +68,10 @@ mlvpn_rtun_last()
 void
 mlvpn_rtun_tick(mlvpn_tunnel_t *t)
 {
+    int now = time((time_t *)NULL);
     _DEBUG("mlvpn_rtun_tick(%d)\n", t->fd);
-    t->last_packet_time = time((time_t *)NULL);
+    t->last_packet_time = now;
+    t->next_keepalive = now + t->timeout/2;
 }
 
 
@@ -726,7 +728,7 @@ void mlvpn_rtun_check_timeout()
                     (t->next_keepalive < now))
                 {
                     /* Send a keepalive packet */
-                    _DEBUG("Sending keepalive packet %d\n", t->fd);
+                    _DEBUG("Sending keepalive packet %d (next_keepalive = %d)\n", t->fd, t->next_keepalive);
                     mlvpn_rtun_keepalive(now, t);
                 }
             }
