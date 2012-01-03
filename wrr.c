@@ -75,7 +75,7 @@ mlvpn_rtun_wrr_choose()
 
     for(i = 0; i < wrr.len; i++)
     {
-        if (wrr.tunval[i] != 0)
+        if (wrr.tunval[i] > 0)
             wrr.tunval[i] -= 1;
     }
     wrr.tunval[idx] = (double) 100.0 / wrr.tunnel[idx]->weight;
