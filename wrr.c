@@ -8,8 +8,6 @@ struct mlvpn_wrr {
     int maxw;
     int curw;
     int curi;
-    mlvpn_tunnel_t *next_tun;
-    int next_count;
 };
 
 static struct mlvpn_wrr wrr = {
@@ -18,9 +16,7 @@ static struct mlvpn_wrr wrr = {
     0,
     0,
     0,
-    -1,
-    NULL,
-    0
+    -1
 };
 
 /* (utility) highest common factor */
@@ -89,8 +85,6 @@ int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
     wrr.curi = -1;
     wrr.len = wrr_len(wrr.start);
     wrr.maxw = wrr_max_weight(wrr.start);
-    wrr.next_tun = NULL;
-    wrr.next_count = 0;
     return 0;
 }
 
@@ -98,16 +92,6 @@ mlvpn_tunnel_t *
 mlvpn_rtun_wrr_choose()
 {
     mlvpn_tunnel_t *t = wrr.start;
-
-    if (wrr.next_tun && wrr.next_count > 0)
-    {
-        t = wrr.next_tun;
-        wrr.next_count--;
-        goto out;
-    }
-
-    wrr.next_tun = NULL;
-    wrr.next_count = 0;
 
     while (t)
     {
@@ -121,11 +105,7 @@ mlvpn_rtun_wrr_choose()
                     wrr.curw = wrr.maxw;
             }
             if (t->weight >= wrr.curw)
-            {
-                wrr.next_tun = t;
-                wrr.next_count = t->weight;
                 goto out;
-            }
         }
         t = t->next;
     }
