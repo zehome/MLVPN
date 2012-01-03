@@ -200,7 +200,7 @@ void mlvpn_rtun_recalc_weight()
             /* useless, but we want to be sure not to divide by 0 ! */
             if (t->sbuf->bandwidth > 0 && bandwidth_max > 0)
             {
-                t->weight = (int)((t->sbuf->bandwidth/bandwidth_max) * 10.0);
+                t->weight = (int)((t->sbuf->bandwidth/bandwidth_max) * 100.0);
                 _DEBUG("tun %s weight = %d\n", t->name, t->weight);
             }
             t = t->next;
@@ -385,8 +385,6 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         }
     }
 
-    /* re-compute rtun weight based on bandwidth allocation */
-    mlvpn_rtun_recalc_weight();
     mlvpn_rtun_tick(t);
     return 0;
 }
@@ -1042,6 +1040,9 @@ void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
     {
         char *cmdargs[4] = {tuntap.devname, "rtun_down", tun->name, NULL};
         priv_run_script(3, cmdargs);
+
+        /* Re-initialize weight round robin */
+        mlvpn_rtun_wrr_init(rtun_start);
     }
 }
 
@@ -1255,6 +1256,9 @@ int main(int argc, char **argv)
     }
     
     init_buffers();
+
+    /* re-compute rtun weight based on bandwidth allocation */
+    mlvpn_rtun_recalc_weight();
 
     while (1) 
     {

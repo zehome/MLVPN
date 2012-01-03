@@ -5,79 +5,40 @@
 #define MAX_TUNNELS 128
 
 struct mlvpn_wrr {
-    mlvpn_tunnel_t *start;
     int len;
-    int gcd;
-    int maxw;
-    int curw;
-    int curi;
-    mlvpn_tunnel_t *tunnels[MAX_TUNNELS];
+    mlvpn_tunnel_t *tunnel[MAX_TUNNELS];
+    double tunval[MAX_TUNNELS]; 
 };
 
 static struct mlvpn_wrr wrr = {
-    NULL,
     0,
-    0,
-    0,
-    0,
-    -1
+    {NULL},
+    {0}
 };
 
-/* (utility) highest common factor */
-int gcd(int a, int b)
+int wrr_min_index()
 {
-    int c;
-    while ((c = a % b))
-    {
-        a = b;
-        b = c;
-    }
-    return b;
-}
+    uint32_t min = 0-1;
+    int min_index = 0;
+    int i;
 
-int wrr_gcd_weight()
-{
-    mlvpn_tunnel_t *t = wrr.start;
-    int weight, g = 0;
-    while (t)
+    mlvpn_tunnel_t *t;
+    for(i = 0; i < wrr.len; i++)
     {
-        if (t->status >= MLVPN_CHAP_AUTHOK)
+        t = wrr.tunnel[i];
+        if (t->weight < min)
         {
-            weight = t->weight;
-            if (weight > 0)
-                g = g > 0 ? gcd(weight, g) : weight;
+            min = t->weight;
+            min_index = i;
         }
-        t = t->next;
     }
-    return g ? g : 1;
-}
-int wrr_max_weight()
-{
-    mlvpn_tunnel_t *t = wrr.start;
-    int max = 0;
-    while (t)
-    {
-        if (t->status >= MLVPN_CHAP_AUTHOK)
-        {
-            if (t->weight > max)
-                max = t->weight;
-        }
-        t = t->next;
-    }
-    return max;
+    return min_index;
 }
 
 /* initialize wrr system */
 int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
 {
-    mlvpn_tunnel_t *t = wrr.start;
-
-    wrr.start = start;
-    wrr.gcd = wrr_gcd_weight(wrr.start);
-    wrr.curw = 0;
-    wrr.curi = -1;
-    wrr.maxw = wrr_max_weight(wrr.start);
-
+    mlvpn_tunnel_t *t = start;
     wrr.len = 0;
     while (t)
     {
@@ -88,7 +49,9 @@ int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
                 _ERROR("You have too much tunnels declared! (> %d)\n", wrr.len);
                 return 1;
             }
-            wrr.tunnels[wrr.len++] = t;
+            wrr.tunnel[wrr.len] = t;
+            wrr.tunval[wrr.len] = 0.0;
+            wrr.len++;
         }
         t = t->next;
     }
@@ -99,21 +62,24 @@ int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
 mlvpn_tunnel_t *
 mlvpn_rtun_wrr_choose()
 {
+    int i;
+    int idx;
+
     if (wrr.len == 0)
         return NULL;
 
-    while (1)
+    idx = wrr_min_index();
+    if (idx < 0)
     {
-        wrr.curi = (wrr.curi + 1) % wrr.len;
-        if (wrr.curi == 0)
-        {
-            wrr.curw -= wrr.gcd;
-            if (wrr.curw <= 0)
-                wrr.curw = wrr.maxw;
-        }
-        if (wrr.tunnels[wrr.curi]->weight >= wrr.curw)
-            break;
+        _ERROR("Programming error: wrr_min_index < 0!\n");
+        return NULL;
     }
 
-    return wrr.tunnels[wrr.curi];
+    for(i = 0; i < wrr.len; i++)
+    {
+        if (wrr.tunval[i] != 0)
+            wrr.tunval[i] -= 1;
+    }
+    wrr.tunval[idx] = (double) 100.0 / wrr.tunnel[idx]->weight;
+    return wrr.tunnel[idx];
 }
