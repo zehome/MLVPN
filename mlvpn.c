@@ -29,7 +29,6 @@
 #include "mlvpn.h"
 #include "tool.h"
 #include "configlib.h"
-#include "chap.h"
 #include "ps_status.h"
 
 /* GLOBALS */
@@ -403,22 +402,13 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
 
 void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 {
-    char buffer[DEFAULT_MTU];
-    int i;
-    size_t len = 128;
-
-    for(i = 0; i < len; i++)
-        buffer[i] = (char)rand();
-
-    buffer[i] = '\0';
-
-    mlvpn_compute_challenge(mlvpn_password, buffer, len, t->chap_sha1);
+    char pkt[2] = {'A','U'};
     if (t->hpsbuf->len+1 > PKTBUFSIZE)
     {
         _WARNING("TUN %d buffer overflow.\n", t->fd);
         t->hpsbuf->len = 0;
     }
-    mlvpn_put_pkt(t->hpsbuf, buffer, len);
+    mlvpn_put_pkt(t->hpsbuf, pkt, sizeof(pkt));
     t->status = MLVPN_CHAP_AUTHSENT;
     _DEBUG("mlvpn_rtun_challenge_send %d\n", t->fd);
 }
@@ -429,8 +419,7 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
  * The client is the initiator of the handshake,
  * it will send a first packet with a challenge.
  * 
- * We use mlvpn_compute_challenge to make a sha1 digest.
- * The server then sends back the digest.
+ * The server then sends back the {OK} answer.
  * The client checks if that's the expected result.
  * If yes, client sends a "keepalive" (0 length) packet
  * and the connection is "established."
@@ -441,25 +430,35 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
  */
 void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
 {
-    unsigned char sha1sum[MLVPN_CHAP_DIGEST];
+    char pkt[2];
     if (t->server_mode)
     {
         /* server side */
         _DEBUG("chap_dispatch(tunnel=%s status=%d\n", t->name, t->status);
         if (t->status == MLVPN_CHAP_DISCONNECTED)
         {
-            if (len > MLVPN_CHALLENGE_MAX)
+            if (len != 2)
             {
-                _ERROR("CHAP challenge %d too big.\n", len);
+                _WARNING("Invalid query len from client.\n");
                 return;
             }
-            mlvpn_compute_challenge(mlvpn_password, buffer, len, sha1sum);
+            if (buffer[0] == 'A' && buffer[1] == 'U')
+            {
+                pkt[0] = 'O';
+                pkt[1] = 'K';
+            } else {
+                _WARNING("Invalid query from client.\n");
+                return;
+            }
+
             if (t->hpsbuf->len+1 > PKTBUFSIZE)
             {
                 _WARNING("TUN %d buffer overflow.\n", t->fd);
                 t->hpsbuf->len = 0;
             }
-            mlvpn_put_pkt(t->hpsbuf, sha1sum, MLVPN_CHAP_DIGEST);
+
+            _DEBUG("Sending 'OK' packet to client.\n");
+            mlvpn_put_pkt(t->hpsbuf, pkt, 2);
             t->status = MLVPN_CHAP_AUTHSENT;
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
             _INFO("TUN %d authenticated.\n", t->fd);
@@ -469,16 +468,17 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
         /* client side */
         if (t->status == MLVPN_CHAP_AUTHSENT)
         {
-            if (len != MLVPN_CHAP_DIGEST)
+            if (len != 2)
             {
-                _WARNING("Received digest from server of invalid length: %d.\n", len);
+                _WARNING("Invalid answer from server (len=%d != 2).\n", len);
                 return;
             }
-            memcpy(sha1sum, buffer, len);
-            if (memcmp(sha1sum, t->chap_sha1, len) == 0)
+            if (buffer[0] == 'O' && buffer[1] == 'K')
             {
-                _INFO("Connection on tun %d accepted.\n", t->fd);
-                mlvpn_rtun_status_up(t);
+                 mlvpn_rtun_status_up(t);
+            } else {
+                _WARNING("Not OK answer from server.\n");
+                mlvpn_rtun_close(t);
             }
         }
     }

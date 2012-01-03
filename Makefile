@@ -2,12 +2,12 @@ CC ?= gcc
 CFLAGS += -Wall -ggdb
 
 OBJS = configlib.o tool.o debug.o mlvpn.o buffer.o privsep_fdpass.o privsep.o \
-       ps_status.o chap.o wrr.o
+       ps_status.o wrr.o
 
 all: mlvpn
 
 mlvpn: $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o mlvpn -lssl
+	$(CC) $(CFLAGS) $(OBJS) -o mlvpn
 
 adduser:
 	adduser --system --home /var/spool/mlvpn --shell /bin/false --disabled-password --disabled-login mlvpn
