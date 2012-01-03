@@ -99,6 +99,9 @@ int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
 mlvpn_tunnel_t *
 mlvpn_rtun_wrr_choose()
 {
+    if (wrr.len == 0)
+        return NULL;
+
     while (1)
     {
         wrr.curi = (wrr.curi + 1) % wrr.len;
