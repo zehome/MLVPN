@@ -172,7 +172,7 @@ mlvpn_rtun_new(const char *name,
 void mlvpn_rtun_recalc_weight()
 {
     mlvpn_tunnel_t *t = rtun_start;
-    int bandwidth_max = 0;
+    int bandwidth_total = 0;
     int warned = 0;
     int tunnels = 0;
 
@@ -187,8 +187,7 @@ void mlvpn_rtun_recalc_weight()
                 t->name);
             warned++;
         }
-        if (t->sbuf->bandwidth > bandwidth_max)
-            bandwidth_max = t->sbuf->bandwidth;
+        bandwidth_total += t->sbuf->bandwidth;
         t = t->next;
         tunnels++;
     }
@@ -199,11 +198,11 @@ void mlvpn_rtun_recalc_weight()
         while (t)
         {
             /* useless, but we want to be sure not to divide by 0 ! */
-            if (t->sbuf->bandwidth > 0 && bandwidth_max > 0)
+            if (t->sbuf->bandwidth > 0 && bandwidth_total > 0)
             {
-                t->weight = ((double)t->sbuf->bandwidth/(double)bandwidth_max) * 100.0 / tunnels;
-                _DEBUG("tun %s weight = %d (%d %d)\n", t->name, t->weight,
-                    t->sbuf->bandwidth,  bandwidth_max);
+                t->weight = (((double)t->sbuf->bandwidth/(double)bandwidth_total) * 100.0);
+                _DEBUG("tun %s weight = %f (%d %d)\n", t->name, t->weight,
+                    t->sbuf->bandwidth, bandwidth_total);
             }
             t = t->next;
         }
@@ -1177,7 +1176,9 @@ int mlvpn_config(char *filename)
                     (int *)&(tmptun->timeout), default_timeout, NULL, 0);
 
                 if (bwlimit > 0)
+                {
                     tmptun->sbuf->bandwidth = bwlimit;
+                }
             }
         } else if (lastSection == NULL) {
             lastSection = work->section;
