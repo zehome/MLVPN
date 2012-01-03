@@ -18,17 +18,15 @@ static struct mlvpn_wrr wrr = {
 
 int wrr_min_index()
 {
-    uint32_t min = 0-1;
+    double min = 100.0;
     int min_index = 0;
     int i;
 
-    mlvpn_tunnel_t *t;
     for(i = 0; i < wrr.len; i++)
     {
-        t = wrr.tunnel[i];
-        if (t->weight < min)
+        if (wrr.tunval[i] < min)
         {
-            min = t->weight;
+            min = wrr.tunval[i];
             min_index = i;
         }
     }

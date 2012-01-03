@@ -76,7 +76,7 @@ typedef struct mlvpn_tunnel_s
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
     time_t next_attempt;  /* next connection attempt */
-    int weight;           /* For weight round robin */
+    double weight;        /* For weight round robin */
     uint64_t sendpackets; /* 64bit packets send counter */
     pktbuffer_t *sbuf;    /* send buffer */
     pktbuffer_t *hpsbuf;  /* high priority buffer */
