@@ -71,7 +71,6 @@ config_t *_conf_parseConfig ()
                        linenum++;
                        buf[i] = 0;
                        newline = _conf_strip_comment(buf, i);
-                       printf("newline: %s\n", newline);
 
                        if (newline)
                        {
