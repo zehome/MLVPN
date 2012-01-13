@@ -617,7 +617,7 @@ int mlvpn_tuntap_alloc()
 {
     int fd;
 
-    if ((fd = priv_open_tun(tuntap.devname)) < 0 )
+    if ((fd = priv_open_tun(MLVPN_TUNTAPMODE_TUN, tuntap.devname)) < 0 )
     {
         _ERROR("Unable to open /dev/net/tun RW. Check permissions.\n");
         return fd;

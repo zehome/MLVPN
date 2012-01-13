@@ -80,6 +80,7 @@ static char allowed_logfile[MAXPATHLEN];
 
 static void check_log_name(char *, size_t);
 static int open_file(char *);
+int linux_open_tun(int tuntapmode, char *devname);
 static int launch_script(char *, int, char **);
 static void increase_state(int);
 static void sig_got_chld(int);
@@ -92,16 +93,17 @@ priv_init(char *conf, char *argv[], char *username)
 {
     int i, fd, socks[2], cmd, restart;
     int nullfd;
+    int tuntapmode;
     size_t len;
     size_t path_len;
     size_t hostname_len, servname_len, addrinfo_len;
     char path[MAXPATHLEN];
-    struct ifreq ifr;
     struct passwd *pw;
     struct sigaction sa;
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
     char script_path[MAXPATHLEN] = {0};
+    char tuntapname[MLVPN_IFNAMSIZ];
     char **script_argv;
     int script_argc;
     struct stat st;
@@ -181,6 +183,9 @@ priv_init(char *conf, char *argv[], char *username)
             break;
         switch (cmd) {
         case PRIV_OPEN_LOG:
+            /* TODO: forbid completly access to open log
+             *  if STATUS_RUNING 
+             */
             //dprintf("[priv]: msg PRIV_OPEN_LOG received\n")
             /* Expecting: length, path */
             must_read(socks[0], &path_len, sizeof(path_len));
@@ -198,6 +203,9 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_OPEN_CONFIG:
+            /* TODO: forbid completly access to open fd
+             *  if STATUS_RUNING 
+             */
             //dprintf("[priv]: msg PRIV_OPEN_CONFIG received\n");
             stat(config_file, &cf_info);
             fd = open(config_file, O_RDONLY|O_NONBLOCK, 0);
@@ -209,41 +217,30 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_OPEN_TUN:
-            must_read(socks[0], &path_len, sizeof(path_len));
-
-            if (path_len > sizeof(path))
+            must_read(socks[0], &tuntapmode, sizeof(tuntapmode));
+            if (tuntapmode != MLVPN_TUNTAPMODE_TUN &&
+                tuntapmode != MLVPN_TUNTAPMODE_TAP)
                 _exit(0);
-            else if (path_len > 0) {
-                must_read(socks[0], &path, path_len);
-                path[path_len-1] = '\0';
+
+            must_read(socks[0], &len, sizeof(len));
+            if (len > sizeof(len) || len >= MLVPN_IFNAMSIZ)
+                _exit(0);
+
+            else if (len > 0) {
+                must_read(socks[0], &tuntapname, len);
+                tuntapname[len] = '\0';
             } else {
-                path[0] = '\0';
+                tuntapname[0] = '\0';
             }
 
-            fd = open("/dev/net/tun", O_RDWR);
-
-            if (fd < 0) {
-                warnx("priv_open_tun failed");
+            fd = linux_open_tun(tuntapmode, tuntapname);
+            if (fd < 0)
+            {
                 must_write(socks[0], &fd, sizeof(fd));
             } else {
-                memset(&ifr, 0, sizeof(ifr));
-                /* We do not want kernel packet info */
-                ifr.ifr_flags = IFF_TUN | IFF_NO_PI; 
-                /* Allocate with specified name, otherwise the kernel
-                 * will find a name for us. */
-                if (path_len)
-                    strncpy(ifr.ifr_name, path, IFNAMSIZ);
-
-                /* ioctl to create the if */
-                if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
-                    warn("priv_open_tun failed");
-
-                path_len = strlen(ifr.ifr_name);
-                /* The kernel is the only one able to "name" the if.
-                 * so we reread it to get the real name set by the kernel. */
-
-                must_write(socks[0], &path_len, sizeof(path_len));
-                must_write(socks[0], ifr.ifr_name, path_len);
+                len = strlen(tuntapname);
+                must_write(socks[0], &len, sizeof(len));
+                must_write(socks[0], tuntapname, len);
             }
             send_fd(socks[0], fd);
             if (fd >= 0)
@@ -534,31 +531,72 @@ priv_open_config(void)
     return fp;
 }
 
-/* Open tun */
-int priv_open_tun(char *devname)
+/* Open tun from unpriviled code
+ * Scope: public
+ */
+int priv_open_tun(int tuntapmode, char *devname)
 {
-    char path[IFNAMSIZ];
     int cmd, fd;
-    size_t path_len;
+    size_t len;
 
     if (priv_fd < 0)
         errx(1, "priv_open_tun: called from privileged portion");
 
-    strncpy(path, devname, sizeof path);
-    path_len = strlen(path) + 1;
+    len = strlen(devname);
 
     cmd = PRIV_OPEN_TUN;
     must_write(priv_fd, &cmd, sizeof(cmd));
-    must_write(priv_fd, &path_len, sizeof(path_len));
-    must_write(priv_fd, path, path_len);
-    must_read(priv_fd, &path_len, sizeof(path_len));
+    must_write(priv_fd, &tuntapmode, sizeof(tuntapmode));
 
-    if (path_len > 0)
-        must_read(priv_fd, devname, path_len);
+    must_write(priv_fd, &len, sizeof(len));
+    must_write(priv_fd, devname, len);
 
-    devname[path_len] = '\0';
+    must_read(priv_fd, &len, sizeof(len));
+    if (len > 0)
+        must_read(priv_fd, devname, len);
+
+    devname[len] = '\0';
     fd = receive_fd(priv_fd);
     return fd;
+}
+
+/* Really open the tun device.
+ * returns tun file descriptor.
+ *
+ * Compatibility: Linux 2.4+
+ * Scope: private
+ */
+int linux_open_tun(int tuntapmode, char *devname)
+{
+    struct ifreq ifr;
+    int fd;
+
+    fd = open("/dev/net/tun", O_RDWR);
+    if (fd >= 0)
+    {
+        memset(&ifr, 0, sizeof(ifr));
+        if (tuntapmode == MLVPN_TUNTAPMODE_TAP)
+            ifr.ifr_flags = IFF_TUN;
+        else
+            ifr.ifr_flags = IFF_TAP;
+
+        /* We do not want kernel packet info (IFF_NO_PI) */
+        ifr.ifr_flags |= IFF_NO_PI; 
+
+        /* Allocate with specified name, otherwise the kernel
+         * will find a name for us. */
+        if (*devname)
+            strncpy(ifr.ifr_name, devname, MLVPN_IFNAMSIZ);
+
+        /* ioctl to create the if */
+        if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
+            warn("priv_open_tun failed");
+
+        /* The kernel is the only one able to "name" the if.
+         * so we reread it to get the real name set by the kernel. */
+        strncpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ);
+   }
+   return fd;
 }
 
 /* Name/service to address translation.  Response is placed into addr, and

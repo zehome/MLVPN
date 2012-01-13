@@ -28,6 +28,9 @@
 /* Maximum channels */
 #define MAXTUNNELS 128
 
+/* tuntap interface name size */
+#define MLVPN_IFNAMSIZ IFNAMSIZ
+
 struct tuntap_s
 {
     int fd;
@@ -101,6 +104,11 @@ enum {
     MLVPN_CHAP_AUTHOK
 };
 
+enum {
+    MLVPN_TUNTAPMODE_TUN,
+    MLVPN_TUNTAPMODE_TAP
+};
+
 int mlvpn_config(char *filename);
 void init_buffers();
 
@@ -149,7 +157,7 @@ int priv_init(char *conf, char *argv[], char *username);
 void send_fd(int sock, int fd);
 int receive_fd(int sock);
 FILE *priv_open_config(void);
-int priv_open_tun(char *devname);
+int priv_open_tun(int tuntapmode, char *devname);
 FILE *priv_open_log(char *lognam);
 int 
 priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
