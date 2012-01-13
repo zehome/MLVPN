@@ -404,6 +404,29 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     priv_run_script(3, cmdargs);
 }
 
+void mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
+{
+    int old_status = t->status;
+
+    if (t->fd > 0)
+        close(t->fd);
+    t->fd = -1;
+    t->status = MLVPN_CHAP_DISCONNECTED;
+    t->rbuf.len = 0;
+    t->sbuf->len = 0;
+    t->hpsbuf->len = 0;
+    t->next_keepalive = 0;
+    if (old_status >= MLVPN_CHAP_AUTHOK)
+    {
+        char *cmdargs[4] = {tuntap.devname, "rtun_down", t->name, NULL};
+        priv_run_script(3, cmdargs);
+
+        /* Re-initialize weight round robin */
+        mlvpn_rtun_wrr_init(rtun_start);
+    }
+}
+
+
 void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 {
     char pkt[2] = {'A','U'};
@@ -482,7 +505,7 @@ void mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
                  mlvpn_rtun_status_up(t);
             } else {
                 _WARNING("Not OK answer from server.\n");
-                mlvpn_rtun_close(t);
+                mlvpn_rtun_status_down(t);
             }
         }
     }
@@ -567,7 +590,7 @@ int mlvpn_server_accept()
                 if (t->fd >= 0)
                 {
                     _ERROR("Overwritting already existing connection.\n");
-                    mlvpn_rtun_close(t);
+                    mlvpn_rtun_status_down(t);
                 }
                 t->fd = fd;
 
@@ -721,7 +744,7 @@ void mlvpn_rtun_check_timeout()
             {
                 /* Timeout */
                 _INFO("Link %d timeout.\n", t->fd);
-                mlvpn_rtun_close(t);
+                mlvpn_rtun_status_down(t);
             } else if (t->status == MLVPN_CHAP_AUTHOK) {
                 if ((t->next_keepalive == 0) || 
                     (t->next_keepalive < now))
@@ -910,7 +933,7 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
     if (len < 0)
     {
         _ERROR("Read error on %d: %s\n", tun->fd, strerror(errno));
-        mlvpn_rtun_close(tun);
+        mlvpn_rtun_status_down(tun);
     } else if (len > 0) {
         if (tun->encap_prot == ENCAP_PROTO_TCP)
         {
@@ -963,7 +986,7 @@ int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
     if (len < 0)
     {
         _ERROR("Write error on %d: %s\n", tun->fd, strerror(errno));
-        mlvpn_rtun_close(tun);
+        mlvpn_rtun_status_down(tun);
     } else {
         if (wlen != len)
         {
@@ -1023,28 +1046,6 @@ mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
         usleep(500);
     }
     return bytesent;
-}
-
-void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
-{
-    int old_status = tun->status;
-
-    if (tun->fd > 0)
-        close(tun->fd);
-    tun->fd = -1;
-    tun->status = MLVPN_CHAP_DISCONNECTED;
-    tun->rbuf.len = 0;
-    tun->sbuf->len = 0;
-    tun->hpsbuf->len = 0;
-    tun->next_keepalive = 0;
-    if (old_status >= MLVPN_CHAP_AUTHOK)
-    {
-        char *cmdargs[4] = {tuntap.devname, "rtun_down", tun->name, NULL};
-        priv_run_script(3, cmdargs);
-
-        /* Re-initialize weight round robin */
-        mlvpn_rtun_wrr_init(rtun_start);
-    }
 }
 
 int mlvpn_config(char *filename)

@@ -120,8 +120,8 @@ int mlvpn_tuntap_read();
 int mlvpn_tuntap_write();
 int mlvpn_taptun_alloc();
 
-void mlvpn_rtun_close(mlvpn_tunnel_t *tun);
 void mlvpn_rtun_status_up(mlvpn_tunnel_t *t);
+void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 void mlvpn_rtun_tick(mlvpn_tunnel_t *t);
 void mlvpn_rtun_tick_connect();
 void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t);
