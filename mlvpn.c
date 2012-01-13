@@ -1037,7 +1037,7 @@ void mlvpn_rtun_close(mlvpn_tunnel_t *tun)
     tun->sbuf->len = 0;
     tun->hpsbuf->len = 0;
     tun->next_keepalive = 0;
-    if (old_status != tun->status)
+    if (old_status >= MLVPN_CHAP_AUTHOK)
     {
         char *cmdargs[4] = {tuntap.devname, "rtun_down", tun->name, NULL};
         priv_run_script(3, cmdargs);
