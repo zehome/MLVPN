@@ -630,57 +630,6 @@ int mlvpn_tuntap_alloc()
     return fd;
 }
 
-void print_ether(struct mlvpn_ether *ether)
-{
-    int i;
-    printf("ether ");
-    for (i = 0; i < 6; i++)
-    {
-        printf("%02x", ether->src[i]);
-        if (i<5) printf(":");
-    }
-    printf(" > ");
-    for (i = 0; i < 6; i++)
-    {
-        printf("%02x", ether->dst[i]);
-        if (i<5) printf(":");
-    }
-    printf(" proto ");
-    uint16_t proto = ntohs(ether->proto);
-    if (proto == MLVPN_ETH_IP4)
-        printf("IPv4");
-    else if (proto == MLVPN_ETH_IP6)
-        printf("IPv6");
-    else if (proto == MLVPN_ETH_ARP)
-        printf("ARP");
-    else
-        printf("%04x", proto);
-}
-
-void
-print_ip4(struct mlvpn_ipv4 *ip4)
-{
-    char src[INET_ADDRSTRLEN+1];
-    char dst[INET_ADDRSTRLEN+1];
-
-    memset(src, 0, INET_ADDRSTRLEN+1);
-    memset(dst, 0, INET_ADDRSTRLEN+1);
-
-    printf(" tos: %03d ", ip4->tos);
-    printf(" len: %05d ", ntohs(ip4->length));
-
-    struct in_addr src_addr;
-    struct in_addr dst_addr;
-
-    src_addr.s_addr = ip4->src;
-    dst_addr.s_addr = ip4->dst;
-
-    inet_ntop(AF_INET, (const struct in_addr*)&src_addr, src, INET_ADDRSTRLEN);
-    inet_ntop(AF_INET, (const struct in_addr*)&dst_addr, dst, INET_ADDRSTRLEN);
-
-    printf("%s > %s", src, dst);
-}
-
 struct mlvpn_ether *
 decap_ethernet_frame(struct mlvpn_ether *ether, const void *buffer)
 {
@@ -693,21 +642,6 @@ decap_ip4_frame(struct mlvpn_ipv4 *ip4, const void *buffer)
 {
     memcpy(ip4, buffer, sizeof(struct mlvpn_ipv4));
     return ip4;
-}
-
-void print_frame(const char *frame)
-{
-    /* decap packet to get TOS */
-    struct mlvpn_ether ether;
-    struct mlvpn_ipv4 ip4;
-    decap_ethernet_frame(&ether, frame);
-    print_ether(&ether);
-    if (ntohs(ether.proto) == MLVPN_ETH_IP4)
-    {
-        decap_ip4_frame(&ip4, frame+sizeof(struct mlvpn_ether));
-        decap_ip4_frame(&ip4, frame);
-        print_ip4(&ip4);
-    }
 }
 
 mlvpn_tunnel_t *mlvpn_rtun_choose()
