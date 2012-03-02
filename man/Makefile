@@ -7,4 +7,4 @@ mlvpn.conf.5:
 	ronn --pipe < mlvpn.conf.5.ronn > mlvpn.conf.5
 
 clean:
-	rm *.1 *.5 2>/dev/null || true
+#	rm *.1 *.5 2>/dev/null || true

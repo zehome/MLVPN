@@ -1,0 +1,11 @@
+Source: mlvpn
+Maintainer: Laurent Coustet <ed@zehome.com>
+Section: net
+Priority: optional
+Standards-Version: 3.9.2
+Build-Depends: debhelper (>= 8)
+
+Package: mlvpn
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: MLVPN, MultiLink Virtual Public Network aggregator.

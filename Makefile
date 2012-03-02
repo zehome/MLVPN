@@ -18,6 +18,12 @@ test: testconfiglib.o configlib.o debug.o tool.o
 man:
 	$(MAKE) -C man
 
+install:
+	echo "Todo!"
+
+dist:
+	git archive --format tar.gz --prefix "mlvpn-1.0/" --output "../mlvpn_1.0.orig.tar.gz" master
+
 clean:
 	rm -rf *.o mlvpn
 	$(MAKE) -C man clean
