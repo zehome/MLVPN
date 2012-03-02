@@ -1,0 +1,38 @@
+mlvpn(1) -- MultiLink Virtual Public Network aggregator
+=======================================================
+
+## SYNOPSIS
+
+`mlvpn` /path/to/mlvpn.conf
+
+## DESCRIPTION
+
+MLVPN is designed to help building aggregation tunnels between two hosts.
+
+Main features are:
+
+  * Bandwidth aggregation
+  * Fine QoS / Bandwidth control
+  * High availability (detects link up/down)
+  * Security (Privilege separation)
+  * Fully configurable (Thru external commands)
+
+**NOT** provided by MLVPN:
+
+  * Cipher
+  * Compression
+
+## OPTIONS
+
+Only one option, the path to the mlvpn.conf config file. If no config
+file is passed to mlvpn(1), then "./mlvpn.conf" is used.
+
+## AUTHOR
+
+MLVPN was invented and written by Laurent Coustet.
+
+More info on the github page. https://github.com/zehome/MLVPN/
+
+## SEE ALSO
+
+mlvpn.conf(1)

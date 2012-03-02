@@ -1,0 +1,56 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "MLVPN" "1" "March 2012" "" ""
+.
+.SH "NAME"
+\fBmlvpn\fR \- MultiLink Virtual Public Network aggregator
+.
+.SH "SYNOPSIS"
+\fBmlvpn\fR /path/to/mlvpn\.conf
+.
+.SH "DESCRIPTION"
+MLVPN is designed to help building aggregation tunnels between two hosts\.
+.
+.P
+Main features are:
+.
+.IP "\(bu" 4
+Bandwidth aggregation
+.
+.IP "\(bu" 4
+Fine QoS / Bandwidth control
+.
+.IP "\(bu" 4
+High availability (detects link up/down)
+.
+.IP "\(bu" 4
+Security (Privilege separation)
+.
+.IP "\(bu" 4
+Fully configurable (Thru external commands)
+.
+.IP "" 0
+.
+.P
+\fBNOT\fR provided by MLVPN:
+.
+.IP "\(bu" 4
+Cipher
+.
+.IP "\(bu" 4
+Compression
+.
+.IP "" 0
+.
+.SH "OPTIONS"
+Only one option, the path to the mlvpn\.conf config file\. If no config file is passed to mlvpn(1), then "\./mlvpn\.conf" is used\.
+.
+.SH "AUTHOR"
+MLVPN was invented and written by Laurent Coustet\.
+.
+.P
+More info on the github page\. https://github\.com/zehome/MLVPN/
+.
+.SH "SEE ALSO"
+mlvpn\.conf(1)

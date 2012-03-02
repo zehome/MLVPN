@@ -1,0 +1,98 @@
+mlvpn.conf(5) -- MLVPN configuration
+====================================
+
+## DESCRIPTION
+
+See mlvpn(1) for more info on MLVPN.
+
+## SYNTAX
+
+mlvpn.conf(5) is a "ini style" config file.
+
+Sections are surrounded with []. **[general]** for example.
+
+Comments can be inserted anyware, starting with **#**.
+
+Key / Values are written in plain ascii separated with the "=" character.
+Example: loglevel = 4
+
+Long strings should be escaped with doublequote.
+
+## SECTIONS
+
+Mandatory keys are marked with "(*)".
+
+### GENERAL
+
+The **[general]** sections is reserved by mlvpn(1) for global configuration.
+
+Prameters:
+
+  - (*) statuscommand = "/path/to/secured_updown_script.sh"
+    This command is launched when mlvpn(1) detects a change:
+      - mlvpn(1) **Tun/Tap** interface is ready.
+      - mlvpn(1) **Tun/Tap** interface must be shut down.
+      - mlvpn(1) remote tunnel is up
+      - mlvpn(1) remote tunnel is down
+    See the example mlvpn_updown.sh for more info.
+
+  - (*) mode = "client" or "server"
+    mlvpn(1) should act as a socket server or socket client?
+  
+  - (*) protocol = "udp" or "tcp"
+    Prefer UDP for better performance.
+
+  - logfile = "/path/to/mlvpn.log"
+    Tells MLVPN where to store logfile.
+
+  - loglevel = 3
+    Change the log level.
+    Valid values from **1** (quiet) to **4** (debug)
+
+  - timeout = 5
+    Integer value for detecting "link" timeout.
+  
+  - interface_name = "mlvpn0"
+    Change the **Tun/Tap** interface name.
+
+### LINKS
+
+Each link must be declared in it's own section.
+
+The section name is the link name. Example: "[adsl1]", "[adsl2]".
+
+Parameters:
+
+  - (both) bindhost = "0.0.0.0"
+    Bind on a specific address. (IPv4 only)
+
+  - (both) bindport = 5080
+    Bind on a specific port. 
+
+  - (client) remotehost = "1.2.3.4"
+    Where to connect to.
+
+  - (client) remoteport = 5080
+
+  - (both) bandwidth_upload = 61440
+    client => server max bandwidth used by mlvpn for this link.
+    Bandwidth is specified in Bytes (1024 base).
+  
+  - (both) bandwidth_download = 512000
+    server => client max bandwidth used by mlvpn for this link.
+    Bandwidth is specified in Bytes (1024 base).
+
+  - (both) timeout = 10
+    Override **[general]** timeout for this link.
+
+  - (both) protocol = 10
+    Override **[general]** protocol for this link.
+  
+
+## EXAMPLE
+
+See examples/mlvpn.conf
+
+## SEE ALSO
+
+mlvpn.conf(5)

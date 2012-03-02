@@ -15,5 +15,9 @@ adduser:
 test: testconfiglib.o configlib.o debug.o tool.o
 	$(CC) $(CFLAGS) $? -o testconfiglib
 
+man:
+	$(MAKE) -C man
+
 clean:
 	rm -rf *.o mlvpn
+	$(MAKE) -C man clean
