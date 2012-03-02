@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS += -Wall -ggdb
+CFLAGS += -Wall -ggdb -Wno-format-zero-length
 
 OBJS = configlib.o tool.o debug.o mlvpn.o buffer.o privsep_fdpass.o privsep.o \
        ps_status.o wrr.o
