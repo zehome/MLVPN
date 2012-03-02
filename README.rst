@@ -25,7 +25,7 @@ Fonctions non supporté
 ======================
 MLVPN ne cherche pas a faire de la sécurité au niveau des paquets qu'il traite.
 
-Il n'y a **pas** de cryptage, ni de compression, 
+Il n'y a **pas** de chiffrement, ni de compression, 
 ni de vérification des paquets qu'il relaye.
 
 Il conviens donc de faire attention à la mise en place de ce système
@@ -103,3 +103,12 @@ LICENCE
 =======
 Voir le fichier LICENCE.
 
+BUGS
+====
+Le système de décapsulation des paquets n'est pas fonctionnel sur la plateforme i386.
+
+Documentation
+=============
+La documentation est écrite au format restructuredtext.
+La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
+ronn (http://rtomayko.github.com/ronn/).
