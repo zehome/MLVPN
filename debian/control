@@ -4,6 +4,9 @@ Section: net
 Priority: optional
 Standards-Version: 3.9.2
 Build-Depends: debhelper (>= 8)
+Vcs-Git: git://github.com/zehome/MLVPN.git
+Vcs-browser: https://github.com/zehome/MLVPN.git
+Homepage: https://github.com/zehome/MLVPN.git
 
 Package: mlvpn
 Architecture: any
