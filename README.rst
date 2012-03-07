@@ -21,8 +21,8 @@ Fonctionnalités
   * Sécurité par séparation des privilèges
   * Authentification du client
 
-Fonctions non supporté
-======================
+Fonctions non supportées
+========================
 MLVPN ne cherche pas a faire de la sécurité au niveau des paquets qu'il traite.
 
 Il n'y a **pas** de chiffrement, ni de compression, 
