@@ -1,23 +1,16 @@
-CC ?= gcc
-CFLAGS += -Wall -ggdb
-
-OBJS = configlib.o tool.o debug.o mlvpn.o buffer.o privsep_fdpass.o privsep.o \
-       ps_status.o wrr.o
-
 all: mlvpn
 
-mlvpn: $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o mlvpn
+mlvpn:
+	$(MAKE) -C src
 
 adduser:
 	adduser --system --home /var/spool/mlvpn --shell /bin/false --disabled-password --disabled-login mlvpn
 
-test: testconfiglib.o configlib.o debug.o tool.o
-	$(CC) $(CFLAGS) $? -o testconfiglib
-
 man:
-	$(MAKE) -C man
+	$(MAKE) -C man all
 
 clean:
-	rm -rf *.o mlvpn
+	$(MAKE) -C src clean
 	$(MAKE) -C man clean
+
+.PHONY: all man clean mlvpn
