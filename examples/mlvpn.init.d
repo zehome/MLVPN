@@ -133,7 +133,6 @@ reload|force-reload)
     sleep 1
     start_vpn
     log_progress_msg "(restarted)"
-    fi
   done
   log_end_msg 0
   ;;
