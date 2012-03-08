@@ -15,4 +15,4 @@ MAINTAINERCLEANFILES = \
 
 SUBDIRS = src man
 dist_noinst_DATA = LICENCE
-dist_doc_DATA = README.rst examples
+dist_doc_DATA = README.rst examples/mlvpn.conf examples/mlvpn_updown.sh
