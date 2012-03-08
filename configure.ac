@@ -1,6 +1,7 @@
 AC_INIT([mlvpn], [1.0], [ed@zehome.com])
 AC_CONFIG_AUX_DIR([build-aux])
-AM_INIT_AUTOMAKE([foreign -Wall])
+AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
+AM_SILENT_RULES([yes])
 AC_PROG_CC
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile src/Makefile man/Makefile])
