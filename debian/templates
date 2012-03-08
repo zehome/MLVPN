@@ -1,8 +1,0 @@
-Template: mlvpn/create_tun
-Type: boolean
-Default: false
-_Description: Create the TUN/TAP device?
- If you choose this option, the /dev/net/tun device
- needed by MLVPN will be created.
- .
- You should not choose this option if you're using devfs.
