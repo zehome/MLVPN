@@ -10,5 +10,5 @@ Homepage: https://github.com/zehome/MLVPN.git
 
 Package: mlvpn
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: debconf | debconf-2.0, ${shlibs:Depends}, ${misc:Depends}, net-tools
 Description: MLVPN, MultiLink Virtual Public Network aggregator.
