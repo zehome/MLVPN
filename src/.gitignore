@@ -3,3 +3,4 @@
 mlvpn
 .*.swp
 Makefile.in
+.deps

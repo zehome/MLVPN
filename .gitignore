@@ -5,3 +5,7 @@ config.h.in
 config.h
 Makefile
 configure
+autom4te.cache
+config.log
+config.status
+stamp-h1
