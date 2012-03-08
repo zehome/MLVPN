@@ -1,4 +1,7 @@
-*.o
-*.log
-mlvpn
-.*.swp
+aclocal.m4
+Makefile.in
+build-aux
+config.h.in
+config.h
+Makefile
+configure

@@ -1,0 +1,5 @@
+*.o
+*.log
+mlvpn
+.*.swp
+Makefile.in
