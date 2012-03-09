@@ -207,7 +207,7 @@ priv_init(char *conf, char *argv[], char *username)
              */
             //dprintf("[priv]: msg PRIV_OPEN_CONFIG received\n");
             stat(config_file, &cf_info);
-            fd = open_file(config_file, O_RDONLY|O_NONBLOCK, 0);
+            fd = open_file(config_file, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
             if (fd < 0)
                 warnx("priv_open_config failed");
