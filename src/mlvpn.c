@@ -702,10 +702,8 @@ int mlvpn_tuntap_read()
 
     /* least packets tunnel */
     lpt = mlvpn_rtun_choose();
-    if (! lpt)
-        return 0;
-
-    sbuf = lpt->sbuf;
+    if (lpt)
+        sbuf = lpt->sbuf;
 
     len = read(tuntap.fd, buffer, DEFAULT_MTU);
     if (len < 0)
@@ -714,6 +712,10 @@ int mlvpn_tuntap_read()
             tuntap.fd, strerror(errno));
         exit(1);
     } else if (len > 0) {
+        /* Not connected to anyone. read and discard packet. */
+        if (! lpt)
+            return len;
+
         struct mlvpn_ipv4 ip4;
         decap_ip4_frame(&ip4, buffer);
 
