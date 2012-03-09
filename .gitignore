@@ -3,6 +3,7 @@ Makefile.in
 build-aux
 config.h.in
 config.h
+configure
 Makefile
 autom4te.cache
 config.log
