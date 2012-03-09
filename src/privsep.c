@@ -78,7 +78,7 @@ static volatile sig_atomic_t cur_state = STATE_INIT;
 static char allowed_logfile[MAXPATHLEN];
 
 static void check_log_name(char *, size_t);
-static int open_file(char *);
+static int open_file(char *, int);
 int linux_open_tun(int tuntapmode, char *devname);
 static int launch_script(char *, int, char **);
 static void increase_state(int);
@@ -193,7 +193,7 @@ priv_init(char *conf, char *argv[], char *username)
             must_read(socks[0], &path, path_len);
             path[path_len - 1] = '\0';
             check_log_name(path, path_len);
-            fd = open_file(path);
+            fd = open_file(path, O_WRONLY|O_APPEND|O_NONBLOCK|O_CREAT);
             send_fd(socks[0], fd);
             if (fd < 0)
                 warnx("priv_open_log failed");
@@ -207,7 +207,7 @@ priv_init(char *conf, char *argv[], char *username)
              */
             //dprintf("[priv]: msg PRIV_OPEN_CONFIG received\n");
             stat(config_file, &cf_info);
-            fd = open(config_file, O_RDONLY|O_NONBLOCK, 0);
+            fd = open_file(config_file, O_RDONLY|O_NONBLOCK, 0);
             send_fd(socks[0], fd);
             if (fd < 0)
                 warnx("priv_open_config failed");
@@ -366,13 +366,12 @@ priv_init(char *conf, char *argv[], char *username)
 }
 
 static int
-open_file(char *path)
+open_file(char *path, int flags)
 {
     /* must not start with | */
     if (path[0] == '|')
         return (-1);
-
-    return (open(path, O_WRONLY|O_APPEND|O_NONBLOCK, 0));
+    return (open(path, flags, 0));
 }
 
 /* If we are in the initial configuration state, accept a logname and add
