@@ -1,0 +1,18 @@
+#!/bin/sh -e
+
+action="$1"
+oldversion="$2"
+
+umask 022
+
+if [ "$action" != configure ]; then
+      exit 0
+fi
+
+setup_mlvpn_user() {
+    if ! getent passwd mlvpn >/dev/null; then
+        adduser --quiet --system --no-create-home --home /var/run/mlvpn --shell /usr/sbin/nologin mlvpn
+    fi
+}
+
+setup_mlvpn_user

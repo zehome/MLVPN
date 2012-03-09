@@ -4,12 +4,12 @@ Section: net
 Priority: optional
 Standards-Version: 3.9.3
 Build-Depends: debhelper (>= 8)
-Vcs-Git: git://github.com/zehome/MLVPN.git
+Vcs-Git: git://git@github.com/zehome/MLVPN.git
 Vcs-browser: https://github.com/zehome/MLVPN.git
-Homepage: https://github.com/zehome/MLVPN.git
+Homepage: http://www.mlvpn.fr/
 
 Package: mlvpn
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, net-tools
+Depends: ${shlibs:Depends}, ${misc:Depends}, net-tools, adduser, passwd
 Description: MultiLink Virtual Public Network aggregator.
  MLVPN aggregates multiple links into one tun/tap tunnel.

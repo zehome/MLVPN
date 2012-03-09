@@ -1,3 +1,10 @@
+mlvpn (1.0-1.1) UNRELEASED; urgency=low
+
+  * Non-maintainer upload.
+  * Create debian user for mlvpn before install
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Fri, 09 Mar 2012 10:47:36 +0100
+
 mlvpn (1.0-1) UNRELEASED; urgency=low
 
   * Initial release.
