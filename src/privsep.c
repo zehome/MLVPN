@@ -34,7 +34,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <grp.h>
-#include <openssl/sha.h>
 #include "mlvpn.h"
 #include "ps_status.h"
 
