@@ -36,6 +36,7 @@
 #include <grp.h>
 #include "mlvpn.h"
 #include "ps_status.h"
+#include "strlcpy.h"
 
 /*
  * mlvpn can only go forward in these states; each state should represent
@@ -77,15 +78,17 @@ static volatile sig_atomic_t cur_state = STATE_INIT;
 /* Allowed logfile */
 static char allowed_logfile[MAXPATHLEN];
 
-static void check_log_name(char *, size_t);
-static int open_file(char *, int);
-int linux_open_tun(int tuntapmode, char *devname);
-static int launch_script(char *, int, char **);
+static void root_check_log_name(char *, size_t);
+static int root_open_file(char *, int);
+int root_linux_open_tun(int tuntapmode, char *devname);
+static int root_launch_script(char *, int, char **);
 static void increase_state(int);
 static void sig_got_chld(int);
+static void sig_pass_to_chld(int);
 static void must_read(int, void *, size_t);
 static void must_write(int, void *, size_t);
 static int  may_read(int, void *, size_t);
+
 
 int
 priv_init(char *conf, char *argv[], char *username)
@@ -145,11 +148,11 @@ priv_init(char *conf, char *argv[], char *username)
     }
     /* Father */
     /* Pass TERM/HUP/INT/QUIT through to child, and accept CHLD */
-    //sa.sa_handler = sig_pass_to_chld;
-    //sigaction(SIGTERM, &sa, NULL);
-    //sigaction(SIGHUP, &sa, NULL);
-    //sigaction(SIGINT, &sa, NULL);
-    //sigaction(SIGQUIT, &sa, NULL);
+    sa.sa_handler = sig_pass_to_chld;
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGHUP, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGQUIT, &sa, NULL);
     sa.sa_handler = sig_got_chld;
     sa.sa_flags |= SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa, NULL);
@@ -158,7 +161,8 @@ priv_init(char *conf, char *argv[], char *username)
     close(socks[1]);
 
     /* Save the config file specified by the child process */
-    strncpy(config_file, conf, sizeof config_file);
+    if (strlcpy(config_file, conf, sizeof(config_file)) >= sizeof(config_file))
+        errx(1, "config_file truncated");
 
     if (stat(config_file, &cf_info) < 0)
         err(1, "stat config file failed");
@@ -192,8 +196,8 @@ priv_init(char *conf, char *argv[], char *username)
                 _exit(0);
             must_read(socks[0], &path, path_len);
             path[path_len - 1] = '\0';
-            check_log_name(path, path_len);
-            fd = open_file(path, O_WRONLY|O_APPEND|O_NONBLOCK|O_CREAT);
+            root_check_log_name(path, path_len);
+            fd = root_open_file(path, O_WRONLY|O_APPEND|O_NONBLOCK|O_CREAT);
             send_fd(socks[0], fd);
             if (fd < 0)
                 warnx("priv_open_log failed");
@@ -202,12 +206,9 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_OPEN_CONFIG:
-            /* TODO: forbid completly access to open fd
-             *  if STATUS_RUNING 
-             */
             //dprintf("[priv]: msg PRIV_OPEN_CONFIG received\n");
             stat(config_file, &cf_info);
-            fd = open_file(config_file, O_RDONLY|O_NONBLOCK);
+            fd = root_open_file(config_file, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
             if (fd < 0)
                 warnx("priv_open_config failed");
@@ -216,6 +217,10 @@ priv_init(char *conf, char *argv[], char *username)
             break;
 
         case PRIV_OPEN_TUN:
+            /* we should not re-open the tuntap device ever! */
+            if (cur_state != STATE_CONFIG)
+                _exit(0);
+
             must_read(socks[0], &tuntapmode, sizeof(tuntapmode));
             if (tuntapmode != MLVPN_TUNTAPMODE_TUN &&
                 tuntapmode != MLVPN_TUNTAPMODE_TAP)
@@ -232,7 +237,7 @@ priv_init(char *conf, char *argv[], char *username)
                 tuntapname[0] = '\0';
             }
 
-            fd = linux_open_tun(tuntapmode, tuntapname);
+            fd = root_linux_open_tun(tuntapmode, tuntapname);
             if (fd < 0)
             {
                 must_write(socks[0], &fd, sizeof(fd));
@@ -316,10 +321,9 @@ priv_init(char *conf, char *argv[], char *username)
             {
                 i = -1;
             } else {
-                i = launch_script(script_path, script_argc, script_argv);
+                i = root_launch_script(script_path, script_argc, script_argv);
             }
             must_write(socks[0], &i, sizeof(i));
-            
             for(i = 0; i < script_argc; i++)
                 free(script_argv[i]);
             free(script_argv);
@@ -344,7 +348,6 @@ priv_init(char *conf, char *argv[], char *username)
                 strncpy(script_path, path, path_len);
             break;
         case PRIV_DONE_CONFIG_PARSE:
-            //dprintf("[priv]: msg PRIV_DONE_CONFIG_PARSE received\n");
             increase_state(STATE_RUNNING);
             break;
 
@@ -366,7 +369,7 @@ priv_init(char *conf, char *argv[], char *username)
 }
 
 static int
-open_file(char *path, int flags)
+root_open_file(char *path, int flags)
 {
     /* must not start with | */
     if (path[0] == '|')
@@ -379,7 +382,7 @@ open_file(char *path, int flags)
  * and rewrite to /dev/null if it's a bad path.
  */
 static void
-check_log_name(char *lognam, size_t loglen)
+root_check_log_name(char *lognam, size_t loglen)
 {
     char *p;
 
@@ -406,12 +409,12 @@ check_log_name(char *lognam, size_t loglen)
 
 bad_path:
     warnx("%s: invalid attempt to open %s: rewriting to /dev/null",
-        "check_log_name", lognam);
-    strncpy(lognam, "/dev/null", loglen);
+        "root_check_log_name", lognam);
+    strlcpy(lognam, "/dev/null", loglen);
 }
 
 static int
-launch_script(char *setup_script, int argc, char **argv)
+root_launch_script(char *setup_script, int argc, char **argv)
 {
     sigset_t oldmask, mask;
     int pid, status = -1;
@@ -564,7 +567,7 @@ int priv_open_tun(int tuntapmode, char *devname)
  * Compatibility: Linux 2.4+
  * Scope: private
  */
-int linux_open_tun(int tuntapmode, char *devname)
+int root_linux_open_tun(int tuntapmode, char *devname)
 {
     struct ifreq ifr;
     int fd;
@@ -611,9 +614,9 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_gethostserv");
 
-    strncpy(hostcpy, host, sizeof(hostcpy));
+    strlcpy(hostcpy, host, sizeof(hostcpy));
     hostname_len = strlen(hostcpy) + 1;
-    strncpy(servcpy, serv, sizeof(servcpy));
+    strlcpy(servcpy, serv, sizeof(servcpy));
     servname_len = strlen(servcpy) + 1;
 
     cmd = PRIV_GETADDRINFO;
@@ -643,7 +646,7 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
         must_read(priv_fd, new->ai_addr, new->ai_addrlen);
         new->ai_canonname = NULL;
         new->ai_next = NULL;
-        
+
         if (i == 0)
             *addrinfo = new;
         if (last)
@@ -694,7 +697,7 @@ priv_run_script(int argc, char **argv)
         must_write(priv_fd, &len, sizeof(len));
         must_write(priv_fd, argv[i], len);
     }
-    
+
     must_read(priv_fd, &retval, sizeof(retval));
     return retval;
 }
@@ -728,6 +731,16 @@ sig_got_chld(int sig)
             cur_state = STATE_QUIT;
     } while (pid > 0 || (pid == -1 && errno == EINTR));
     errno = save_errno;
+}
+
+static void
+sig_pass_to_chld(int sig)
+{
+    int save_errno = errno;
+    if (child_pid != -1) {
+       kill(child_pid, sig);
+       errno = save_errno;
+    }
 }
 
 /* Read all data or return 1 for error.  */

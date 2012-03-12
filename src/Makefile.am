@@ -14,4 +14,5 @@ mlvpn_SOURCES = \
     ps_status.c ps_status.h \
     privsep.c privsep_fdpass.c \
     wrr.c \
+    strlcpy.c \
     mlvpn.c mlvpn.h

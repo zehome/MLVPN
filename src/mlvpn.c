@@ -114,25 +114,25 @@ mlvpn_rtun_new(const char *name,
     if (bindaddr)
     {
         new->bindaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
-        strncpy(new->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
+        strlcpy(new->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
     }
 
     if (bindport)
     {
         new->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
-        strncpy(new->bindport, bindport, MLVPN_MAXPORTSTR);
+        strlcpy(new->bindport, bindport, MLVPN_MAXPORTSTR);
     }
 
     if (destaddr)
     {
         new->destaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
-        strncpy(new->destaddr, destaddr, MLVPN_MAXHNAMSTR);
+        strlcpy(new->destaddr, destaddr, MLVPN_MAXHNAMSTR);
     }
 
     if (destport)
     {
         new->destport = calloc(1, MLVPN_MAXPORTSTR+1);
-        strncpy(new->destport, destport, MLVPN_MAXPORTSTR);
+        strlcpy(new->destport, destport, MLVPN_MAXPORTSTR);
     }
 
     new->sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
