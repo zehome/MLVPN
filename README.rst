@@ -12,6 +12,25 @@ en utilisant plusieurs liens, dans le but de fournir:
   * Maintenir une latence faible
   * Redondance importante
 
+Quick install
+=============
+
+Build from source
+-----------------
+```sh
+$ ./autogen.sh
+$ ./configure
+$ make
+$ make install
+```
+
+Build debian package
+--------------------
+```sh
+$ dpkg-buildpackage -us -uc -rfakeroot
+OR
+# dpkg-buildpackage -us -uc
+```
 Fonctionnalités
 ===============
   * Aggératation de lien
