@@ -110,6 +110,9 @@ priv_init(char *conf, char *argv[], char *username)
     int script_argc;
     struct stat st;
 
+    /* LC: TODO: Better way to check for root ! */
+    int is_root = getuid() == 0;
+
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_RESTART;
@@ -131,17 +134,23 @@ priv_init(char *conf, char *argv[], char *username)
 
     if (!child_pid) {
         /* Child - drop privileges and return */
-        if (chroot(pw->pw_dir) != 0)
-            err(1, "unable to chroot");
+        if (is_root)
+        {
+            if (chroot(pw->pw_dir) != 0)
+                err(1, "unable to chroot");
+        }
         if (chdir("/") != 0)
             err(1, "unable to chdir");
 
-        if (setgroups(1, &pw->pw_gid) == -1)
-            err(1, "setgroups() failed");
-        if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
-            err(1, "setresgid() failed");
-        if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
-            err(1, "setresuid() failed");
+        if (is_root)
+        {
+            if (setgroups(1, &pw->pw_gid) == -1)
+                err(1, "setgroups() failed");
+            if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
+                err(1, "setresgid() failed");
+            if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
+                err(1, "setresuid() failed");
+        }
         close(socks[0]);
         priv_fd = socks[1];
         return 0;
@@ -157,7 +166,7 @@ priv_init(char *conf, char *argv[], char *username)
     sa.sa_flags |= SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa, NULL);
 
-    init_ps_display("", "", "", "mlvpn [priv]");
+    set_ps_display("mlvpn [priv]");
     close(socks[1]);
 
     /* Save the config file specified by the child process */

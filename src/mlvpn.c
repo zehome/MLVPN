@@ -1,6 +1,6 @@
 /* ML-VPN is a project which intends to allow the use of multiple
  * links to another point.
- * 
+ *
  * Usefull for example for xDSL aggregation.
  * (c) 2011 Laurent Coustet http://ed.zehome.com/
  * Laurent Coustet <ed@zehome.com>
@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
+#include <getopt.h>
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -30,6 +31,7 @@
 #include "tool.h"
 #include "configlib.h"
 #include "ps_status.h"
+#include "config.h"
 
 /* GLOBALS */
 static struct tuntap_s tuntap;
@@ -42,6 +44,38 @@ static char *mlvpn_password = {0};
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
+static char *optstr = "c:p:bvVn:";
+static struct option long_options[] = {
+    {"background",    no_argument,       0, 'b' },
+    {"config",        required_argument, 0, 'c' },
+    {"name",          required_argument, 0, 'n' },
+    {"natural-title", no_argument,       0,  1  },
+    {"help",          no_argument,       0, 'h' },
+    {"pidfile",       required_argument, 0, 'p' },
+    {"verbose",       no_argument,       0, 'v' },
+    {"version",       no_argument,       0, 'V' },
+    {0,               0,                 0, 0 }
+};
+static struct mlvpn_options mlvpn_options;
+
+static void
+usage(char **argv)
+{
+    fprintf(stderr,
+        "usage: %s [options]\n\n"
+        "Options:\n"
+        " -b, --background      launch as a daemon (fork)\n"
+        " -c, --config [path]   path to config file (eg. /etc/mlvpn.conf)\n"
+        " --natural-title       do not change process title\n"
+        " -n, --name            change process-title and include 'name'.\n"
+        " -h, --help            this help\n"
+        " -p, --pidfile [path]  path to pidfile (eg. /var/run/mlvpn.pid)\n"
+        " -v, --verbose         more debug messages on stdout\n"
+        " -V, --version         output version information and exit\n"
+        "\n"
+        "For more details see mlvpn(1) and mlvpn.conf(5).\n", argv[0]);
+    exit(2);
+}
 
 uint64_t mlvpn_millis()
 {
@@ -145,10 +179,10 @@ mlvpn_rtun_new(const char *name,
 
     memset(new->rbuf.data, 0, BUFSIZE);
     new->rbuf.len = 0;
-    
+
     new->sbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
     new->hpsbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
-    
+
     mlvpn_rtun_tick(new);
 
     /* Default to 60s timeout */
@@ -161,7 +195,7 @@ mlvpn_rtun_new(const char *name,
         last->next = new;
     } else {
         /* First element */
-        rtun_start = new; 
+        rtun_start = new;
     }
     return new;
 }
@@ -289,8 +323,8 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     } else {
         hints.ai_socktype = SOCK_DGRAM;
     }
-    
-    ret = priv_getaddrinfo(addr, port, 
+
+    ret = priv_getaddrinfo(addr, port,
         &t->addrinfo, &hints);
     if (ret < 0)
     {
@@ -442,10 +476,10 @@ void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 
 /* when tun->status is != MLVPN_CHAP_AUTHOK,
  * then we must be in "handshake" mode.
- * 
+ *
  * The client is the initiator of the handshake,
  * it will send a first packet with a challenge.
- * 
+ *
  * The server then sends back the {OK} answer.
  * The client checks if that's the expected result.
  * If yes, client sends a "keepalive" (0 length) packet
@@ -540,7 +574,7 @@ void mlvpn_rtun_tick_connect()
             }
         }
 
-        if (! t->server_mode && 
+        if (! t->server_mode &&
             (t->fd > 0 && t->status == MLVPN_CHAP_DISCONNECTED))
         {
             mlvpn_rtun_challenge_send(t);
@@ -741,7 +775,7 @@ int mlvpn_tuntap_write()
 
     if (buf->len <= 0)
     {
-        _ERROR( 
+        _ERROR(
             "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n",
                 (int)buf->len);
         return -1;
@@ -757,7 +791,7 @@ int mlvpn_tuntap_write()
             _ERROR("Error writing to tap device: written %d bytes out of %d.\n",
                 len, pkt->pktdata.len);
         } else {
-            _DEBUG("> Written %d bytes on TAP (%d pkts left).\n", 
+            _DEBUG("> Written %d bytes on TAP (%d pkts left).\n",
                 len, (int)buf->len);
         }
     }
@@ -858,7 +892,7 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
         _WARNING("Tun %d receive buffer overrun.\n", tun->fd);
         tun->rbuf.len = 0;
     }
-    
+
     if (tun->encap_prot == ENCAP_PROTO_TCP)
     {
         len = read(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen);
@@ -973,7 +1007,7 @@ mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
             pkt = &t->sbuf->pkts[0];
             if (t->sbuf->bandwidth > 0 && pkt->pktdata.len > 0)
             {
-                pkt->next_packet_send = mlvpn_millis() + 
+                pkt->next_packet_send = mlvpn_millis() +
                     1000/(t->sbuf->bandwidth/pkt->pktdata.len);
             }
         }
@@ -1148,11 +1182,19 @@ void signal_handler(int sig)
 
 int main(int argc, char **argv)
 {
+    char **save_argv;
     int ret;
     struct timeval timeout;
     int maxfd = 0;
     char *cfgfilename = NULL;
     mlvpn_tunnel_t *tmptun;
+
+    mlvpn_options.change_process_title = 1;
+    mlvpn_options.process_name[0] = 0;
+    strlcpy(mlvpn_options.config, "mlvpn.conf", 10);
+    mlvpn_options.verbose = 0;
+    mlvpn_options.background = 0;
+    mlvpn_options.pidfile[0] = 0;
 
     /* ps_status misc */
     {
@@ -1160,26 +1202,84 @@ int main(int argc, char **argv)
         progname = argv[0];
         if ((p = strrchr(progname, '/')) != NULL)
             progname = p+1;
-        argv = save_ps_display_args(argc, argv);
-        init_ps_display("", "", "", "mlvpn");
+        save_argv = save_ps_display_args(argc, argv);
     }
 
+    /* TODO: Usefull anymore? */
     srand(time((time_t *)NULL));
 
-    printf("ML-VPN (c) 2012 Laurent Coustet\n\n");
-    
+    //printf("ML-VPN (c) 2012 Laurent Coustet\n");
     signal(SIGINT, signal_handler);
 
-    /* Command line option parsing */
-    if (argc < 2)
+    /* Parse the command line quickly for config file name.
+     * This is needed for priv_init to know where the config
+     * file is.
+     *
+     * priv_init will not allow to change the config file path.
+     */
+    int c;
+    int option_index = 0;
+    while(1)
     {
-        cfgfilename = "mlvpn.conf";
-    } else {
-        cfgfilename = argv[1];
+        c = getopt_long(argc, save_argv, optstr,
+            long_options, &option_index);
+        if (c == -1)
+            break;
+
+        switch (c)
+        {
+        case 1:
+            /* Natural title */
+            printf("Natural title.\n");
+            mlvpn_options.change_process_title = 0;
+            break;
+        case 'v':
+            printf("Verbose mode.\n");
+            mlvpn_options.verbose = 1;
+            break;
+        case 'b':
+            printf("Background mode.\n");
+            mlvpn_options.background = 1;
+            break;
+        case 'p':
+            printf("Pidfile: '%s'.\n", optarg);
+            strlcpy(mlvpn_options.pidfile, optarg, 1024);
+            break;
+        case 'c':
+            printf("Config: '%s'.\n", optarg);
+            strlcpy(mlvpn_options.config, optarg, 1024);
+            break;
+        case 'n':
+            printf("Name: '%s'.\n", optarg);
+            strlcpy(mlvpn_options.process_name, optarg, 1024);
+            break;
+        case 'V':
+            printf("mlvpn version %u.%u.\n", VER_MAJ, VER_MIN);
+            exit(0);
+            break;
+        case 'h':
+        default:
+            usage(argv);
+        }
     }
-    priv_init(cfgfilename, argv, "mlvpn");
-    
-    mlvpn_config(cfgfilename);
+
+    if (mlvpn_options.change_process_title)
+    {
+        if (mlvpn_options.process_name)
+        {
+            char name[2048];
+            snprintf(name, 2048, "mlvpn %s", mlvpn_options.process_name);
+            init_ps_display(name);
+        } else
+            init_ps_display("mlvpn");
+    }
+
+    priv_init("../examples/mlvpn.conf", argv, "mlvpn");
+    sleep(1000);
+    _exit(0);
+
+    //mlvpn_config(argc, argv);
+    mlvpn_config("/etc/mlvpn.conf");
     priv_config_parse_done();
 
     /* tun/tap initialization */
@@ -1194,13 +1294,13 @@ int main(int argc, char **argv)
     } else {
         _INFO("Created tap interface %s\n", tuntap.devname);
     }
-    
+
     init_buffers();
 
     /* re-compute rtun weight based on bandwidth allocation */
     mlvpn_rtun_recalc_weight();
 
-    while (1) 
+    while (1)
     {
         /* Connect rtun if not connected. tick if connected */
         mlvpn_rtun_tick_connect();
@@ -1208,7 +1308,7 @@ int main(int argc, char **argv)
         mlvpn_server_accept();
 
         fd_set rfds, wfds;
-        
+
         FD_ZERO(&rfds);
         FD_ZERO(&wfds);
         FD_SET(tuntap.fd, &rfds);

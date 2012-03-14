@@ -8,10 +8,10 @@
  * $PostgreSQL: pgsql/src/backend/utils/misc/ps_status.c,v 1.42.2.1 2010/09/04 17:46:03 tgl Exp $
  *
  * Copyright (c) 2000-2010, PostgreSQL Global Development Group
+ * Copyright (c) 2012 Laurent Coustet (stripped down for mlvpn)
  * various details abducted from various places
  *--------------------------------------------------------------------
  */
-
 
 #include <unistd.h>
 #include <string.h>
@@ -19,15 +19,12 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
-
+#include "ps_status.h"
 
 extern char **environ;
-bool update_process_title = true;
-
-void set_ps_display(const char *activity, bool force);
 
 /*
- * Alternative ways of updating ps display:
+ * Alternative ways of updating ps displa:
  *
  * PS_USE_SETPROCTITLE
  *	   use the function setproctitle(const char *, ...)
@@ -44,8 +41,6 @@ void set_ps_display(const char *activity, bool force);
  * PS_USE_CLOBBER_ARGV
  *	   write over the argv and environment area
  *	   (Linux and most SysV-like systems)
- * PS_USE_WIN32
- *	   push the string out as the name of a Windows event
  * PS_USE_NONE
  *	   don't update ps display
  *	   (This is the default, as it is safest.)
@@ -60,8 +55,6 @@ void set_ps_display(const char *activity, bool force);
 #define PS_USE_CHANGE_ARGV
 #elif defined(__linux__) || defined(_AIX) || defined(__sgi) || (defined(sun) && !defined(BSD)) || defined(ultrix) || defined(__ksr__) || defined(__osf__) || defined(__svr4__) || defined(__svr5__) || defined(__darwin__)
 #define PS_USE_CLOBBER_ARGV
-#elif defined(WIN32)
-#define PS_USE_WIN32
 #else
 #define PS_USE_NONE
 #endif
@@ -87,8 +80,7 @@ static size_t last_status_len;	/* use to minimize length of clobber */
 #endif   /* PS_USE_CLOBBER_ARGV */
 
 static size_t ps_buffer_cur_len;	/* nominal strlen(ps_buffer) */
-
-static size_t ps_buffer_fixed_size;		/* size of the constant prefix */
+static size_t ps_buffer_fixed_size;	/* size of the constant prefix */
 
 /* save the original argv[] location here */
 static int	save_argc;
@@ -202,70 +194,49 @@ save_ps_display_args(int argc, char **argv)
 
 /*
  * Call this once during subprocess startup to set the identification
- * values.	At this point, the original argv[] array may be overwritten.
+ * values.  At this point, the original argv[] array may be overwritten.
  */
 void
-init_ps_display(const char *username, const char *dbname,
-				const char *host_info, const char *initial_str)
+init_ps_display(const char *initial_str)
 {
-	assert(username);
-	assert(dbname);
-	assert(host_info);
-
 #ifndef PS_USE_NONE
-	/* no ps display if you didn't call save_ps_display_args() */
-	if (!save_argv)
-		return;
+    /* no ps display if you didn't call save_ps_display_args() */
+    if (!save_argv)
+        return;
 
 #ifdef PS_USE_CLOBBER_ARGV
-	/* If ps_buffer is a pointer, it might still be null */
-	if (!ps_buffer)
-		return;
+    /* If ps_buffer is a pointer, it might still be null */
+    if (!ps_buffer)
+        return;
 #endif
 
-	/*
-	 * Overwrite argv[] to point at appropriate space, if needed
-	 */
+    /*
+     * Overwrite argv[] to point at appropriate space, if needed
+     */
 
 #ifdef PS_USE_CHANGE_ARGV
-	save_argv[0] = ps_buffer;
-	save_argv[1] = NULL;
+    save_argv[0] = ps_buffer;
+    save_argv[1] = NULL;
 #endif   /* PS_USE_CHANGE_ARGV */
 
 #ifdef PS_USE_CLOBBER_ARGV
-	{
-		int			i;
+    {
+        int         i;
 
-		/* make extra argv slots point at end_of_area (a NUL) */
-		for (i = 1; i < save_argc; i++)
-			save_argv[i] = ps_buffer + ps_buffer_size;
-	}
+        /* make extra argv slots point at end_of_area (a NUL) */
+        for (i = 1; i < save_argc; i++)
+            save_argv[i] = ps_buffer + ps_buffer_size;
+    }
 #endif   /* PS_USE_CLOBBER_ARGV */
 
-	/*
-	 * Make fixed prefix of ps display.
-	 */
-
-#ifdef PS_USE_SETPROCTITLE
-
-	/*
-	 * apparently setproctitle() already adds a `progname:' prefix to the ps
-	 * line
-	 */
-	snprintf(ps_buffer, ps_buffer_size,
-			 "%s %s %s ",
-			 username, dbname, host_info);
-#else
-	snprintf(ps_buffer, ps_buffer_size,
-			 "");
-#endif
-
-	ps_buffer_cur_len = ps_buffer_fixed_size = strlen(ps_buffer);
-
-	set_ps_display(initial_str, true);
+    /*
+     * Make fixed prefix of ps display.
+     */
+    snprintf(ps_buffer, ps_buffer_size, "");
+    ps_buffer_cur_len = ps_buffer_fixed_size = strlen(ps_buffer);
+    set_ps_display(initial_str);
 #endif   /* not PS_USE_NONE */
 }
-
 
 
 /*
@@ -273,13 +244,9 @@ init_ps_display(const char *username, const char *dbname,
  * indication of what you're currently doing passed in the argument.
  */
 void
-set_ps_display(const char *activity, bool force)
+set_ps_display(const char *activity)
 {
 #ifndef PS_USE_NONE
-	/* update_process_title=off disables updates, unless force = true */
-	if (!force && !update_process_title)
-		return;
-
 #ifdef PS_USE_CLOBBER_ARGV
 	/* If ps_buffer is a pointer, it might still be null */
 	if (!ps_buffer)
@@ -319,47 +286,6 @@ set_ps_display(const char *activity, bool force)
 	last_status_len = ps_buffer_cur_len;
 #endif   /* PS_USE_CLOBBER_ARGV */
 
-#ifdef PS_USE_WIN32
-	{
-		/*
-		 * Win32 does not support showing any changed arguments. To make it at
-		 * all possible to track which backend is doing what, we create a
-		 * named object that can be viewed with for example Process Explorer.
-		 */
-		static HANDLE ident_handle = INVALID_HANDLE_VALUE;
-		char		name[PS_BUFFER_SIZE + 32];
-
-		if (ident_handle != INVALID_HANDLE_VALUE)
-			CloseHandle(ident_handle);
-
-		sprintf(name, "pgident(%d): %s", MyProcPid, ps_buffer);
-
-		ident_handle = CreateEvent(NULL, TRUE, FALSE, name);
-	}
-#endif   /* PS_USE_WIN32 */
 #endif   /* not PS_USE_NONE */
 }
 
-
-/*
- * Returns what's currently in the ps display, in case someone needs
- * it.	Note that only the activity part is returned.  On some platforms
- * the string will not be null-terminated, so return the effective
- * length into *displen.
- */
-const char *
-get_ps_display(int *displen)
-{
-#ifdef PS_USE_CLOBBER_ARGV
-	/* If ps_buffer is a pointer, it might still be null */
-	if (!ps_buffer)
-	{
-		*displen = 0;
-		return "";
-	}
-#endif
-
-	*displen = (int) (ps_buffer_cur_len - ps_buffer_fixed_size);
-
-	return ps_buffer + ps_buffer_fixed_size;
-}

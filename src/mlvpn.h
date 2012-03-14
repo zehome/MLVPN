@@ -66,6 +66,22 @@ struct mlvpn_buffer
     char data[BUFSIZE];
 };
 
+struct mlvpn_options
+{
+    /* use ps_status or not ? */
+    int change_process_title;
+    /* process name if set */
+    char process_name[1024];
+    /* where is the config file */
+    char config[1024];
+    /* verbose mode */
+    int verbose;
+    /* background */
+    int background;
+    /* pidfile */
+    char pidfile[1024];
+};
+
 typedef struct mlvpn_tunnel_s
 {
     char *name;           /* tunnel name */
