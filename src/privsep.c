@@ -34,6 +34,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <grp.h>
+
+/* TODO: Linux specific */
+#include <sys/prctl.h>
+
 #include "mlvpn.h"
 #include "ps_status.h"
 #include "strlcpy.h"
@@ -68,6 +72,9 @@ enum cmd_types {
     PRIV_GETADDRINFO,
     PRIV_DONE_CONFIG_PARSE    /* signal that the initial config parse is done */
 };
+
+/* Error message for some communication between processes */
+#define ERRMSGSIZ 1024
 
 static int priv_fd = -1;
 static volatile pid_t child_pid = -1;
@@ -107,6 +114,7 @@ priv_init(char *conf, char *argv[], char *username)
     char script_path[MAXPATHLEN] = {0};
     char tuntapname[MLVPN_IFNAMSIZ];
     char **script_argv;
+    char errormessage[ERRMSGSIZ];
     int script_argc;
     struct stat st;
 
@@ -128,11 +136,13 @@ priv_init(char *conf, char *argv[], char *username)
     if (pw == NULL)
         errx(1, "unknown user %s", username);
 
+    fprintf(stderr, "Father: %d\n", getpid());
     child_pid = fork();
     if (child_pid < 0)
         err(1, "fork() failed");
 
-    if (!child_pid) {
+    if (!child_pid)
+    {
         /* Child - drop privileges and return */
         if (is_root)
         {
@@ -153,6 +163,7 @@ priv_init(char *conf, char *argv[], char *username)
         }
         close(socks[0]);
         priv_fd = socks[1];
+        fprintf(stderr, "Child: %d\n", getpid());
         return 0;
     }
     /* Father */
@@ -169,18 +180,11 @@ priv_init(char *conf, char *argv[], char *username)
     set_ps_display("mlvpn [priv]");
     close(socks[1]);
 
-    /* Save the config file specified by the child process */
-    if (strlcpy(config_file, conf, sizeof(config_file)) >= sizeof(config_file))
-        errx(1, "config_file truncated");
-
-    if (stat(config_file, &cf_info) < 0)
-        err(1, "stat config file failed");
-
-    increase_state(STATE_CONFIG);
     restart = 0;
 
     nullfd = open("/dev/null", O_RDONLY);
-    if (nullfd < 0) {
+    if (nullfd < 0)
+    {
         perror("/dev/null");
         _exit(1);
     }
@@ -190,7 +194,13 @@ priv_init(char *conf, char *argv[], char *username)
     if (nullfd > 2)
         close(nullfd);
 
-    while (cur_state < STATE_QUIT) {
+    /* TODO: set increate_state when
+     * config file and log file where opened only.
+     */
+    increase_state(STATE_CONFIG);
+
+    while (cur_state < STATE_QUIT)
+    {
         if (may_read(socks[0], &cmd, sizeof(cmd)))
             break;
         switch (cmd) {
@@ -236,12 +246,11 @@ priv_init(char *conf, char *argv[], char *username)
                 _exit(0);
 
             must_read(socks[0], &len, sizeof(len));
-            if (len < 0 || len >= MLVPN_IFNAMSIZ)
+            if (len < 0 || len > MLVPN_IFNAMSIZ)
                 _exit(0);
-
             else if (len > 0) {
                 must_read(socks[0], &tuntapname, len);
-                tuntapname[len] = '\0';
+                tuntapname[len - 1] = '\0';
             } else {
                 tuntapname[0] = '\0';
             }
@@ -251,7 +260,7 @@ priv_init(char *conf, char *argv[], char *username)
             {
                 must_write(socks[0], &fd, sizeof(fd));
             } else {
-                len = strlen(tuntapname);
+                len = strlen(tuntapname) + 1;
                 must_write(socks[0], &len, sizeof(len));
                 must_write(socks[0], tuntapname, len);
             }
@@ -277,12 +286,11 @@ priv_init(char *conf, char *argv[], char *username)
             memset(&hints, '\0', sizeof(struct addrinfo));
             must_read(socks[0], &hints, sizeof(struct addrinfo));
 
+            addrinfo_len = 0;
             i = getaddrinfo(hostname, servname, &hints, &res0);
             if (i != 0 || res0 == NULL) {
-                addrinfo_len = 0;
                 must_write(socks[0], &addrinfo_len, sizeof(addrinfo_len));
             } else {
-                addrinfo_len = 0;
                 res = res0;
                 while (res)
                 {
@@ -308,21 +316,26 @@ priv_init(char *conf, char *argv[], char *username)
 
         case PRIV_RUN_SCRIPT:
             must_read(socks[0], &script_argc, sizeof(script_argc));
-            if (script_argc == 0)
+            if (script_argc <= 0)
                 _exit(0);
 
-            script_argv = (char **)malloc((script_argc+1)*sizeof(char *));
+            if ( (script_argv = (char **)malloc((script_argc+1)*sizeof(char *))) == NULL)
+                _exit(0);
+
+            /* Yeah, we must read it, even if not correctly used (no script path) */
             for(i = 0; i < script_argc; i++)
             {
                 must_read(socks[0], &len, sizeof(len));
-                if (len == 0)
+                if (len <= 0)
                 {
                     script_argv[i] = NULL;
                     break;
                 }
-                script_argv[i] = (char *)malloc(len);
+                if ((script_argv[i] = (char *)malloc(len)) == NULL)
+                    _exit(0);
+
                 must_read(socks[0], script_argv[i], len);
-                script_argv[i][len-1] = 0;
+                script_argv[i][len-1] = '\0';
             }
             script_argv[i] = NULL;
 
@@ -334,27 +347,50 @@ priv_init(char *conf, char *argv[], char *username)
             }
             must_write(socks[0], &i, sizeof(i));
             for(i = 0; i < script_argc; i++)
+            {
+                if (! script_argv[i])
+                    break;
                 free(script_argv[i]);
+            }
             free(script_argv);
             break;
 
         case PRIV_INIT_SCRIPT:
+            /* Not allowed to change script path when running
+             * for security reasons
+             */
             if (cur_state != STATE_CONFIG)
                 _exit(0);
+
             must_read(socks[0], &path_len, sizeof(path_len));
             if (path_len == 0 || path_len > sizeof(script_path))
                 _exit(0);
             must_read(socks[0], &path, path_len);
-            path[path_len] = '\0';
+
+            path[path_len - 1] = '\0';
+
+            /* Basic permission checking.
+             * basically, the script must be 0700 owned by root
+             */
+            *errormessage = '\0';
             if (stat(path, &st) < 0)
-                warn("stat: %s", path);
-            else if (st.st_mode & (S_IRWXG|S_IRWXO))
-                warnx("file %s is group or other accessible", path);
-            else if (!(st.st_mode & S_IXUSR))
-                warnx("file %s is not executable", path);
-            /* TODO check directory + check owner */
-            else
-                strncpy(script_path, path, path_len);
+            {
+                snprintf(errormessage, ERRMSGSIZ, "Unable to open file %s:%s",
+                    path, strerror(errno));
+            } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
+                snprintf(errormessage, ERRMSGSIZ,
+                    "%s is group/other accessible. Fix permissions!",
+                    path);
+            } else if (!(st.st_mode & S_IXUSR)) {
+                snprintf(errormessage, ERRMSGSIZ,
+                    "%s is not executable. Fix permissions!",
+                    path);
+            } else {
+                strlcpy(script_path, path, path_len);
+            }
+            len = strlen(errormessage) + 1;
+            must_write(socks[0], &len, sizeof(len));
+            must_write(socks[0], errormessage, len);
             break;
         case PRIV_DONE_CONFIG_PARSE:
             increase_state(STATE_RUNNING);
@@ -436,9 +472,11 @@ root_launch_script(char *setup_script, int argc, char **argv)
 
     /* try to launch network script */
     pid = fork();
-    if (pid == 0) {
+    if (pid == 0)
+    {
         open_max = sysconf(_SC_OPEN_MAX);
-        for (i = 0; i < open_max; i++) {
+        for (i = 0; i < open_max; i++)
+        {
             if (i != STDIN_FILENO &&
                 i != STDOUT_FILENO &&
                 i != STDERR_FILENO) {
@@ -552,7 +590,7 @@ int priv_open_tun(int tuntapmode, char *devname)
     if (priv_fd < 0)
         errx(1, "priv_open_tun: called from privileged portion");
 
-    len = strlen(devname);
+    len = strlen(devname) + 1;
 
     cmd = PRIV_OPEN_TUN;
     must_write(priv_fd, &cmd, sizeof(cmd));
@@ -667,11 +705,12 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
 }
 
 /* init script path */
-void
+int
 priv_init_script(char *path)
 {
     int cmd;
     size_t len;
+    char errormessage[ERRMSGSIZ];
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion",
@@ -679,9 +718,19 @@ priv_init_script(char *path)
 
     cmd = PRIV_INIT_SCRIPT;
     must_write(priv_fd, &cmd, sizeof(cmd));
-    len = strlen(path);
+    len = strlen(path) + 1;
     must_write(priv_fd, &len, sizeof(len));
     must_write(priv_fd, path, len);
+
+    must_read(priv_fd, &len, sizeof(len));
+    must_read(priv_fd, errormessage, len);
+
+    if (*errormessage)
+    {
+        fprintf(stderr, "Error from priv server: %s", errormessage);
+        return -1;
+    }
+    return 0;
 }
 
 /* run script */

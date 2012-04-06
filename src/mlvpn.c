@@ -26,6 +26,9 @@
 #include <netinet/tcp.h>
 #include <netdb.h>
 
+/* TODO: Linux specific */
+#include <sys/prctl.h>
+
 #include "debug.h"
 #include "mlvpn.h"
 #include "tool.h"
@@ -1177,16 +1180,39 @@ void init_buffers()
 
 void signal_handler(int sig)
 {
+    _DEBUG("Signal received: %d\n", sig);
     global_exit = 1;
+}
+
+void signal_hup(int sig)
+{
+    fprintf(stderr, "Must reload ? Received sig hup\n");
 }
 
 int main(int argc, char **argv)
 {
     char **save_argv;
-    int ret;
+    int ret, i;
     struct timeval timeout;
     int maxfd = 0;
     char *cfgfilename = NULL;
+    struct sigaction sa;
+
+    /* setup signals */
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sa.sa_handler = SIG_DFL;
+    for(i = 1; i < _NSIG; i++)
+        sigaction(i, &sa, NULL);
+    sa.sa_handler = signal_handler;
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGQUIT, &sa, NULL);
+
+    sa.sa_handler = signal_hup;
+    sigaction(SIGHUP, &sa, NULL);
+
     mlvpn_tunnel_t *tmptun;
 
     mlvpn_options.change_process_title = 1;
@@ -1275,8 +1301,19 @@ int main(int argc, char **argv)
     }
 
     priv_init("../examples/mlvpn.conf", argv, "mlvpn");
-    sleep(1000);
-    _exit(0);
+
+    /* TODO: Linux specific */
+    /* Kill me if my root process dies ! */
+    prctl(PR_SET_PDEATHSIG, SIGCHLD);
+    /* My parent is already dead! */
+    if (getppid() == 1)
+        _exit(0);
+
+    while(1)
+    {
+        printf("My parent pid: %d\n", getppid());
+        sleep(1);
+    }
 
     //mlvpn_config(argc, argv);
     mlvpn_config("/etc/mlvpn.conf");
