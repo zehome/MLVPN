@@ -19,7 +19,8 @@
 
 #define MAXLINE 1024
 
-config_t *_conf_parseConfig ()
+config_t *
+_conf_parseConfig(int config_file_fd)
 {
     FILE *configFile;
     int size, i = 0;
@@ -34,7 +35,13 @@ config_t *_conf_parseConfig ()
     config_t *config;
     confObj_t *confObj;
 
-    configFile = priv_open_config();
+    configFile = fdopen(config_file_fd, "r");
+    if (! configFile)
+    {
+        _ERROR("Unable to open config file fd: %d.\n",
+            config_file_fd);
+        return NULL;
+    }
     config = (config_t *)malloc(sizeof(config_t));
     config->next    = NULL;
     config->section = NULL;
@@ -51,7 +58,7 @@ config_t *_conf_parseConfig ()
                 break;
             else
             {
-                _ERROR("Error reading config file");
+                _ERROR("Error reading config file.\n");
                 free(config);
                 free(buf);
                 return NULL;
@@ -80,7 +87,7 @@ config_t *_conf_parseConfig ()
                                    free(section);
 
                                section = tmp;
-                           } else if ( (confObj = _conf_parseLine(newline, 
+                           } else if ( (confObj = _conf_parseLine(newline,
                                            strlen(newline), linenum)) != NULL)
                            {
                                if (section == NULL)
@@ -116,7 +123,8 @@ config_t *_conf_parseConfig ()
 /*
  * This function will strip comments
  */
-char *_conf_strip_comment ( char *line, unsigned int size )
+char *
+_conf_strip_comment(char *line, unsigned int size)
 {
     int i, j = 0;
     short quote = 0;
@@ -172,7 +180,8 @@ exit:
  * Returns section name if line is a section.
  * Otherwise, returns NULL.
  */
-char *_conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
+char *
+_conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
 {
     int i, j;
     char *section = NULL;
@@ -217,7 +226,8 @@ error:
  * Parse the line and returns a confObj_t object,
  * or NULL if parse error.
  */
-confObj_t *_conf_parseLine( char *line, unsigned int linelen, unsigned int linenum)
+confObj_t *
+_conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 {
     int i, j, k;
     int len;
@@ -237,7 +247,7 @@ confObj_t *_conf_parseLine( char *line, unsigned int linelen, unsigned int linen
     buf = malloc(linelen+1);
 
     /* First step: getting variable */
-    for (i = 0, quote = 0, space = 0, j = 0; i < linelen; i++) 
+    for (i = 0, quote = 0, space = 0, j = 0; i < linelen; i++)
     {
         c = line[i];
 
@@ -340,12 +350,15 @@ confObj_t *_conf_parseLine( char *line, unsigned int linelen, unsigned int linen
 }
 
 /* Private stuff */
-config_t *_conf_setValue( config_t *start, confObj_t *confObj, const char *section )
+config_t *
+_conf_setValue(config_t *start,
+    confObj_t *confObj,
+    const char *section)
 {
     config_t *work;
     config_t *last;
 
-    if (start == NULL) 
+    if (start == NULL)
     {
         _ERROR("Error in setValue: config start is NULL.\n");
         return NULL;
@@ -379,7 +392,11 @@ config_t *_conf_setValue( config_t *start, confObj_t *confObj, const char *secti
 }
 
 /* Public stuff :) */
-void conf_setValue( config_t **start, const char *var, const char *val, const char *section )
+void
+conf_setValue( config_t **start,
+    const char *var,
+    const char *val,
+    const char *section )
 {
     confObj_t *obj;
 
@@ -408,12 +425,16 @@ void conf_setValue( config_t **start, const char *var, const char *val, const ch
  * This function will walk thru config_t *start
  * and affect dest to the value of var in config file.
  */
-config_t *_conf_getValue( config_t *start, const char *section, const char *var, char **dest )
+config_t *
+_conf_getValue(config_t *start,
+    const char *section,
+    const char *var,
+    char **dest )
 {
-    while (start != NULL) 
+    while (start != NULL)
     {
-        if ((start->conf == NULL) || 
-                (start->conf->var == NULL) || 
+        if ((start->conf == NULL) ||
+                (start->conf->var == NULL) ||
                 (! mystr_eq(start->section, section)))
             goto next;
 
@@ -430,18 +451,20 @@ next:
     return NULL;
 }
 
-void _conf_printConfig ( config_t *start ) 
+void
+_conf_printConfig(config_t *start)
 {
-    while (start != NULL) 
+    while (start != NULL)
     {
         if (start->conf)
-            printf("section: %s, var: `%s' val: `%s'\n", start->section, 
+            printf("section: %s, var: `%s' val: `%s'\n", start->section,
                     start->conf->var, start->conf->val);
         start = start->next;
     }
 }
 
-void _conf_freeConfig( config_t *start ) 
+void
+_conf_freeConfig(config_t *start)
 {
     config_t *old;
 
@@ -466,60 +489,18 @@ void _conf_freeConfig( config_t *start )
     }
 }
 
-int _conf_writeConfig( FILE *stream, config_t *config )
-{
-    int len;
-    char line[MAXLINE];
-    char *lastvar     = NULL;
-    char *lastsection = NULL;
-
-    /*
-     * TODO: check if stream is opened ?
-     */
-    if (fwrite("// Configuration file for cPige written using GUI\n", 50, 1, stream) != 50)
-        goto writeerror;
-    if (fwrite("// http://ed.zehome.com/?page=cpige-en\n", 39, 1, stream) != 39)
-        goto writeerror;
-
-    while (config != NULL)
-    {
-        if (config->conf != NULL)
-        {
-            if ((config->conf->var) && (config->conf->val) && (config->section))
-            {
-                if (! mystr_eq(lastsection, config->section))
-                {
-                    len = snprintf(line, MAXLINE, "\n[%s]\n", config->section);
-                    lastsection = config->section;
-                }
-                /* The else if there is usefull to avoid \n\n before section :) */
-                else if (! mystr_eq(lastvar, config->conf->var)) 
-                    fwrite("\n", 1, 1, stream);
-
-                len = snprintf(line, MAXLINE, "%s = \"%s\"\n", config->conf->var, config->conf->val);
-                if ( fwrite(line, len, 1, stream) != len)
-                    goto writeerror;
-
-                lastvar = config->conf->var;
-            }
-        }
-
-        config = config->next;
-    }
-
-    return 0;
-
-writeerror:
-    _ERROR("Error writing config file.\n");
-    return 1;
-}
-
-    void 
-_conf_set_str_from_conf(config_t *config, const char *section, const char *type, char **value, const char *def, const char *errMsg, int exit_n)
+void
+_conf_set_str_from_conf(config_t *config,
+    const char *section,
+    const char *type,
+    char **value,
+    const char *def,
+    const char *errMsg,
+    int exit_n)
 {
     _conf_getValue(config, section, type, value);
 
-    if (*value == NULL) 
+    if (*value == NULL)
     {
         if (errMsg)
             fprintf(stderr, "%s", errMsg);
@@ -533,8 +514,14 @@ _conf_set_str_from_conf(config_t *config, const char *section, const char *type,
     }
 }
 
-    void 
-_conf_set_int_from_conf(config_t *config, const char *section, const char *type, int *value, int def, const char *errMsg, int exit_n)
+void
+_conf_set_int_from_conf(config_t *config,
+    const char *section,
+    const char *type,
+    int *value,
+    int def,
+    const char *errMsg,
+    int exit_n)
 {
     char *tmp;
     _conf_getValue(config, section, type, &tmp);
@@ -555,8 +542,14 @@ _conf_set_int_from_conf(config_t *config, const char *section, const char *type,
     }
 }
 
-    void 
-_conf_set_bool_from_conf(config_t *config, const char *section, const char *type, int *value, int def, const char *errMsg, int exit_n)
+void
+_conf_set_bool_from_conf(config_t *config,
+    const char *section,
+    const char *type,
+    int *value,
+    int def,
+    const char *errMsg,
+    int exit_n)
 {
     char *tmp;
     _conf_getValue(config, section, type, &tmp);
