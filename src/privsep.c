@@ -96,18 +96,17 @@ static void must_read(int, void *, size_t);
 static void must_write(int, void *, size_t);
 static int  may_read(int, void *, size_t);
 
-
 int
-priv_init(char *conf, char *argv[], char *username)
+priv_init(char *argv[], char *username)
 {
-    int i, fd, socks[2], cmd, restart;
+    int i, fd, socks[2], cmd;
     int nullfd;
     int tuntapmode;
     size_t len;
     size_t path_len;
     size_t hostname_len, servname_len, addrinfo_len;
     char path[MAXPATHLEN];
-    struct passwd *pw;
+    struct passwd *pw = NULL;
     struct sigaction sa;
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
@@ -132,11 +131,14 @@ priv_init(char *conf, char *argv[], char *username)
     if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, socks) == -1)
         err(1, "socketpair() failed");
 
-    pw = getpwnam(username);
-    if (pw == NULL)
-        errx(1, "unknown user %s", username);
+    /* Safe enough ? */
+    if (username && *username)
+    {
+        pw = getpwnam(username);
+        if (pw == NULL)
+            errx(1, "unknown user %s", username);
+    }
 
-    fprintf(stderr, "Father: %d\n", getpid());
     child_pid = fork();
     if (child_pid < 0)
         err(1, "fork() failed");
@@ -144,15 +146,17 @@ priv_init(char *conf, char *argv[], char *username)
     if (!child_pid)
     {
         /* Child - drop privileges and return */
-        if (is_root)
+        if (is_root && pw)
         {
             if (chroot(pw->pw_dir) != 0)
                 err(1, "unable to chroot");
         }
+
+        /* May be usefull to chose chdir directory ? */
         if (chdir("/") != 0)
             err(1, "unable to chdir");
 
-        if (is_root)
+        if (is_root && pw)
         {
             if (setgroups(1, &pw->pw_gid) == -1)
                 err(1, "setgroups() failed");
@@ -177,10 +181,7 @@ priv_init(char *conf, char *argv[], char *username)
     sa.sa_flags |= SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa, NULL);
 
-    set_ps_display("mlvpn [priv]");
     close(socks[1]);
-
-    restart = 0;
 
     nullfd = open("/dev/null", O_RDONLY);
     if (nullfd < 0)
@@ -204,11 +205,23 @@ priv_init(char *conf, char *argv[], char *username)
         if (may_read(socks[0], &cmd, sizeof(cmd)))
             break;
         switch (cmd) {
+        case PRIV_OPEN_CONFIG:
+            if (cur_state != STATE_CONFIG)
+                _exit(0);
+
+            stat(config_file, &cf_info);
+            fd = root_open_file(config_file, O_RDONLY|O_NONBLOCK);
+            send_fd(socks[0], fd);
+            if (fd < 0)
+                warnx("priv_open_config failed");
+            else
+                close(fd);
+            break;
+
         case PRIV_OPEN_LOG:
-            /* TODO: forbid completly access to open log
-             *  if STATUS_RUNING 
-             */
-            //dprintf("[priv]: msg PRIV_OPEN_LOG received\n")
+            if (cur_state != STATE_CONFIG)
+                _exit(0);
+
             /* Expecting: length, path */
             must_read(socks[0], &path_len, sizeof(path_len));
             if (path_len == 0 || path_len > sizeof(path))
@@ -224,16 +237,6 @@ priv_init(char *conf, char *argv[], char *username)
                 close(fd);
             break;
 
-        case PRIV_OPEN_CONFIG:
-            //dprintf("[priv]: msg PRIV_OPEN_CONFIG received\n");
-            stat(config_file, &cf_info);
-            fd = root_open_file(config_file, O_RDONLY|O_NONBLOCK);
-            send_fd(socks[0], fd);
-            if (fd < 0)
-                warnx("priv_open_config failed");
-            else
-                close(fd);
-            break;
 
         case PRIV_OPEN_TUN:
             /* we should not re-open the tuntap device ever! */
@@ -267,6 +270,44 @@ priv_init(char *conf, char *argv[], char *username)
             send_fd(socks[0], fd);
             if (fd >= 0)
                 close(fd);
+            break;
+
+        case PRIV_INIT_SCRIPT:
+            /* Not allowed to change script path when running
+             * for security reasons
+             */
+            if (cur_state != STATE_CONFIG)
+                _exit(0);
+
+            must_read(socks[0], &path_len, sizeof(path_len));
+            if (path_len == 0 || path_len > sizeof(script_path))
+                _exit(0);
+            must_read(socks[0], &path, path_len);
+
+            path[path_len - 1] = '\0';
+
+            /* Basic permission checking.
+             * basically, the script must be 0700 owned by root
+             */
+            *errormessage = '\0';
+            if (stat(path, &st) < 0)
+            {
+                snprintf(errormessage, ERRMSGSIZ, "Unable to open file %s:%s",
+                    path, strerror(errno));
+            } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
+                snprintf(errormessage, ERRMSGSIZ,
+                    "%s is group/other accessible. Fix permissions!",
+                    path);
+            } else if (!(st.st_mode & S_IXUSR)) {
+                snprintf(errormessage, ERRMSGSIZ,
+                    "%s is not executable. Fix permissions!",
+                    path);
+            } else {
+                strlcpy(script_path, path, path_len);
+            }
+            len = strlen(errormessage) + 1;
+            must_write(socks[0], &len, sizeof(len));
+            must_write(socks[0], errormessage, len);
             break;
 
         case PRIV_GETADDRINFO:
@@ -355,43 +396,6 @@ priv_init(char *conf, char *argv[], char *username)
             free(script_argv);
             break;
 
-        case PRIV_INIT_SCRIPT:
-            /* Not allowed to change script path when running
-             * for security reasons
-             */
-            if (cur_state != STATE_CONFIG)
-                _exit(0);
-
-            must_read(socks[0], &path_len, sizeof(path_len));
-            if (path_len == 0 || path_len > sizeof(script_path))
-                _exit(0);
-            must_read(socks[0], &path, path_len);
-
-            path[path_len - 1] = '\0';
-
-            /* Basic permission checking.
-             * basically, the script must be 0700 owned by root
-             */
-            *errormessage = '\0';
-            if (stat(path, &st) < 0)
-            {
-                snprintf(errormessage, ERRMSGSIZ, "Unable to open file %s:%s",
-                    path, strerror(errno));
-            } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
-                snprintf(errormessage, ERRMSGSIZ,
-                    "%s is group/other accessible. Fix permissions!",
-                    path);
-            } else if (!(st.st_mode & S_IXUSR)) {
-                snprintf(errormessage, ERRMSGSIZ,
-                    "%s is not executable. Fix permissions!",
-                    path);
-            } else {
-                strlcpy(script_path, path, path_len);
-            }
-            len = strlen(errormessage) + 1;
-            must_write(socks[0], &len, sizeof(len));
-            must_write(socks[0], errormessage, len);
-            break;
         case PRIV_DONE_CONFIG_PARSE:
             increase_state(STATE_RUNNING);
             break;
@@ -403,13 +407,6 @@ priv_init(char *conf, char *argv[], char *username)
     }
 
     close(socks[0]);
-
-    if (restart) {
-        int r;
-
-        wait(&r);
-        execvp(argv[0], argv);
-    }
     _exit(1);
 }
 

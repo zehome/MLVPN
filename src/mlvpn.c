@@ -43,11 +43,10 @@ static mlvpn_tunnel_t *rtun_start = NULL;
 static char *progname;
 static char *tundevname = NULL;
 static char *status_command = NULL;
-static char *mlvpn_password = {0};
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
-static char *optstr = "c:p:bvVn:";
+static char *optstr = "c:p:bu:vVn:";
 static struct option long_options[] = {
     {"background",    no_argument,       0, 'b' },
     {"config",        required_argument, 0, 'c' },
@@ -55,11 +54,15 @@ static struct option long_options[] = {
     {"natural-title", no_argument,       0,  1  },
     {"help",          no_argument,       0, 'h' },
     {"pidfile",       required_argument, 0, 'p' },
+    {"user",          required_argument, 0, 'u' },
     {"verbose",       no_argument,       0, 'v' },
     {"version",       no_argument,       0, 'V' },
     {0,               0,                 0, 0 }
 };
 static struct mlvpn_options mlvpn_options;
+
+static char mlvpn_priv_process_name[2048] = {0};
+static char mlvpn_process_name[2048] = {0};
 
 static void
 usage(char **argv)
@@ -70,9 +73,10 @@ usage(char **argv)
         " -b, --background      launch as a daemon (fork)\n"
         " -c, --config [path]   path to config file (eg. /etc/mlvpn.conf)\n"
         " --natural-title       do not change process title\n"
-        " -n, --name            change process-title and include 'name'.\n"
+        " -n, --name            change process-title and include 'name'\n"
         " -h, --help            this help\n"
         " -p, --pidfile [path]  path to pidfile (eg. /var/run/mlvpn.pid)\n"
+        " -u, --user [username] drop privileges to user 'username'\n"
         " -v, --verbose         more debug messages on stdout\n"
         " -V, --version         output version information and exit\n"
         "\n"
@@ -117,7 +121,7 @@ mlvpn_rtun_new(const char *name,
                const char *destaddr, const char *destport,
                int server_mode)
 {
-    mlvpn_tunnel_t *last = rtun_start;
+    mlvpn_tunnel_t *last;
     mlvpn_tunnel_t *new;
 
     /* Some basic checks */
@@ -327,9 +331,8 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         hints.ai_socktype = SOCK_DGRAM;
     }
 
-    ret = priv_getaddrinfo(addr, port,
-        &t->addrinfo, &hints);
-    if (ret < 0)
+    ret = priv_getaddrinfo(addr, port, &t->addrinfo, &hints);
+    if (ret < 0 || !t->addrinfo)
     {
         _ERROR("getaddrinfo(%s,%d) failed: %s\n",
             addr, port, gai_strerror(ret));
@@ -1077,9 +1080,6 @@ int mlvpn_config(char *filename)
                     "timeout", &default_timeout, 60, NULL, 0);
                 _conf_set_str_from_conf(config, lastSection,
                     "interface_name", &tundevname, "mlvpn0", NULL, 0);
-                _conf_set_str_from_conf(config, lastSection,
-                    "password", &mlvpn_password, NULL, 
-                    "Password is mandatory.", 1);
 
                 if (mystr_eq(mode, "server"))
                     server_mode = 1;
@@ -1095,7 +1095,7 @@ int mlvpn_config(char *filename)
                 {
                     _conf_set_str_from_conf(config, lastSection,
                         "bindhost",
-                        &bindaddr, "0.0.0.0", 
+                        &bindaddr, "0.0.0.0",
                         "binding to host 0.0.0.0\n", 0);
 
                     _conf_set_str_from_conf(config, lastSection,
@@ -1128,7 +1128,7 @@ int mlvpn_config(char *filename)
                         "bandwidth_upload", &bwlimit, 0, NULL, 0);
                 }
 
-                _conf_set_str_from_conf(config, lastSection, 
+                _conf_set_str_from_conf(config, lastSection,
                     "protocol", &tmp, NULL, NULL, 0);
                 if (tmp)
                 {
@@ -1216,11 +1216,12 @@ int main(int argc, char **argv)
     mlvpn_tunnel_t *tmptun;
 
     mlvpn_options.change_process_title = 1;
-    mlvpn_options.process_name[0] = 0;
+    *mlvpn_options.process_name = '\0';
     strlcpy(mlvpn_options.config, "mlvpn.conf", 10);
     mlvpn_options.verbose = 0;
     mlvpn_options.background = 0;
-    mlvpn_options.pidfile[0] = 0;
+    *mlvpn_options.pidfile = '\0';
+    *mlvpn_options.unpriv_user = '\0';
 
     /* ps_status misc */
     {
@@ -1255,21 +1256,12 @@ int main(int argc, char **argv)
         switch (c)
         {
         case 1:
-            /* Natural title */
             printf("Natural title.\n");
             mlvpn_options.change_process_title = 0;
-            break;
-        case 'v':
-            printf("Verbose mode.\n");
-            mlvpn_options.verbose = 1;
             break;
         case 'b':
             printf("Background mode.\n");
             mlvpn_options.background = 1;
-            break;
-        case 'p':
-            printf("Pidfile: '%s'.\n", optarg);
-            strlcpy(mlvpn_options.pidfile, optarg, 1024);
             break;
         case 'c':
             printf("Config: '%s'.\n", optarg);
@@ -1278,6 +1270,17 @@ int main(int argc, char **argv)
         case 'n':
             printf("Name: '%s'.\n", optarg);
             strlcpy(mlvpn_options.process_name, optarg, 1024);
+            break;
+        case 'p':
+            printf("Pidfile: '%s'.\n", optarg);
+            strlcpy(mlvpn_options.pidfile, optarg, 1024);
+            break;
+        case 'u':
+            strlcpy(mlvpn_options.unpriv_user, optarg, 128);
+            break;
+        case 'v':
+            printf("Verbose mode.\n");
+            mlvpn_options.verbose++;
             break;
         case 'V':
             printf("mlvpn version %u.%u.\n", VER_MAJ, VER_MIN);
@@ -1293,14 +1296,20 @@ int main(int argc, char **argv)
     {
         if (mlvpn_options.process_name)
         {
-            char name[2048];
-            snprintf(name, 2048, "mlvpn %s", mlvpn_options.process_name);
-            init_ps_display(name);
-        } else
+            snprintf(mlvpn_priv_process_name, 2048, "mlvpn [priv] %s",
+                mlvpn_options.process_name);
+            snprintf(mlvpn_process_name, 2048, "mlvpn %s",
+                mlvpn_options.process_name);
+            init_ps_display(mlvpn_priv_process_name);
+        } else {
+            strlcpy(mlvpn_priv_process_name, "mlvpn [priv]", 2048);
+            strlcpy(mlvpn_process_name, "mlvpn", 2048);
             init_ps_display("mlvpn");
+        }
     }
 
-    priv_init("../examples/mlvpn.conf", argv, "mlvpn");
+    priv_init(argv, mlvpn_options.unpriv_user);
+    set_ps_display(mlvpn_process_name);
 
     /* TODO: Linux specific */
     /* Kill me if my root process dies ! */

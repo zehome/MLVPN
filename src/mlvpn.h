@@ -80,6 +80,8 @@ struct mlvpn_options
     int background;
     /* pidfile */
     char pidfile[1024];
+    /* User change if running as root */
+    char unpriv_user[128];
 };
 
 typedef struct mlvpn_tunnel_s
@@ -169,7 +171,7 @@ mlvpn_rtun_new(const char *name,
 int mlvpn_server_accept();
 
 /* privsep */
-int priv_init(char *conf, char *argv[], char *username);
+int priv_init(char *argv[], char *username);
 void send_fd(int sock, int fd);
 int receive_fd(int sock);
 FILE *priv_open_config(void);
