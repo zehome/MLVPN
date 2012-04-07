@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <time.h>
 #include <getopt.h>
+#include <pwd.h>
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -46,7 +47,7 @@ static char *status_command = NULL;
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
-static char *optstr = "c:p:bu:vVn:";
+static char *optstr = "bc:n:p:u:vV";
 static struct option long_options[] = {
     {"background",    no_argument,       0, 'b' },
     {"config",        required_argument, 0, 'c' },
@@ -57,6 +58,7 @@ static struct option long_options[] = {
     {"user",          required_argument, 0, 'u' },
     {"verbose",       no_argument,       0, 'v' },
     {"version",       no_argument,       0, 'V' },
+    {"yes-run-as-root",no_argument,      0, 'r' },
     {0,               0,                 0, 0 }
 };
 static struct mlvpn_options mlvpn_options;
@@ -78,6 +80,7 @@ usage(char **argv)
         " -p, --pidfile [path]  path to pidfile (eg. /var/run/mlvpn.pid)\n"
         " -u, --user [username] drop privileges to user 'username'\n"
         " -v, --verbose         more debug messages on stdout\n"
+        " --yes-run-as-root     ! please do not use !\n"
         " -V, --version         output version information and exit\n"
         "\n"
         "For more details see mlvpn(1) and mlvpn.conf(5).\n", argv[0]);
@@ -1024,7 +1027,7 @@ mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
     return bytesent;
 }
 
-int mlvpn_config(char *filename)
+int mlvpn_config(int config_file_fd)
 {
     config_t *config, *work;
     mlvpn_tunnel_t *tmptun;
@@ -1041,13 +1044,13 @@ int mlvpn_config(char *filename)
     log->name = "mlvpn";
     log->level = 4;
 
-    work = config = _conf_parseConfig(filename);
+    work = config = _conf_parseConfig(config_file_fd);
     if (! config)
         goto error;
 
     while (work)
     {
-        if ((work->section != NULL) && 
+        if ((work->section != NULL) &&
             (mystr_eq(work->section, lastSection) == 0))
         {
             lastSection = work->section;
@@ -1217,11 +1220,13 @@ int main(int argc, char **argv)
 
     mlvpn_options.change_process_title = 1;
     *mlvpn_options.process_name = '\0';
-    strlcpy(mlvpn_options.config, "mlvpn.conf", 10);
+    strlcpy(mlvpn_options.config, "mlvpn.conf", 10+1);
+    mlvpn_options.config_fd = -1;
     mlvpn_options.verbose = 0;
     mlvpn_options.background = 0;
     *mlvpn_options.pidfile = '\0';
     *mlvpn_options.unpriv_user = '\0';
+    mlvpn_options.root_allowed = 0;
 
     /* ps_status misc */
     {
@@ -1256,35 +1261,33 @@ int main(int argc, char **argv)
         switch (c)
         {
         case 1:
-            printf("Natural title.\n");
             mlvpn_options.change_process_title = 0;
             break;
         case 'b':
-            printf("Background mode.\n");
             mlvpn_options.background = 1;
             break;
         case 'c':
-            printf("Config: '%s'.\n", optarg);
             strlcpy(mlvpn_options.config, optarg, 1024);
             break;
         case 'n':
-            printf("Name: '%s'.\n", optarg);
             strlcpy(mlvpn_options.process_name, optarg, 1024);
             break;
         case 'p':
-            printf("Pidfile: '%s'.\n", optarg);
             strlcpy(mlvpn_options.pidfile, optarg, 1024);
+            break;
+        case 'r':
+            /* Yes run as root */
+            mlvpn_options.root_allowed = 1;
             break;
         case 'u':
             strlcpy(mlvpn_options.unpriv_user, optarg, 128);
             break;
         case 'v':
-            printf("Verbose mode.\n");
             mlvpn_options.verbose++;
             break;
         case 'V':
             printf("mlvpn version %u.%u.\n", VER_MAJ, VER_MIN);
-            exit(0);
+            _exit(0);
             break;
         case 'h':
         default:
@@ -1308,25 +1311,52 @@ int main(int argc, char **argv)
         }
     }
 
+    /* Some common checks */
+
+    if (getuid() == 0)
+    {
+        void *pw = getpwnam(mlvpn_options.unpriv_user);
+        if (!mlvpn_options.root_allowed && ! pw)
+        {
+            fprintf(stderr, "You are not allowed to run this program as root.\n"
+                "Please specify a valid user with --user option.\n");
+            _exit(1);
+        }
+        if (! pw)
+        {
+            fprintf(stderr, "Invalid `%s' username.\n", mlvpn_options.unpriv_user);
+            _exit(1);
+        }
+    }
+    if (access(mlvpn_options.config, R_OK) != 0)
+    {
+        fprintf(stderr, "Invalid config file: `%s'.\n", mlvpn_options.config);
+        _exit(1);
+    }
+    /* TODO: Linux only */
+    if (access("/dev/net/tun", R_OK|W_OK) != 0)
+    {
+        fprintf(stderr, "Unable to open tuntap node `%s'.\n", "/dev/net/tun");
+        _exit(1);
+    }
+
     priv_init(argv, mlvpn_options.unpriv_user);
     set_ps_display(mlvpn_process_name);
 
     /* TODO: Linux specific */
     /* Kill me if my root process dies ! */
     prctl(PR_SET_PDEATHSIG, SIGCHLD);
-    /* My parent is already dead! */
-    if (getppid() == 1)
-        _exit(0);
 
-    while(1)
+    /* Config file opening / parsing */
+    mlvpn_options.config_fd = priv_open_config(mlvpn_options.config);
+    if (mlvpn_options.config_fd < 0)
     {
-        printf("My parent pid: %d\n", getppid());
-        sleep(1);
+        _ERROR("Unable to open config file %s.\n",
+            mlvpn_options.config);
+        _exit(0);
     }
 
-    //mlvpn_config(argc, argv);
-    mlvpn_config("/etc/mlvpn.conf");
-    priv_config_parse_done();
+    mlvpn_config(mlvpn_options.config_fd);
 
     /* tun/tap initialization */
     memset(&tuntap, 0, sizeof(tuntap));
@@ -1340,11 +1370,19 @@ int main(int argc, char **argv)
     } else {
         _INFO("Created tap interface %s\n", tuntap.devname);
     }
-
     init_buffers();
+
+    priv_set_running_state();
 
     /* re-compute rtun weight based on bandwidth allocation */
     mlvpn_rtun_recalc_weight();
+
+    /* Last check before running */
+    if (getppid() == 1)
+    {
+        _ERROR("Privileged process died!\n");
+        _exit(2);
+    }
 
     while (1)
     {

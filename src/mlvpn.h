@@ -74,6 +74,7 @@ struct mlvpn_options
     char process_name[1024];
     /* where is the config file */
     char config[1024];
+    int config_fd;
     /* verbose mode */
     int verbose;
     /* background */
@@ -82,6 +83,7 @@ struct mlvpn_options
     char pidfile[1024];
     /* User change if running as root */
     char unpriv_user[128];
+    int root_allowed;
 };
 
 typedef struct mlvpn_tunnel_s
@@ -127,7 +129,7 @@ enum {
     MLVPN_TUNTAPMODE_TAP
 };
 
-int mlvpn_config(char *filename);
+int mlvpn_config(int config_file_fd);
 void init_buffers();
 
 uint64_t mlvpn_millis();
@@ -174,13 +176,13 @@ int mlvpn_server_accept();
 int priv_init(char *argv[], char *username);
 void send_fd(int sock, int fd);
 int receive_fd(int sock);
-FILE *priv_open_config(void);
+int priv_open_config(char *);
 int priv_open_tun(int tuntapmode, char *devname);
 FILE *priv_open_log(char *lognam);
-int 
+int
 priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     struct addrinfo *hints);
-void priv_config_parse_done(void);
+void priv_set_running_state(void);
 int priv_init_script(char *);
 int priv_run_script(int argc, char **argv);
 

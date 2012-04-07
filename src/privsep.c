@@ -66,11 +66,11 @@ enum priv_state {
 enum cmd_types {
     PRIV_OPEN_LOG,      /* open logfile for appending */
     PRIV_OPEN_CONFIG,   /* open config file for reading only */
-    PRIV_INIT_SCRIPT,   /* set allowed status script */
+    PRIV_INIT_SCRIPT,   /* set allowed status script path */
+    PRIV_OPEN_TUN,      /* open tun/tap device */
     PRIV_RUN_SCRIPT,    /* run status script */
-    PRIV_OPEN_TUN,
     PRIV_GETADDRINFO,
-    PRIV_DONE_CONFIG_PARSE    /* signal that the initial config parse is done */
+    PRIV_SET_RUNNING_STATE /* ready for maximum security */
 };
 
 /* Error message for some communication between processes */
@@ -78,8 +78,6 @@ enum cmd_types {
 
 static int priv_fd = -1;
 static volatile pid_t child_pid = -1;
-static char config_file[MAXPATHLEN];
-static struct stat cf_info;
 static volatile sig_atomic_t cur_state = STATE_INIT;
 
 /* Allowed logfile */
@@ -103,7 +101,6 @@ priv_init(char *argv[], char *username)
     int nullfd;
     int tuntapmode;
     size_t len;
-    size_t path_len;
     size_t hostname_len, servname_len, addrinfo_len;
     char path[MAXPATHLEN];
     struct passwd *pw = NULL;
@@ -167,7 +164,6 @@ priv_init(char *argv[], char *username)
         }
         close(socks[0]);
         priv_fd = socks[1];
-        fprintf(stderr, "Child: %d\n", getpid());
         return 0;
     }
     /* Father */
@@ -209,11 +205,16 @@ priv_init(char *argv[], char *username)
             if (cur_state != STATE_CONFIG)
                 _exit(0);
 
-            stat(config_file, &cf_info);
-            fd = root_open_file(config_file, O_RDONLY|O_NONBLOCK);
+            must_read(socks[0], &len, sizeof(len));
+            if (len == 0 || len > sizeof(path) || len > MAXPATHLEN)
+                _exit(0);
+            must_read(socks[0], &path, len);
+            path[len - 1] = '\0';
+
+            fd = root_open_file(path, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
             if (fd < 0)
-                warnx("priv_open_config failed");
+                warnx("priv_open_config `%s' failed", path);
             else
                 close(fd);
             break;
@@ -223,12 +224,12 @@ priv_init(char *argv[], char *username)
                 _exit(0);
 
             /* Expecting: length, path */
-            must_read(socks[0], &path_len, sizeof(path_len));
-            if (path_len == 0 || path_len > sizeof(path))
+            must_read(socks[0], &len, sizeof(len));
+            if (len == 0 || len > sizeof(path))
                 _exit(0);
-            must_read(socks[0], &path, path_len);
-            path[path_len - 1] = '\0';
-            root_check_log_name(path, path_len);
+            must_read(socks[0], &path, len);
+            path[len - 1] = '\0';
+            root_check_log_name(path, len);
             fd = root_open_file(path, O_WRONLY|O_APPEND|O_NONBLOCK|O_CREAT);
             send_fd(socks[0], fd);
             if (fd < 0)
@@ -246,7 +247,7 @@ priv_init(char *argv[], char *username)
             must_read(socks[0], &tuntapmode, sizeof(tuntapmode));
             if (tuntapmode != MLVPN_TUNTAPMODE_TUN &&
                 tuntapmode != MLVPN_TUNTAPMODE_TAP)
-                _exit(0);
+                    _exit(0);
 
             must_read(socks[0], &len, sizeof(len));
             if (len < 0 || len > MLVPN_IFNAMSIZ)
@@ -279,12 +280,12 @@ priv_init(char *argv[], char *username)
             if (cur_state != STATE_CONFIG)
                 _exit(0);
 
-            must_read(socks[0], &path_len, sizeof(path_len));
-            if (path_len == 0 || path_len > sizeof(script_path))
+            must_read(socks[0], &len, sizeof(len));
+            if (len == 0 || len > sizeof(script_path))
                 _exit(0);
-            must_read(socks[0], &path, path_len);
+            must_read(socks[0], &path, len);
 
-            path[path_len - 1] = '\0';
+            path[len - 1] = '\0';
 
             /* Basic permission checking.
              * basically, the script must be 0700 owned by root
@@ -303,7 +304,7 @@ priv_init(char *argv[], char *username)
                     "%s is not executable. Fix permissions!",
                     path);
             } else {
-                strlcpy(script_path, path, path_len);
+                strlcpy(script_path, path, len);
             }
             len = strlen(errormessage) + 1;
             must_write(socks[0], &len, sizeof(len));
@@ -396,7 +397,7 @@ priv_init(char *argv[], char *username)
             free(script_argv);
             break;
 
-        case PRIV_DONE_CONFIG_PARSE:
+        case PRIV_SET_RUNNING_STATE:
             increase_state(STATE_RUNNING);
             break;
 
@@ -522,19 +523,19 @@ priv_open_log(char *lognam)
 {
     char path[MAXPATHLEN];
     int cmd, fd;
-    size_t path_len;
+    size_t len;
     FILE *fp;
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged child", "priv_open_log");
 
     strncpy(path, lognam, sizeof path);
-    path_len = strlen(path) + 1;
+    len = strlen(path) + 1;
 
     cmd = PRIV_OPEN_LOG;
     must_write(priv_fd, &cmd, sizeof(cmd));
-    must_write(priv_fd, &path_len, sizeof(path_len));
-    must_write(priv_fd, path, path_len);
+    must_write(priv_fd, &len, sizeof(len));
+    must_write(priv_fd, path, len);
     fd = receive_fd(priv_fd);
 
     if (fd < 0)
@@ -551,29 +552,37 @@ priv_open_log(char *lognam)
 }
 
 /* Open mlvpn config file for reading */
-FILE *
-priv_open_config(void)
+int
+priv_open_config(char *config_path)
 {
     int cmd, fd;
+    size_t len;
     FILE *fp;
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_open_config");
 
+    len = strlen(config_path) + 1;
+
     cmd = PRIV_OPEN_CONFIG;
     must_write(priv_fd, &cmd, sizeof(cmd));
+
+    must_write(priv_fd, &len, sizeof(len));
+    must_write(priv_fd, config_path, len);
+
     fd = receive_fd(priv_fd);
     if (fd < 0)
-        return NULL;
+        return fd;
 
     fp = fdopen(fd, "r");
     if (!fp) {
         warn("priv_open_config: fdopen() failed");
         close(fd);
-        return NULL;
+        return -1;
     }
+    fclose(fp);
 
-    return fp;
+    return fd;
 }
 
 /* Open tun from unpriviled code
@@ -760,7 +769,7 @@ priv_run_script(int argc, char **argv)
 /* Child can signal that its initial parsing is done, so that parent
  * can revoke further logfile permissions.  This call only works once. */
 void
-priv_config_parse_done(void)
+priv_set_running_state(void)
 {
     int cmd;
 
@@ -768,7 +777,7 @@ priv_config_parse_done(void)
         errx(1, "%s: called from privileged portion",
             "priv_config_parse_done");
 
-    cmd = PRIV_DONE_CONFIG_PARSE;
+    cmd = PRIV_SET_RUNNING_STATE;
     must_write(priv_fd, &cmd, sizeof(cmd));
 }
 
@@ -792,9 +801,10 @@ static void
 sig_pass_to_chld(int sig)
 {
     int save_errno = errno;
-    if (child_pid != -1) {
-       kill(child_pid, sig);
-       errno = save_errno;
+    if (child_pid != -1)
+    {
+        kill(child_pid, sig);
+        errno = save_errno;
     }
 }
 
@@ -805,7 +815,8 @@ may_read(int fd, void *buf, size_t n)
     char *s = buf;
     ssize_t res, pos = 0;
 
-    while (n > pos) {
+    while (n > pos)
+    {
         res = read(fd, s + pos, n - pos);
         switch (res) {
         case -1:
@@ -828,7 +839,8 @@ must_read(int fd, void *buf, size_t n)
     char *s = buf;
     ssize_t res, pos = 0;
 
-    while (n > pos) {
+    while (n > pos)
+    {
         res = read(fd, s + pos, n - pos);
         switch (res) {
         case -1:
@@ -850,7 +862,8 @@ must_write(int fd, void *buf, size_t n)
     char *s = buf;
     ssize_t res, pos = 0;
 
-    while (n > pos) {
+    while (n > pos)
+    {
         res = write(fd, s + pos, n - pos);
         switch (res) {
         case -1:
