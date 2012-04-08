@@ -15,4 +15,6 @@ mlvpn_SOURCES = \
     privsep.c privsep_fdpass.c \
     wrr.c \
     strlcpy.c \
+    cjson/cJSON.h cjson/cJSON.c \
     mlvpn.c mlvpn.h
+mlvpn_LDFLAGS=-lm

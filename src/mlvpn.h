@@ -1,6 +1,9 @@
 #ifndef _MLVPN_H
 #define _MLVPN_H
 
+#define VER_MAJ 1
+#define VER_MIN 1
+
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <linux/if_tun.h>
