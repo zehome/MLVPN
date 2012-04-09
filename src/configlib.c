@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "tool.h"
 #include "configlib.h"
@@ -38,8 +39,8 @@ _conf_parseConfig(int config_file_fd)
     configFile = fdopen(config_file_fd, "r");
     if (! configFile)
     {
-        _ERROR("Unable to open config file fd: %d.\n",
-            config_file_fd);
+        _ERROR("Unable to open config file fd: %d: %s\n",
+            config_file_fd, strerror(errno));
         return NULL;
     }
     config = (config_t *)malloc(sizeof(config_t));
