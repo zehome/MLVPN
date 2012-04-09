@@ -571,17 +571,6 @@ priv_open_config(char *config_path)
     must_write(priv_fd, config_path, len);
 
     fd = receive_fd(priv_fd);
-    if (fd < 0)
-        return fd;
-
-    fp = fdopen(fd, "r");
-    if (!fp) {
-        warn("priv_open_config: fdopen() failed");
-        close(fd);
-        return -1;
-    }
-    fclose(fp);
-
     return fd;
 }
 
@@ -733,7 +722,7 @@ priv_init_script(char *path)
 
     if (*errormessage)
     {
-        fprintf(stderr, "Error from priv server: %s", errormessage);
+        fprintf(stderr, "Error from priv server: %s\n", errormessage);
         return -1;
     }
     return 0;
