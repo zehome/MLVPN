@@ -16,12 +16,12 @@
 #include "tool.h"
 #include "mlvpn.h"
 
-static int current_level;
+static int current_level = 5;
 static FILE *output_file = NULL;
 
 /* Main debug routine */
-void 
-__DEBUG(int _debug_line, const char *_debug_filename, 
+void
+__DEBUG(int _debug_line, const char *_debug_filename,
         int _debug_priority,  const char *_debug_message, ...)
 {
     char z_format[1024] = {0};
@@ -33,8 +33,7 @@ __DEBUG(int _debug_line, const char *_debug_filename,
     if (output_file)
         output = output_file;
     else
-        output = stdout;
-
+        output = stderr;
 
     /* message de prioritée inférieure a notre prio, on vire */
     if (_debug_priority >= current_level)
@@ -47,21 +46,20 @@ __DEBUG(int _debug_line, const char *_debug_filename,
         perror("time");
         return;
     }
-  
+
     if (localtime_r(&now, &curTime) == NULL)
     {
         fprintf(stderr, "Can't log line: localtime_r() failed.\n");
         return;
     }
-    snprintf(z_format, 1023, "[%.2d:%.2d:%.2d][%s:%d] %s", 
-            curTime.tm_hour, curTime.tm_min, curTime.tm_sec, 
+    snprintf(z_format, 1023, "[%.2d:%.2d:%.2d][%s:%d] %s",
+            curTime.tm_hour, curTime.tm_min, curTime.tm_sec,
             _debug_filename, _debug_line, _debug_message);
-  
-    va_start(ap, _debug_message);  
+
+    va_start(ap, _debug_message);
     vfprintf(output, z_format, ap);
-    
+
     fflush(output);
-  
     va_end(ap);
 }
 
@@ -82,7 +80,7 @@ int logger_init(logfile_t *logfile)
         output_file = logfile->fd = priv_open_log(logfile->filename);
         if (! logfile->fd)
         {
-            fprintf(stderr, "Unable to open logfile %s for writing. Check permissions!\n", 
+            fprintf(stderr, "Unable to open logfile %s for writing. Check permissions!\n",
                         logfile->filename);
             return -1;
         }
