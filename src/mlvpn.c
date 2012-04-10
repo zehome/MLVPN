@@ -1629,7 +1629,7 @@ int main(int argc, char **argv)
         }
     }
     {
-        char *cmdargs[3] = {tuntap.devname, "tuntap_up", NULL};
+        char *cmdargs[3] = {tuntap.devname, "tuntap_down", NULL};
         priv_run_script(2, cmdargs);
     }
 
