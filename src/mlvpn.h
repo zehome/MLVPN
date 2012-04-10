@@ -13,6 +13,11 @@
 #include "pkt.h"
 #include "buffer.h"
 
+/* undef this to disable control system completly.
+   will gain in security and very small performance,
+   but lack of statistics & remote control obviously! */
+#define MLVPN_CONTROL
+
 #define MLVPN_ETH_IP4 0x0800
 #define MLVPN_ETH_IP6 0x86DD
 #define MLVPN_ETH_ARP 0x0806
@@ -76,6 +81,7 @@ struct mlvpn_options
     /* process name if set */
     char process_name[1024];
     /* where is the config file */
+    /* TODO: PATHMAX */
     char config[1024];
     int config_fd;
     /* verbose mode */
@@ -89,16 +95,29 @@ struct mlvpn_options
     int root_allowed;
 };
 
+#define MLVPN_CTRL_EOF 0x04
+#define MLVPN_CTRL_TERMINATOR '\n'
 /* Control socket (mkfifo and/or AF_INET6?) */
+#define MLVPN_CTRL_BUFSIZ 1024
+/* Control timeout in seconds */
+#define MLVPN_CTRL_TIMEOUT 5
 struct mlvpn_control
 {
     int mode;
-    char fifo_path[1024]; /* TODO #define */
+    /* TODO: PATHMAX */
+    char fifo_path[1024];
     mode_t fifo_mode;
     int fifofd;
     char *bindaddr;
     char *bindport;
     int sockfd;
+    /* Client part */
+    int clientfd; /* Only supports one client for now */
+    time_t last_activity;
+    char rbuf[MLVPN_CTRL_BUFSIZ];
+    int rbufpos;
+    char wbuf[MLVPN_CTRL_BUFSIZ];
+    int wbufpos;
 };
 
 typedef struct mlvpn_tunnel_s

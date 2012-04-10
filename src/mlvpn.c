@@ -859,7 +859,7 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
 
                 /* shift read buffer to the right */
                 /* -1 because of i++ in the loop */
-                i += (PKTHDRSIZ(pktdata) + pktdata.len - 1); 
+                i += (PKTHDRSIZ(pktdata) + pktdata.len - 1);
                 last_shift = i+1;
                 /* Overkill */
                 memset(&pktdata, 0, sizeof(pktdata));
@@ -925,10 +925,10 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                 clientport, sizeof(clientport),
                 NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
             {
-                _ERROR("Error in getnameinfo: %d: %s\n", 
+                _ERROR("Error in getnameinfo: %d: %s\n",
                     ret, strerror(errno));
             } else {
-                _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len, 
+                _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len,
                     clienthost, clientport);
                 if (! tun->addrinfo->ai_addrlen)
                     tun->addrinfo->ai_addrlen = addrlen;
@@ -1207,6 +1207,9 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
 
     ctrl->fifofd = -1;
     ctrl->sockfd = -1;
+    ctrl->clientfd = -1;
+    *ctrl->rbuf = '\0';
+    *ctrl->wbuf = '\0';
 
     /* UNIX domain socket */
     if (*ctrl->fifo_path)
@@ -1321,8 +1324,6 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
     if (fd < 0 || ctrl->mode == MLVPN_CONTROL_DISABLED)
         return;
 
-    printf("Accepting...\n");
-
     int cfd;
     int accepted = 0;
     struct sockaddr_storage clientaddr;
@@ -1333,13 +1334,148 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
             _ERROR("Error during accept: %s\n", strerror(errno));
-        else {
-            accepted++;
-            write(cfd, "Salut!\n", 7);
+    } else {
+        if (ctrl->clientfd != -1)
+        {
+            _DEBUG("Remote control already connected on fd %d.\n",
+                ctrl->clientfd);
+            send(cfd, "ERR: Already connected.\n", 24, 0);
             close(cfd);
         }
+        accepted++;
+        ctrl->clientfd = cfd;
+        ctrl->rbufpos = 0;
+        ctrl->wbufpos = 0;
+        ctrl->last_activity = time((time_t *) NULL);
     }
     return accepted;
+}
+
+int mlvpn_control_timeout(struct mlvpn_control *ctrl)
+{
+    if (ctrl->mode != MLVPN_CONTROL_DISABLED &&
+        ctrl->clientfd >= 0)
+    {
+        if (ctrl->last_activity + MLVPN_CTRL_TIMEOUT <=
+            time((time_t *)NULL))
+        {
+            _INFO("Control socket %d timeout.\n", ctrl->clientfd);
+            close(ctrl->clientfd);
+            ctrl->clientfd = -1;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Parse a message received from the client.
+ * Example messages:
+ * STATS
+ * UPTIME
+ * START tunX
+ * STOP tunX
+ * RESTART tunX
+ */
+void
+mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
+{
+    char *cmd, *arg;
+    char *tmp;
+    char cline[MLVPN_CTRL_BUFSIZ];
+    int argpos = 0;
+    int i, j;
+
+    /* Cleanup \r */
+    for (i = 0, j = 0; i <= strlen(line); i++)
+        if (line[i] != '\r')
+            cline[j++] = line[i];
+    printf("Line before: `%s' len: %d After: `%s' len:%d (j=%d)\n",
+        line, strlen(line), cline, strlen(cline), j);
+
+    cmd = strtok(cline, " ");
+    if (! cmd)
+        return;
+    else
+        printf("Command: %s\n", cmd);
+
+    while( (arg = strtok(NULL, " ")) != NULL)
+    {
+        printf("ARG[%d]: `%s'\n", argpos, arg);
+        argpos++;
+    }
+}
+
+/* Returns 1 if a valid line is found. 0 otherwise. */
+int
+mlvpn_control_read_check(struct mlvpn_control *ctrl)
+{
+    char line[MLVPN_CTRL_BUFSIZ];
+    char c;
+    int i;
+    for (i = 0; i < ctrl->rbufpos; i++)
+    {
+        c = ctrl->rbuf[i];
+        if (c == MLVPN_CTRL_EOF)
+        {
+            _DEBUG("Received EOF from client %d.\n", ctrl->clientfd);
+            close(ctrl->clientfd);
+            ctrl->clientfd = -1;
+            break;
+        }
+
+        if (c == MLVPN_CTRL_TERMINATOR)
+        {
+            memcpy(line, ctrl->rbuf, i);
+            line[i] = '\0';
+            /* Shift the actual buffer */
+            memmove(ctrl->rbuf, ctrl->rbuf+i,
+                MLVPN_CTRL_BUFSIZ - i);
+            ctrl->rbufpos -= i+1;
+            mlvpn_control_parse(ctrl, line);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Read from the socket to rbuf */
+int
+mlvpn_control_read(struct mlvpn_control *ctrl)
+{
+    int len;
+
+    len = read(ctrl->clientfd, ctrl->rbuf + ctrl->rbufpos,
+        MLVPN_CTRL_BUFSIZ - ctrl->rbufpos);
+    if (len < 0)
+    {
+        _ERROR("Read error on Md: %s\n", ctrl->clientfd,
+            strerror(errno));
+        close(ctrl->clientfd);
+        ctrl->clientfd = -1;
+    } else if (len > 0) {
+        ctrl->last_activity = time((time_t *)NULL);
+        _DEBUG("Read %d bytes on control fd.\n", len);
+        ctrl->rbufpos += len;
+        if (ctrl->rbufpos >= MLVPN_CTRL_BUFSIZ)
+        {
+            _ERROR("Buffer overflow on control read buffer.\n");
+            close(ctrl->clientfd);
+            ctrl->clientfd = -1;
+            return -1;
+        }
+
+        /* Parse the message */
+        while (mlvpn_control_read_check(ctrl) != 0);
+    }
+
+    return 0;
+}
+
+/* Flush the control client wbuf */
+int
+mlvpn_control_write(struct mlvpn_control *ctrl)
+{
+
 }
 
 int main(int argc, char **argv)
@@ -1350,7 +1486,9 @@ int main(int argc, char **argv)
     int maxfd = 0;
     char *cfgfilename = NULL;
     struct sigaction sa;
+#ifdef MLVPN_CONTROL
     struct mlvpn_control control;
+#endif
 
     /* setup signals */
     memset(&sa, 0, sizeof(sa));
@@ -1526,15 +1664,15 @@ int main(int argc, char **argv)
 
     priv_set_running_state();
 
+#ifdef MLVPN_CONTROL
     /* Initialize mlvpn remote control system */
     strlcpy(control.fifo_path, "mlvpn.sock", 11);
     control.mode = MLVPN_CONTROL_READWRITE;
     control.fifo_mode = 0600;
     control.bindaddr = "0.0.0.0";
     control.bindport = "1040";
-    control.fifofd = -1;
-    control.sockfd = -1;
     mlvpn_control_init(&control);
+#endif
 
     /* re-compute rtun weight based on bandwidth allocation */
     mlvpn_rtun_recalc_weight();
@@ -1548,9 +1686,13 @@ int main(int argc, char **argv)
 
     while (1)
     {
+#ifdef MLVPN_CONTROL
         /* Control system */
+        /* TODO: DO NOT RUN THIS ON EVERY RELAYED PACKET !!! */
         mlvpn_control_accept(&control, control.fifofd);
         mlvpn_control_accept(&control, control.sockfd);
+        mlvpn_control_timeout(&control);
+#endif
 
         /* Connect rtun if not connected. tick if connected */
         mlvpn_rtun_tick_connect();
@@ -1583,6 +1725,34 @@ int main(int argc, char **argv)
             tmptun = tmptun->next;
         }
 
+#ifdef MLVPN_CONTROL
+        /* Control system */
+        if (control.fifofd >= 0)
+        {
+            FD_SET(control.fifofd, &rfds);
+            if (control.fifofd > maxfd)
+                maxfd = control.fifofd;
+        }
+        if (control.sockfd >= 0)
+        {
+            FD_SET(control.sockfd, &rfds);
+            if (control.sockfd > maxfd)
+                maxfd = control.sockfd;
+        }
+        if (control.clientfd >= 0)
+        {
+            if (*control.wbuf != '\0')
+            {
+                FD_SET(control.clientfd, &wfds);
+                if (control.clientfd > maxfd)
+                    maxfd = control.clientfd;
+            }
+            FD_SET(control.clientfd, &rfds);
+            if (control.clientfd > maxfd)
+                maxfd = control.clientfd;
+        }
+#endif
+
         timeout.tv_sec = 1;
         timeout.tv_usec = 1000;
 
@@ -1605,6 +1775,15 @@ int main(int argc, char **argv)
                 }
                 tmptun = tmptun->next;
             }
+#ifdef MLVPN_CONTROL
+            if (control.clientfd >= 0)
+            {
+                if(FD_ISSET(control.clientfd, &rfds))
+                    mlvpn_control_read(&control);
+                if(FD_ISSET(control.clientfd, &wfds))
+                    mlvpn_control_write(&control);
+            }
+#endif
         } else if (ret == 0) {
             /* timeout, check for "normalize sending" */
 
