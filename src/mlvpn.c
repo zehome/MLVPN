@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
@@ -73,11 +74,11 @@ usage(char **argv)
         "usage: %s [options]\n\n"
         "Options:\n"
         " -b, --background      launch as a daemon (fork)\n"
-        " -c, --config [path]   path to config file (eg. /etc/mlvpn.conf)\n"
+        " -c, --config [path]   path to config file (ex. /etc/mlvpn.conf)\n"
         " --natural-title       do not change process title\n"
         " -n, --name            change process-title and include 'name'\n"
         " -h, --help            this help\n"
-        " -p, --pidfile [path]  path to pidfile (eg. /var/run/mlvpn.pid)\n"
+        " -p, --pidfile [path]  path to pidfile (ex. /var/run/mlvpn.pid)\n"
         " -u, --user [username] drop privileges to user 'username'\n"
         " -v, --verbose         more debug messages on stdout\n"
         " --yes-run-as-root     ! please do not use !\n"
@@ -96,6 +97,27 @@ uint64_t mlvpn_millis()
         return 1;
     }
     return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+}
+
+int
+mlvpn_sock_set_nonblocking(int fd)
+{
+    int ret = 0;
+
+    long fl = fcntl(fd, F_GETFL);
+    if (fl < 0)
+    {
+        _ERROR("Error during fcntl: %s\n", strerror(errno));
+        ret = -1;
+    } else {
+        fl |= O_NONBLOCK;
+        if ( (ret = fcntl(fd, F_SETFL, fl)) < 0)
+        {
+            _ERROR("Unable to set socket %d non blocking: %s.\n",
+                fd, strerror(errno));
+        }
+    }
+    return ret;
 }
 
 mlvpn_tunnel_t *
@@ -298,7 +320,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     if (n < 0)
     {
-        _ERROR("Bind error on %d: %s\n", strerror(errno));
+        _ERROR("Bind error on %d: %s\n", fd, strerror(errno));
         return -1;
     }
     return 0;
@@ -416,18 +438,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     }
 
     /* set non blocking after connect... May lockup the entiere process */
-    long fl = fcntl(fd, F_GETFL);
-    if (fl < 0)
-    {
-        _ERROR("Error during fcntl on %d: %s\n", fd, strerror(errno));
-    } else {
-        fl |= O_NONBLOCK;
-        if (fcntl(fd, F_SETFL, fl) < 0)
-        {
-            _ERROR("Unable to set socket %d non blocking: %s\n",
-                fd, strerror(errno));
-        }
-    }
+    mlvpn_sock_set_nonblocking(fd);
 
     mlvpn_rtun_tick(t);
     return 0;
@@ -593,7 +604,6 @@ void mlvpn_rtun_tick_connect()
     }
 }
 
-
 int mlvpn_server_accept()
 {
     int fd;
@@ -628,7 +638,7 @@ int mlvpn_server_accept()
                             clienthost, sizeof(clienthost),
                             clientservice, sizeof(clientservice),
                             NI_NUMERICHOST|NI_NUMERICSERV);
-                _INFO("Connection attempt from [%s]:%s.\n", 
+                _INFO("Connection attempt from [%s]:%s.\n",
                     clienthost, clientservice);
                 if (t->fd >= 0)
                 {
@@ -637,18 +647,7 @@ int mlvpn_server_accept()
                 }
                 t->fd = fd;
 
-                long fl = fcntl(t->fd, F_GETFL);
-                if (fl < 0)
-                {
-                    _ERROR("Error during fcntl: %s\n", strerror(errno));
-                } else {
-                    fl |= O_NONBLOCK;
-                    if (fcntl(t->fd, F_SETFL, fl) < 0)
-                    {
-                        _ERROR("Unable to set socket %d non blocking: %s.\n",
-                            t->fd, strerror(errno));
-                    }
-                }
+                mlvpn_sock_set_nonblocking(t->fd);
             }
         }
         t = t->next;
@@ -716,7 +715,7 @@ void mlvpn_rtun_check_timeout()
     {
         if (t->fd > 0 && t->status >= MLVPN_CHAP_AUTHSENT && t->timeout > 0)
         {
-            if ((t->last_packet_time != 0) && 
+            if ((t->last_packet_time != 0) &&
                 (t->last_packet_time + t->timeout) < now)
             {
                 /* Timeout */
@@ -1039,7 +1038,7 @@ int mlvpn_config(int config_file_fd)
     int server_mode = 0;
 
     log = (logfile_t *)malloc(sizeof(logfile_t));
-    log->fd = NULL;
+    log->fd = stderr;
     log->filename = NULL;
     log->name = "mlvpn";
     log->level = 4;
@@ -1192,6 +1191,157 @@ void signal_hup(int sig)
     fprintf(stderr, "Must reload ? Received sig hup\n");
 }
 
+void
+mlvpn_control_init(struct mlvpn_control *ctrl)
+{
+    if (ctrl->mode == MLVPN_CONTROL_DISABLED)
+        return;
+
+    struct sockaddr_un un_addr;
+    struct addrinfo hints, *res, *bak;
+    int ret;
+    int val;
+    int fd;
+
+    res = bak = NULL;
+
+    ctrl->fifofd = -1;
+    ctrl->sockfd = -1;
+
+    /* UNIX domain socket */
+    if (*ctrl->fifo_path)
+    {
+        ctrl->fifofd = socket(AF_LOCAL, SOCK_STREAM, 0);
+        if (ctrl->fifofd < 0)
+            _ERROR("Unable to create unix socket.\n");
+        else {
+            memset(&un_addr, 0, sizeof(un_addr));
+            un_addr.sun_family = AF_UNIX;
+            strlcpy(un_addr.sun_path, ctrl->fifo_path, strlen(ctrl->fifo_path)+1);
+            /* remove existing sock if exists! (bad stop) */
+            /* TODO: handle proper "at_exit" removal of this socket */
+            unlink(un_addr.sun_path);
+            if (bind(ctrl->fifofd, (struct sockaddr *) &un_addr,
+                sizeof(un_addr)) < 0)
+            {
+                _ERROR("Error binding socket %s: %s\n", un_addr.sun_path,
+                    strerror(errno));
+                close(ctrl->fifofd);
+                ctrl->fifofd = -1;
+            }
+        }
+    }
+
+
+    /* INET socket */
+    if (*ctrl->bindaddr && *ctrl->bindport)
+    {
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_flags = AI_PASSIVE;
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+
+        ret = priv_getaddrinfo(ctrl->bindaddr, ctrl->bindport,
+            &res, &hints);
+        bak = res;
+        if (ret < 0 || ! res)
+        {
+            _ERROR("_getaddrinfo(%s,%s) failed: %s\n",
+                ctrl->bindaddr, ctrl->bindport,
+                gai_strerror(ret));
+        }
+
+        while(res)
+        {
+            if ( (ctrl->sockfd = socket(res->ai_family,
+                            res->ai_socktype,
+                            res->ai_protocol)) < 0)
+            {
+                _ERROR("Socket creation error (%s:%s): %s\n",
+                    ctrl->bindaddr, ctrl->bindport, strerror(errno));
+            } else {
+                val = 1;
+                setsockopt(ctrl->sockfd, SOL_SOCKET, SO_REUSEADDR,
+                    &val, sizeof(int));
+                setsockopt(ctrl->sockfd, IPPROTO_TCP, TCP_NODELAY,
+                    &val, sizeof(int));
+                if (bind(ctrl->sockfd, res->ai_addr, res->ai_addrlen) < 0)
+                {
+                    _ERROR("Bind error on %d: %s\n", ctrl->sockfd, strerror(errno));
+                    close(ctrl->sockfd);
+                    ctrl->sockfd = -1;
+                }
+                break;
+            }
+            res = res->ai_next;
+        }
+    }
+    if (bak)
+        freeaddrinfo(bak);
+
+    /* bind */
+    if (ctrl->fifofd >= 0)
+    {
+        if (mlvpn_sock_set_nonblocking(ctrl->fifofd) < 0)
+        {
+            close(ctrl->fifofd);
+            ctrl->fifofd = -1;
+        } else {
+            if (listen(ctrl->fifofd, 1) < 0)
+            {
+                _ERROR("Error listening: %s\n", strerror(errno));
+                close(ctrl->fifofd);
+                ctrl->fifofd = -1;
+            }
+        }
+    }
+    if (ctrl->sockfd >= 0)
+    {
+        if (mlvpn_sock_set_nonblocking(ctrl->sockfd) < 0)
+        {
+            close(ctrl->sockfd);
+            ctrl->sockfd = -1;
+        } else {
+            if (listen(ctrl->sockfd, 1) < 0)
+            {
+                _ERROR("Error listening: %s\n", strerror(errno));
+                close(ctrl->sockfd);
+                ctrl->sockfd = -1;
+            }
+        }
+    }
+
+    return;
+}
+
+int
+mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
+{
+    /* Early exit */
+    if (fd < 0 || ctrl->mode == MLVPN_CONTROL_DISABLED)
+        return;
+
+    printf("Accepting...\n");
+
+    int cfd;
+    int accepted = 0;
+    struct sockaddr_storage clientaddr;
+    socklen_t addrlen = sizeof(clientaddr);
+
+    cfd = accept(fd, (struct sockaddr *)&clientaddr, &addrlen);
+    if (cfd < 0)
+    {
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+            _ERROR("Error during accept: %s\n", strerror(errno));
+        else {
+            accepted++;
+            write(cfd, "Salut!\n", 7);
+            close(cfd);
+        }
+    }
+    return accepted;
+}
+
 int main(int argc, char **argv)
 {
     char **save_argv;
@@ -1200,6 +1350,7 @@ int main(int argc, char **argv)
     int maxfd = 0;
     char *cfgfilename = NULL;
     struct sigaction sa;
+    struct mlvpn_control control;
 
     /* setup signals */
     memset(&sa, 0, sizeof(sa));
@@ -1353,10 +1504,11 @@ int main(int argc, char **argv)
     {
         _ERROR("Unable to open config file %s.\n",
             mlvpn_options.config);
-        _exit(0);
+        _exit(1);
     }
 
-    mlvpn_config(mlvpn_options.config_fd);
+    if (mlvpn_config(mlvpn_options.config_fd) != 0)
+        _exit(1);
 
     /* tun/tap initialization */
     memset(&tuntap, 0, sizeof(tuntap));
@@ -1374,6 +1526,16 @@ int main(int argc, char **argv)
 
     priv_set_running_state();
 
+    /* Initialize mlvpn remote control system */
+    strlcpy(control.fifo_path, "mlvpn.sock", 11);
+    control.mode = MLVPN_CONTROL_READWRITE;
+    control.fifo_mode = 0600;
+    control.bindaddr = "0.0.0.0";
+    control.bindport = "1040";
+    control.fifofd = -1;
+    control.sockfd = -1;
+    mlvpn_control_init(&control);
+
     /* re-compute rtun weight based on bandwidth allocation */
     mlvpn_rtun_recalc_weight();
 
@@ -1386,6 +1548,10 @@ int main(int argc, char **argv)
 
     while (1)
     {
+        /* Control system */
+        mlvpn_control_accept(&control, control.fifofd);
+        mlvpn_control_accept(&control, control.sockfd);
+
         /* Connect rtun if not connected. tick if connected */
         mlvpn_rtun_tick_connect();
         mlvpn_rtun_check_timeout();

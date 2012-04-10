@@ -89,6 +89,18 @@ struct mlvpn_options
     int root_allowed;
 };
 
+/* Control socket (mkfifo and/or AF_INET6?) */
+struct mlvpn_control
+{
+    int mode;
+    char fifo_path[1024]; /* TODO #define */
+    mode_t fifo_mode;
+    int fifofd;
+    char *bindaddr;
+    char *bindport;
+    int sockfd;
+};
+
 typedef struct mlvpn_tunnel_s
 {
     char *name;           /* tunnel name */
@@ -130,6 +142,12 @@ enum {
 enum {
     MLVPN_TUNTAPMODE_TUN,
     MLVPN_TUNTAPMODE_TAP
+};
+
+enum {
+    MLVPN_CONTROL_DISABLED,
+    MLVPN_CONTROL_READONLY,
+    MLVPN_CONTROL_READWRITE
 };
 
 int mlvpn_config(int config_file_fd);
