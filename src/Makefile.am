@@ -18,4 +18,4 @@ mlvpn_SOURCES = \
 	control.c control.h \
     mlvpn.c mlvpn.h
 mlvpn_LDFLAGS=-lm
-CFLAGS=-Wall -Wno-strict-aliasing -Wno-format-zero-length
+CFLAGS=-g -Wall -Wno-strict-aliasing -Wno-format-zero-length
