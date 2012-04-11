@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include "ps_status.h"
+#include "strlcpy.h"
 
 extern char **environ;
 

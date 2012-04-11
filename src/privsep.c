@@ -557,7 +557,6 @@ priv_open_config(char *config_path)
 {
     int cmd, fd;
     size_t len;
-    FILE *fp;
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_open_config");
