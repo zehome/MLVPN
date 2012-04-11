@@ -41,12 +41,18 @@
 #include "strlcpy.h"
 
 /* GLOBALS */
-static struct tuntap_s tuntap;
-static pktbuffer_t *tap_send;
-static mlvpn_tunnel_t *rtun_start = NULL;
-static char *progname;
-static char *tundevname = NULL;
+struct tuntap_s tuntap;
+mlvpn_tunnel_t *rtun_start = NULL;
+char *progname;
+char *tundevname = NULL;
+
+/* "private" */
 static char *status_command = NULL;
+static pktbuffer_t *tap_send;
+
+/* Statistics */
+time_t start_time;
+time_t last_reload;
 
 /* Triggered by signal if sigint is raised */
 static int global_exit = 0;
@@ -750,12 +756,8 @@ int mlvpn_tuntap_read()
         sbuf = lpt->sbuf;
 
     len = read(tuntap.fd, buffer, DEFAULT_MTU);
-    if (len < 0)
+    if (len > 0)
     {
-        _ERROR("Error during read on %d: %s",
-            tuntap.fd, strerror(errno));
-        exit(1);
-    } else if (len > 0) {
         /* Not connected to anyone. read and discard packet. */
         if (! lpt)
             return len;
@@ -773,6 +775,14 @@ int mlvpn_tuntap_read()
             sbuf->len = 0;
         }
         mlvpn_put_pkt(sbuf, buffer, len);
+    } else if (len < 0) {
+        _ERROR("Error during read on %d: %s",
+            tuntap.fd, strerror(errno));
+        exit(1);
+    } else {
+        /* End of file */
+        _ERROR("Big error dude, should never reach end of file on tuntap device!\n");
+        exit(1);
     }
     return len;
 }
@@ -910,11 +920,8 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
         len = recvfrom(tun->fd, tun->rbuf.data+tun->rbuf.len, rlen,
             MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
     }
-    if (len < 0)
+    if (len > 0)
     {
-        _ERROR("Read error on %d: %s\n", tun->fd, strerror(errno));
-        mlvpn_rtun_status_down(tun);
-    } else if (len > 0) {
         if (tun->encap_prot == ENCAP_PROTO_TCP)
         {
             _DEBUG("< TUN %d read %d bytes.\n", tun->fd, len);
@@ -944,6 +951,12 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
         }
         tun->rbuf.len += len;
         mlvpn_rtun_tick_rbuf(tun);
+    } else if (len < 0) {
+        _ERROR("Read error on %d: %s\n", tun->fd, strerror(errno));
+        mlvpn_rtun_status_down(tun);
+    } else {
+        _INFO("Peer closed the connection %d.\n", tun->fd);
+        mlvpn_rtun_status_down(tun);
     }
     return len;
 }
@@ -1204,6 +1217,7 @@ int main(int argc, char **argv)
 #ifdef MLVPN_CONTROL
     struct mlvpn_control control;
 #endif
+    mlvpn_tunnel_t *tmptun;
 
     /* setup signals */
     memset(&sa, 0, sizeof(sa));
@@ -1212,15 +1226,20 @@ int main(int argc, char **argv)
     sa.sa_handler = SIG_DFL;
     for(i = 1; i < _NSIG; i++)
         sigaction(i, &sa, NULL);
+
     sa.sa_handler = signal_handler;
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGQUIT, &sa, NULL);
 
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, NULL);
+
     sa.sa_handler = signal_hup;
     sigaction(SIGHUP, &sa, NULL);
 
-    mlvpn_tunnel_t *tmptun;
+    /* uptime statistics */
+    last_reload = start_time = time((time_t *)NULL);
 
     mlvpn_options.change_process_title = 1;
     *mlvpn_options.process_name = '\0';
@@ -1402,13 +1421,9 @@ int main(int argc, char **argv)
     while (1)
     {
 #ifdef MLVPN_CONTROL
-        /* Control system */
-        /* TODO: DO NOT RUN THIS ON EVERY RELAYED PACKET !!! */
-        mlvpn_control_accept(&control, control.fifofd);
-        mlvpn_control_accept(&control, control.sockfd);
+        /* TODO: Optimize */
         mlvpn_control_timeout(&control);
 #endif
-
         /* Connect rtun if not connected. tick if connected */
         mlvpn_rtun_tick_connect();
         mlvpn_rtun_check_timeout();
@@ -1418,6 +1433,22 @@ int main(int argc, char **argv)
 
         FD_ZERO(&rfds);
         FD_ZERO(&wfds);
+
+#ifdef MLVPN_CONTROL
+        if (control.fifofd >= 0)
+        {
+            FD_SET(control.fifofd, &rfds);
+            if (control.fifofd > maxfd)
+                maxfd = control.fifofd;
+        }
+        if (control.sockfd >= 0)
+        {
+            FD_SET(control.sockfd, &rfds);
+            if (control.sockfd > maxfd)
+                maxfd = control.sockfd;
+        }
+#endif
+
         FD_SET(tuntap.fd, &rfds);
         if (tuntap.fd > maxfd)
             maxfd = tuntap.fd;
@@ -1456,7 +1487,7 @@ int main(int argc, char **argv)
         }
         if (control.clientfd >= 0)
         {
-            if (*control.wbuf != '\0')
+            if (control.wbufpos > 0)
             {
                 FD_SET(control.clientfd, &wfds);
                 if (control.clientfd > maxfd)
@@ -1493,11 +1524,18 @@ int main(int argc, char **argv)
 #ifdef MLVPN_CONTROL
             if (control.clientfd >= 0)
             {
+                if(FD_ISSET(control.clientfd, &wfds))
+                    mlvpn_control_send(&control);
+            }
+            if (control.clientfd >= 0)
+            {
                 if(FD_ISSET(control.clientfd, &rfds))
                     mlvpn_control_read(&control);
-                if(FD_ISSET(control.clientfd, &wfds))
-                    mlvpn_control_write(&control);
             }
+            if (control.fifofd >= 0 && FD_ISSET(control.fifofd, &rfds))
+                mlvpn_control_accept(&control, control.fifofd);
+            if (control.sockfd >= 0 && FD_ISSET(control.sockfd, &rfds))
+                mlvpn_control_accept(&control, control.sockfd);
 #endif
         } else if (ret == 0) {
             /* timeout, check for "normalize sending" */

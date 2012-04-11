@@ -15,7 +15,49 @@
 #include "debug.h"
 #include "control.h"
 #include "mlvpn.h"
-    
+
+extern struct tuntap_s tuntap;
+extern mlvpn_tunnel_t *rtun_start;
+extern char *progname;
+extern time_t start_time;
+extern time_t last_reload;
+
+/* Yeah this is a bit uggly I admit :-) */
+static const char *json_status_base = "{"
+    "\"name\": \"%s\",\n"
+    "\"version\": \"%d.%d\",\n"
+    "\"uptime\": %u,\n"
+    "\"last_reload\": %u,\n"
+    "\"pid\": %d,\n"
+    "\"tuntap\": {\n"
+    "   \"type\": \"%s\",\n"
+    "   \"name\": \"%s\"\n"
+    "},\n"
+    "\"tunnels\": [\n";
+static const char *json_status_rtun = "{\n"
+    "   \"name\": \"%s\",\n"
+    "   \"mode\": \"%s\",\n"
+    "   \"encap\": \"%s\",\n"
+    "   \"bindaddr\": \"%s\",\n"
+    "   \"bindport\": \"%s\",\n"
+    "   \"destaddr\": \"%s\",\n"
+    "   \"destport\": \"%s\",\n"
+    "   \"status\": \"%s\",\n"
+    "   \"sentpackets\": %d,\n"
+    "   \"bandwidth\": %d,\n"
+    "   \"disconnects\": %d,\n"
+    "   \"last_packet\": %d,\n"
+    "   \"timeout\": %d\n"
+    "}%s\n";
+
+void
+mlvpn_control_close_client(struct mlvpn_control *ctrl)
+{
+    if (ctrl->clientfd >= 0)
+        close(ctrl->clientfd);
+    ctrl->clientfd = -1;
+}
+
 void
 mlvpn_control_init(struct mlvpn_control *ctrl)
 {
@@ -32,8 +74,8 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
     ctrl->fifofd = -1;
     ctrl->sockfd = -1;
     ctrl->clientfd = -1;
-    *ctrl->rbuf = '\0';
-    *ctrl->wbuf = '\0';
+    ctrl->wbuflen = 4096;
+    ctrl->wbuf = malloc(ctrl->wbuflen);
 
     /* UNIX domain socket */
     if (*ctrl->fifo_path)
@@ -165,9 +207,17 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
                 ctrl->clientfd);
             send(cfd, "ERR: Already connected.\n", 24, 0);
             close(cfd);
+            return 0;
         }
         accepted++;
-        ctrl->clientfd = cfd;
+        if (mlvpn_sock_set_nonblocking(cfd) < 0)
+        {
+            _ERROR("Unable to set client control socket non blocking: %s\n",
+                strerror(errno));
+            ctrl->clientfd = -1;
+            close(cfd);
+        } else
+            ctrl->clientfd = cfd;
         ctrl->rbufpos = 0;
         ctrl->wbufpos = 0;
         ctrl->last_activity = time((time_t *) NULL);
@@ -185,8 +235,7 @@ mlvpn_control_timeout(struct mlvpn_control *ctrl)
             time((time_t *)NULL))
         {
             _INFO("Control socket %d timeout.\n", ctrl->clientfd);
-            close(ctrl->clientfd);
-            ctrl->clientfd = -1;
+            mlvpn_control_close_client(ctrl);
             return 1;
         }
     }
@@ -213,20 +262,76 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
     for (i = 0, j = 0; i <= strlen(line); i++)
         if (line[i] != '\r')
             cline[j++] = line[i];
-    printf("Line before: `%s' len: %d After: `%s' len:%d (j=%d)\n",
-        line, strlen(line), cline, strlen(cline), j);
 
     cmd = strtok(cline, " ");
     if (! cmd)
         return;
     else
-        printf("Command: %s\n", cmd);
+        _DEBUG("control command: %s\n", cmd);
 
-    while( (arg = strtok(NULL, " ")) != NULL)
+    if (strncasecmp(cmd, "status", 6) == 0)
     {
-        printf("ARG[%d]: `%s'\n", argpos, arg);
-        argpos++;
+        char buf[1024];
+        size_t ret;
+        mlvpn_tunnel_t *t = rtun_start;
+        ret = snprintf(buf, 1024, json_status_base,
+            progname,
+            1, 1,
+            start_time,
+            last_reload,
+            0,
+            "tun",
+            tuntap.devname
+        );
+        mlvpn_control_write(ctrl, buf, ret);
+        while (t)
+        {
+            char *mode = t->server_mode ? "server" : "client";
+            char *status;
+            char *encap = ENCAP_PROTO_UDP ? "udp" : "tcp";
+
+            if (t->status == MLVPN_CHAP_DISCONNECTED)
+                status = "disconnected";
+            else if (t->status == MLVPN_CHAP_AUTHSENT)
+                status = "waiting peer";
+            else
+                status = "connected";
+
+            ret = snprintf(buf, 1024, json_status_rtun,
+                t->name,
+                mode,
+                encap,
+                t->bindaddr ? t->bindaddr : "any",
+                t->bindport ? t->bindport : "any",
+                t->destaddr ? t->destaddr : "",
+                t->destport ? t->destport : "",
+                status,
+                t->sendpackets,
+                t->sbuf->bandwidth,
+                t->disconnects,
+                t->last_packet_time,
+                t->timeout,
+                (t != rtun_start) ? "," : ""
+            );
+            mlvpn_control_write(ctrl, buf, ret);
+
+            t = t->next;
+        }
+        mlvpn_control_write(ctrl, "]}\n", 3);
+    } else if (strncasecmp(cmd, "quit", 4) == 0) {
+        mlvpn_control_write(ctrl, "bye\n", 4);
+        mlvpn_control_close_client(ctrl);
+    } else {
+        mlvpn_control_write(ctrl, "error\n", 6);
     }
+
+    /*
+     *while( (arg = strtok(NULL, " ")) != NULL)
+     *{
+     *    printf("ARG[%d]: `%s'\n", argpos, arg);
+     *    argpos++;
+     *}
+     */
 }
 
 /* Returns 1 if a valid line is found. 0 otherwise. */
@@ -242,8 +347,7 @@ mlvpn_control_read_check(struct mlvpn_control *ctrl)
         if (c == MLVPN_CTRL_EOF)
         {
             _DEBUG("Received EOF from client %d.\n", ctrl->clientfd);
-            close(ctrl->clientfd);
-            ctrl->clientfd = -1;
+            mlvpn_control_close_client(ctrl);
             break;
         }
 
@@ -270,35 +374,77 @@ mlvpn_control_read(struct mlvpn_control *ctrl)
 
     len = read(ctrl->clientfd, ctrl->rbuf + ctrl->rbufpos,
         MLVPN_CTRL_BUFSIZ - ctrl->rbufpos);
-    if (len < 0)
+    if (len > 0)
     {
-        _ERROR("Read error on Md: %s\n", ctrl->clientfd,
-            strerror(errno));
-        close(ctrl->clientfd);
-        ctrl->clientfd = -1;
-    } else if (len > 0) {
         ctrl->last_activity = time((time_t *)NULL);
         _DEBUG("Read %d bytes on control fd.\n", len);
         ctrl->rbufpos += len;
         if (ctrl->rbufpos >= MLVPN_CTRL_BUFSIZ)
         {
             _ERROR("Buffer overflow on control read buffer.\n");
-            close(ctrl->clientfd);
-            ctrl->clientfd = -1;
+            mlvpn_control_close_client(ctrl);
             return -1;
         }
 
         /* Parse the message */
         while (mlvpn_control_read_check(ctrl) != 0);
+    } else if (len < 0) {
+        _ERROR("Read error on fd %d: %s\n", ctrl->clientfd,
+            strerror(errno));
+        mlvpn_control_close_client(ctrl);
+    } else {
+        /* End of file */
+        ctrl->clientfd = -1;
     }
 
     return 0;
 }
 
+int
+mlvpn_control_write(struct mlvpn_control *ctrl, void *buf, size_t len)
+{
+    if (ctrl->wbuflen - (ctrl->wbufpos+len) <= 0)
+    {
+        /* Hard realloc */
+        ctrl->wbuflen += 1024*32;
+        ctrl->wbuf = realloc(ctrl->wbuf, ctrl->wbuflen);
+    }
+
+    if (ctrl->wbuflen - (ctrl->wbufpos+len) <= 0)
+    {
+        _ERROR("Buffer overflow.\n");
+        mlvpn_control_close_client(ctrl);
+        return -1;
+    }
+
+    memcpy(ctrl->wbuf+ctrl->wbufpos, buf, len);
+    ctrl->wbufpos += len;
+    return len;
+}
+
 /* Flush the control client wbuf */
 int
-mlvpn_control_write(struct mlvpn_control *ctrl)
+mlvpn_control_send(struct mlvpn_control *ctrl)
 {
-    return 0;
+    int len;
+
+    if (ctrl->wbufpos <= 0)
+    {
+        _ERROR("Nothing to write on control socket.\n");
+        return -1;
+    }
+    len = write(ctrl->clientfd, ctrl->wbuf, ctrl->wbufpos);
+    if (len < 0)
+    {
+        _ERROR("Error writing on control socket %d: %s\n",
+            ctrl->clientfd, strerror(errno));
+        mlvpn_control_close_client(ctrl);
+    } else {
+        ctrl->wbufpos -= len;
+        if (ctrl->wbufpos > 0)
+            memmove(ctrl->wbuf, ctrl->wbuf+len, ctrl->wbufpos);
+    }
+
+    return len;
 }
 

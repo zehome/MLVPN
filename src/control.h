@@ -22,7 +22,8 @@ struct mlvpn_control
     time_t last_activity;
     char rbuf[MLVPN_CTRL_BUFSIZ];
     int rbufpos;
-    char wbuf[MLVPN_CTRL_BUFSIZ];
+    char *wbuf;
+    int wbuflen;
     int wbufpos;
 };
 
@@ -31,8 +32,6 @@ enum {
     MLVPN_CONTROL_READONLY,
     MLVPN_CONTROL_READWRITE
 };
-
-
 
 void
 mlvpn_control_init(struct mlvpn_control *ctrl);
@@ -49,10 +48,16 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line);
 int
 mlvpn_control_read_check(struct mlvpn_control *ctrl);
 
+/* inside control, write to buffer */
+int
+mlvpn_control_write(struct mlvpn_control *ctrl, void *buf, size_t len);
+
+/* From main loop */
 int
 mlvpn_control_read(struct mlvpn_control *ctrl);
 
+/* From main loop */
 int
-mlvpn_control_write(struct mlvpn_control *ctrl);
+mlvpn_control_send(struct mlvpn_control *ctrl);
 
 #endif

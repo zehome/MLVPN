@@ -124,6 +124,9 @@ priv_init(char *argv[], char *username)
     for (i = 1; i < _NSIG; i++)
         sigaction(i, &sa, NULL);
 
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, NULL);
+
     /* Create sockets */
     if (socketpair(AF_LOCAL, SOCK_STREAM, PF_UNSPEC, socks) == -1)
         err(1, "socketpair() failed");
