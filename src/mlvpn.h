@@ -44,6 +44,7 @@ struct tuntap_s
     int fd;
     int mtu;
     char devname[IFNAMSIZ];
+    int type; /* MLVPN_TUNTAPMODE_* */
 };
 
 

@@ -669,7 +669,7 @@ int mlvpn_tuntap_alloc()
 {
     int fd;
 
-    if ((fd = priv_open_tun(MLVPN_TUNTAPMODE_TUN, tuntap.devname)) < 0 )
+    if ((fd = priv_open_tun(tuntap.type, tuntap.devname)) < 0 )
     {
         _ERROR("Unable to open /dev/net/tun RW. Check permissions.\n");
         return fd;
@@ -764,12 +764,14 @@ int mlvpn_tuntap_read()
         if (! lpt)
             return len;
 
-        struct mlvpn_ipv4 ip4;
-        decap_ip4_frame(&ip4, buffer);
-
-        /* icmp ? */
-        if (ip4.proto & 0x01 || ip4.tos & 0x10)
-            sbuf = lpt->hpsbuf;
+        if (tuntap.type == MLVPN_TUNTAPMODE_TUN)
+        {
+            struct mlvpn_ipv4 ip4;
+            decap_ip4_frame(&ip4, buffer);
+            /* icmp ? */
+            if (ip4.proto & 0x01 || ip4.tos & 0x10)
+                sbuf = lpt->hpsbuf;
+        }
 
         if (sbuf->len+1 > PKTBUFSIZE)
         {
@@ -1103,6 +1105,14 @@ int mlvpn_config(int config_file_fd)
                     "timeout", &default_timeout, 60, NULL, 0);
                 _conf_set_str_from_conf(config, lastSection,
                     "interface_name", &tundevname, "mlvpn0", NULL, 0);
+
+                _conf_set_str_from_conf(config, lastSection,
+                    "tuntap", &tmp, "tun", NULL, 0);
+                if (mystr_eq(tmp, "tun")) {
+                    tuntap.type = MLVPN_TUNTAPMODE_TUN;
+                } else {
+                    tuntap.type = MLVPN_TUNTAPMODE_TAP;
+                }
 
                 if (mystr_eq(mode, "server"))
                     server_mode = 1;
