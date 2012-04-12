@@ -1475,7 +1475,11 @@ int main(int argc, char **argv)
         while (tmptun)
         {
             if (tmptun->server_fd > 0 && tmptun->encap_prot == ENCAP_PROTO_TCP)
+            {
                 FD_SET(tmptun->server_fd, &rfds);
+                if (tmptun->server_fd > maxfd)
+                    maxfd = tmptun->server_fd;
+            }
 
             if (tmptun->fd > 0)
             {
