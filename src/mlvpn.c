@@ -440,7 +440,6 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             } else {
                 _ERROR("Connection to [%s]:%s failed: %s\n",
                     addr, port, strerror(errno));
-                close(fd);
                 t->fd = -1;
                 t->status = 0;
                 return -4;
