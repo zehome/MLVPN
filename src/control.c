@@ -283,7 +283,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
             (uint32_t) start_time,
             (uint32_t) last_reload,
             0,
-            "tun",
+            tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
             tuntap.devname
         );
         mlvpn_control_write(ctrl, buf, ret);
@@ -291,7 +291,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
         {
             char *mode = t->server_mode ? "server" : "client";
             char *status;
-            char *encap = ENCAP_PROTO_UDP ? "udp" : "tcp";
+            char *encap = t->encap_prot == ENCAP_PROTO_UDP ? "udp" : "tcp";
 
             if (t->status == MLVPN_CHAP_DISCONNECTED)
                 status = "disconnected";
@@ -309,10 +309,10 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
                 t->destaddr ? t->destaddr : "",
                 t->destport ? t->destport : "",
                 status,
-                t->sentpackets,
-                t->recvpackets,
-                t->sentbytes,
-                t->recvbytes,
+                (long long unsigned int)t->sentpackets,
+                (long long unsigned int)t->recvpackets,
+                (long long unsigned int)t->sentbytes,
+                (long long unsigned int)t->recvbytes,
                 t->sbuf->bandwidth,
                 t->disconnects,
                 (uint32_t) t->last_packet_time,
