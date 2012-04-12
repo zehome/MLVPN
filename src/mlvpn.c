@@ -1443,7 +1443,6 @@ int main(int argc, char **argv)
         /* Connect rtun if not connected. tick if connected */
         mlvpn_rtun_tick_connect();
         mlvpn_rtun_check_timeout();
-        mlvpn_server_accept();
 
         fd_set rfds, wfds;
 
@@ -1476,6 +1475,9 @@ int main(int argc, char **argv)
         tmptun = rtun_start;
         while (tmptun)
         {
+            if (tmptun->server_fd > 0 && tmptun->encap_prot == ENCAP_PROTO_TCP)
+                FD_SET(tmptun->server_fd, &rfds);
+
             if (tmptun->fd > 0)
             {
                 if (tmptun->sbuf->len > 0 || tmptun->hpsbuf->len > 0)
@@ -1535,6 +1537,10 @@ int main(int argc, char **argv)
                     if (FD_ISSET(tmptun->fd, &wfds))
                         mlvpn_rtun_timer_write(tmptun);
                 }
+                if (tmptun->server_fd > 0 && tmptun->encap_prot == ENCAP_PROTO_TCP)
+                    if (FD_ISSET(tmptun->server_fd, &rfds))
+                        mlvpn_server_accept();
+
                 tmptun = tmptun->next;
             }
 #ifdef MLVPN_CONTROL
