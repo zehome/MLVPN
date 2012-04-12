@@ -317,7 +317,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
                 t->disconnects,
                 (uint32_t) t->last_packet_time,
                 (uint32_t) t->timeout,
-                (t != rtun_start) ? "," : ""
+                (t->next) ? "," : ""
             );
             mlvpn_control_write(ctrl, buf, ret);
 
