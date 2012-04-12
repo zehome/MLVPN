@@ -109,7 +109,10 @@ typedef struct mlvpn_tunnel_s
     int conn_attempts;    /* connection attempts */
     time_t next_attempt;  /* next connection attempt */
     double weight;        /* For weight round robin */
-    uint64_t sendpackets; /* 64bit packets send counter */
+    uint64_t sentpackets; /* 64bit packets sent counter */
+    uint64_t recvpackets; /* 64bit packets recv counter */
+    uint64_t sentbytes;   /* 64bit bytes sent counter */
+    uint64_t recvbytes;   /* 64bit bytes recv counter */
     pktbuffer_t *sbuf;    /* send buffer */
     pktbuffer_t *hpsbuf;  /* high priority buffer */
     struct mlvpn_buffer rbuf;    /* receive buffer */

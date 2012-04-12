@@ -23,32 +23,36 @@ extern time_t start_time;
 extern time_t last_reload;
 
 /* Yeah this is a bit uggly I admit :-) */
-static const char *json_status_base = "{"
-    "\"name\": \"%s\",\n"
-    "\"version\": \"%d.%d\",\n"
-    "\"uptime\": %u,\n"
-    "\"last_reload\": %u,\n"
-    "\"pid\": %d,\n"
-    "\"tuntap\": {\n"
-    "   \"type\": \"%s\",\n"
-    "   \"name\": \"%s\"\n"
-    "},\n"
-    "\"tunnels\": [\n";
-static const char *json_status_rtun = "{\n"
-    "   \"name\": \"%s\",\n"
-    "   \"mode\": \"%s\",\n"
-    "   \"encap\": \"%s\",\n"
-    "   \"bindaddr\": \"%s\",\n"
-    "   \"bindport\": \"%s\",\n"
-    "   \"destaddr\": \"%s\",\n"
-    "   \"destport\": \"%s\",\n"
-    "   \"status\": \"%s\",\n"
-    "   \"sentpackets\": %d,\n"
-    "   \"bandwidth\": %d,\n"
-    "   \"disconnects\": %d,\n"
-    "   \"last_packet\": %d,\n"
-    "   \"timeout\": %d\n"
-    "}%s\n";
+#define JSON_STATUS_BASE "{" \
+    "\"name\": \"%s\",\n" \
+    "\"version\": \"%d.%d\",\n" \
+    "\"uptime\": %u,\n" \
+    "\"last_reload\": %u,\n" \
+    "\"pid\": %d,\n" \
+    "\"tuntap\": {\n" \
+    "   \"type\": \"%s\",\n" \
+    "   \"name\": \"%s\"\n" \
+    "},\n" \
+    "\"tunnels\": [\n"
+
+#define JSON_STATUS_RTUN "{\n" \
+    "   \"name\": \"%s\",\n" \
+    "   \"mode\": \"%s\",\n" \
+    "   \"encap\": \"%s\",\n" \
+    "   \"bindaddr\": \"%s\",\n" \
+    "   \"bindport\": \"%s\",\n" \
+    "   \"destaddr\": \"%s\",\n" \
+    "   \"destport\": \"%s\",\n" \
+    "   \"status\": \"%s\",\n" \
+    "   \"sentpackets\": %llu,\n" \
+    "   \"recvpackets\": %llu,\n" \
+    "   \"sentbytes\": %llu,\n" \
+    "   \"recvbytes\": %llu,\n" \
+    "   \"bandwidth\": %d,\n" \
+    "   \"disconnects\": %d,\n" \
+    "   \"last_packet\": %u,\n" \
+    "   \"timeout\": %u\n" \
+    "}%s\n"
 
 void
 mlvpn_control_close_client(struct mlvpn_control *ctrl)
@@ -253,9 +257,8 @@ mlvpn_control_timeout(struct mlvpn_control *ctrl)
 void
 mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
 {
-    char *cmd, *arg;
+    char *cmd;
     char cline[MLVPN_CTRL_BUFSIZ];
-    int argpos = 0;
     int i, j;
 
     /* Cleanup \r */
@@ -274,11 +277,11 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
         char buf[1024];
         size_t ret;
         mlvpn_tunnel_t *t = rtun_start;
-        ret = snprintf(buf, 1024, json_status_base,
+        ret = snprintf(buf, 1024, JSON_STATUS_BASE,
             progname,
             1, 1,
-            start_time,
-            last_reload,
+            (uint32_t) start_time,
+            (uint32_t) last_reload,
             0,
             "tun",
             tuntap.devname
@@ -297,7 +300,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
             else
                 status = "connected";
 
-            ret = snprintf(buf, 1024, json_status_rtun,
+            ret = snprintf(buf, 1024, JSON_STATUS_RTUN,
                 t->name,
                 mode,
                 encap,
@@ -306,11 +309,14 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
                 t->destaddr ? t->destaddr : "",
                 t->destport ? t->destport : "",
                 status,
-                t->sendpackets,
+                t->sentpackets,
+                t->recvpackets,
+                t->sentbytes,
+                t->recvbytes,
                 t->sbuf->bandwidth,
                 t->disconnects,
-                t->last_packet_time,
-                t->timeout,
+                (uint32_t) t->last_packet_time,
+                (uint32_t) t->timeout,
                 (t != rtun_start) ? "," : ""
             );
             mlvpn_control_write(ctrl, buf, ret);
@@ -326,6 +332,8 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
     }
 
     /*
+     * char *arg;
+     * int argpos = 0;
      *while( (arg = strtok(NULL, " ")) != NULL)
      *{
      *    printf("ARG[%d]: `%s'\n", argpos, arg);

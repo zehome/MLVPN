@@ -184,6 +184,9 @@ mlvpn_rtun_new(const char *name,
     new->status = MLVPN_CHAP_DISCONNECTED;
     new->encap_prot = ENCAP_PROTO_UDP;
     new->addrinfo = NULL;
+    new->sentpackets = 0;
+    new->sentbytes = 0;
+    new->recvbytes = 0;
 
     if (bindaddr)
     {
@@ -457,7 +460,6 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
 {
     char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
     t->status = MLVPN_CHAP_AUTHOK;
-    t->sendpackets = 0;
 
     mlvpn_rtun_wrr_init(rtun_start);
     if (! t->server_mode)
@@ -699,7 +701,7 @@ mlvpn_tunnel_t *mlvpn_rtun_choose()
     mlvpn_tunnel_t *tun;
     tun = mlvpn_rtun_wrr_choose();
     if (tun)
-        tun->sendpackets++;
+        tun->sentpackets++;
     return tun;
 }
 
@@ -922,6 +924,9 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
     }
     if (len > 0)
     {
+        tun->recvbytes += len;
+        tun->recvpackets += 1;
+
         if (tun->encap_prot == ENCAP_PROTO_TCP)
         {
             _DEBUG("< TUN %d read %d bytes.\n", tun->fd, len);
@@ -981,6 +986,7 @@ int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
         _ERROR("Write error on %d: %s\n", tun->fd, strerror(errno));
         mlvpn_rtun_status_down(tun);
     } else {
+        tun->sentbytes += len;
         if (wlen != len)
         {
             _ERROR("Error writing on TUN %d: written %d bytes over %d.\n",
