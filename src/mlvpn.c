@@ -1534,12 +1534,14 @@ int main(int argc, char **argv)
             while (tmptun)
             {
                 if (tmptun->fd > 0)
-                {
                     if (FD_ISSET(tmptun->fd, &rfds))
                         mlvpn_rtun_read(tmptun);
+
+                /* YES another check as mlvpn_rtun_read can close the socket */
+                if (tmptun->fd > 0)
                     if (FD_ISSET(tmptun->fd, &wfds))
                         mlvpn_rtun_timer_write(tmptun);
-                }
+
                 if (tmptun->server_fd > 0 && tmptun->encap_prot == ENCAP_PROTO_TCP)
                     if (FD_ISSET(tmptun->server_fd, &rfds))
                         mlvpn_server_accept();
@@ -1548,15 +1550,14 @@ int main(int argc, char **argv)
             }
 #ifdef MLVPN_CONTROL
             if (control.clientfd >= 0)
-            {
-                if(FD_ISSET(control.clientfd, &wfds))
-                    mlvpn_control_send(&control);
-            }
-            if (control.clientfd >= 0)
-            {
                 if(FD_ISSET(control.clientfd, &rfds))
                     mlvpn_control_read(&control);
-            }
+
+            /* YES another check as mlvpn_control_read can close the socket */
+            if (control.clientfd >= 0)
+                if(FD_ISSET(control.clientfd, &wfds))
+                    mlvpn_control_send(&control);
+
             if (control.fifofd >= 0 && FD_ISSET(control.fifofd, &rfds))
                 mlvpn_control_accept(&control, control.fifofd);
             if (control.sockfd >= 0 && FD_ISSET(control.sockfd, &rfds))
