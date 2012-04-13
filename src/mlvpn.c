@@ -932,27 +932,27 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
         {
             _DEBUG("< TUN %d read %d bytes.\n", tun->fd, len);
         } else {
-            char clienthost[NI_MAXHOST];
-            char clientport[NI_MAXSERV];
-            int ret;
-            if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
-                 clienthost, sizeof(clienthost),
-                clientport, sizeof(clientport),
-                NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
+            if ((!tun->addrinfo) ||
+                (tun->addrinfo->ai_addrlen != addrlen) ||
+                (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
             {
-                _ERROR("Error in getnameinfo: %d: %s\n",
-                    ret, strerror(errno));
-            } else {
-                _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len,
-                    clienthost, clientport);
-                if (! tun->addrinfo->ai_addrlen)
-                    tun->addrinfo->ai_addrlen = addrlen;
-                if (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0)
+                char clienthost[NI_MAXHOST];
+                char clientport[NI_MAXSERV];
+                int ret;
+                if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
+                     clienthost, sizeof(clienthost),
+                    clientport, sizeof(clientport),
+                    NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
                 {
+                    _ERROR("Error in getnameinfo: %d: %s\n",
+                        ret, strerror(errno));
+                } else {
                     _DEBUG("New UDP connection -> %s\n", clienthost);
                     memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
                     tun->status = MLVPN_CHAP_DISCONNECTED;
                 }
+                _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len,
+                            clienthost, clientport);
             }
         }
         tun->rbuf.len += len;
