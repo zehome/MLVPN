@@ -24,6 +24,10 @@ void
 __DEBUG(int _debug_line, const char *_debug_filename,
         int _debug_priority,  const char *_debug_message, ...)
 {
+    /* message de prioritée inférieure a notre prio, on vire */
+    if (_debug_priority >= current_level)
+        return;
+
     char z_format[1024] = {0};
     va_list ap;
     time_t now;
@@ -34,10 +38,6 @@ __DEBUG(int _debug_line, const char *_debug_filename,
         output = output_file;
     else
         output = stderr;
-
-    /* message de prioritée inférieure a notre prio, on vire */
-    if (_debug_priority >= current_level)
-        return;
 
     now = time((time_t *)NULL);
     if (now == (time_t)-1)
