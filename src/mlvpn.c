@@ -635,6 +635,7 @@ int mlvpn_server_accept()
             {
                 if (errno != EAGAIN && errno != EWOULDBLOCK)
                 {
+                    /* TODO: Disable server_fd ! */
                     _ERROR("Error during accept: %s\n", strerror(errno));
                 }
             } else {
@@ -731,7 +732,7 @@ void mlvpn_rtun_check_timeout()
                 _INFO("Link %d timeout.\n", t->fd);
                 mlvpn_rtun_status_down(t);
             } else if (t->status == MLVPN_CHAP_AUTHOK) {
-                if ((t->next_keepalive == 0) || 
+                if ((t->next_keepalive == 0) ||
                     (t->next_keepalive < now))
                 {
                     /* Send a keepalive packet */
