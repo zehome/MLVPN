@@ -5,26 +5,34 @@
 #include "debug.h"
 #include "mlvpn.h"
 
-/* Build a new pkt and insert into pktbuffer */
+/* checks the selected pktbuffer if a packet can be inserted
+ * returns 0 on success
+ * returns -1 on error
+ * if the reset flag is set to 1, then the buffer is flushed
+ */
 int
-mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len)
+mlvpn_check_buffer(pktbuffer_t *buf, int reset)
 {
-    mlvpn_pkt_t pkt;
-    if (len > MAX_PKT_LEN)
+    if (buf->len > PKTBUFSIZE)
     {
-        _ERROR("Packet len %u overlimit %u. MTU too high.\n", 
-            (uint32_t)len, (uint32_t) MAX_PKT_LEN);
+        if (reset)
+            buf->len = 0;
         return -1;
     }
-    pkt.pktdata.magic = MLVPN_MAGIC;
-    pkt.pktdata.len = len;
-    pkt.next_packet_send = 0;
-
-    memcpy(pkt.pktdata.data, data, len);
-    memcpy(&buf->pkts[buf->len], &pkt, sizeof(mlvpn_pkt_t));
-    return ++buf->len;
+    return 0;
 }
 
+/* Returns the next free mlvpn_pkt_t* */
+mlvpn_pkt_t *
+mlvpn_get_free_pkt(pktbuffer_t *buf)
+{
+    mlvpn_pkt_t *pkt = &buf->pkts[buf->len++];
+    pkt->pktdata.magic = MLVPN_MAGIC;
+    pkt->next_packet_send = 0;
+    return pkt;
+}
+
+/* TODO: find a better way to do that! */
 void
 mlvpn_pop_pkt(pktbuffer_t *buf)
 {

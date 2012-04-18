@@ -21,7 +21,10 @@ typedef struct pktbuffer_s
 } pktbuffer_t;
 
 int
-mlvpn_put_pkt(pktbuffer_t *buf, const void *data, size_t len);
+mlvpn_check_buffer(pktbuffer_t *buf, int reset);
+
+mlvpn_pkt_t *
+mlvpn_get_free_pkt(pktbuffer_t *buf);
 
 void
 mlvpn_pop_pkt(pktbuffer_t *buf);
