@@ -774,6 +774,8 @@ int mlvpn_tuntap_read()
                 sbuf = lpt->hpsbuf;
         }
 #endif
+        if (sbuf->len+1 > PKTBUFSIZE)
+        {
             _WARNING("TUN %d buffer overflow.\n", lpt->fd);
             sbuf->len = 0;
         }
