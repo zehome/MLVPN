@@ -17,6 +17,11 @@
    will gain in security and very small performance,
    but lack of statistics & remote control obviously! */
 #define MLVPN_CONTROL
+/* undef this to disable frame introspection
+ * This can improve performance, but will
+ * disable the "high priority queue"
+ */
+#define MLVPN_DECAP_FRAMES
 
 #define MLVPN_ETH_IP4 0x0800
 #define MLVPN_ETH_IP6 0x86DD

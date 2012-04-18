@@ -763,6 +763,7 @@ int mlvpn_tuntap_read()
         if (! lpt)
             return len;
 
+#ifdef MLVPN_DECAP_FRAMES
         if (tuntap.type == MLVPN_TUNTAPMODE_TUN)
         {
             struct mlvpn_ipv4 ip4;
@@ -771,9 +772,7 @@ int mlvpn_tuntap_read()
             if (ip4.proto & 0x01 || ip4.tos & 0x10)
                 sbuf = lpt->hpsbuf;
         }
-
-        if (sbuf->len+1 > PKTBUFSIZE)
-        {
+#endif
             _WARNING("TUN %d buffer overflow.\n", lpt->fd);
             sbuf->len = 0;
         }
