@@ -45,6 +45,7 @@ struct tuntap_s tuntap;
 mlvpn_tunnel_t *rtun_start = NULL;
 char *progname;
 char *tundevname = NULL;
+logfile_t *logger;
 
 /* "private" */
 static char *status_command = NULL;
@@ -474,6 +475,9 @@ void mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     if (t->fd > 0)
         close(t->fd);
     t->fd = -1;
+    if (t->server_fd > 0)
+        close(t->server_fd);
+    t->server_fd = -1;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->rbuf.len = 0;
     t->sbuf->len = 0;
@@ -489,6 +493,40 @@ void mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     }
 }
 
+void mlvpn_rtun_drop(mlvpn_tunnel_t *t)
+{
+    mlvpn_tunnel_t *tmp, *prev = rtun_start;
+    mlvpn_rtun_status_down(t);
+
+    while (tmp)
+    {
+        if (tmp == t) /* Yes, compare pointers */
+        {
+            prev->next = tmp->next;
+            if (tmp->name)
+                free(tmp->name);
+            if (tmp->bindaddr)
+                free(tmp->bindaddr);
+            if (tmp->bindport)
+                free(tmp->bindport);
+            if (tmp->destaddr)
+                free(tmp->destaddr);
+            if (tmp->destport)
+                free(tmp->destport);
+            if (tmp->addrinfo)
+                freeaddrinfo(tmp->addrinfo);
+            free(tmp->sbuf->pkts);
+            free(tmp->sbuf);
+            free(tmp->hpsbuf->pkts);
+            free(tmp->hpsbuf);
+            /* Safety */
+            tmp->name = NULL;
+        } else
+            prev = tmp;
+
+        tmp = tmp->next;
+    }
+}
 
 void mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 {
@@ -1042,22 +1080,31 @@ mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
     return bytesent;
 }
 
-int mlvpn_config(int config_file_fd)
+/* Config file reading / re-read.
+ * config_file_fd: fd opened in priv_open_config
+ * first_time: set to 0 for re-read, or 1 for initial configuration
+ */
+int mlvpn_config(int config_file_fd, int first_time)
 {
     config_t *config, *work;
     mlvpn_tunnel_t *tmptun;
-    logfile_t *log;
     char *tmp;
+    char *mode;
     char *lastSection = NULL;
     int default_protocol = ENCAP_PROTO_UDP;
     int default_timeout = 60;
-    int server_mode = 0;
+    int default_server_mode = 0; /* 0 => client */
 
-    log = (logfile_t *)malloc(sizeof(logfile_t));
-    log->fd = stderr;
-    log->filename = NULL;
-    log->name = "mlvpn";
-    log->level = 4;
+    if (first_time)
+    {
+        logger = (logfile_t *)malloc(sizeof(logfile_t));
+        logger->fd = stderr;
+        logger->filename = NULL;
+        logger->name = "mlvpn";
+        logger->level = 4;
+
+        tuntap.type = MLVPN_TUNTAPMODE_TUN;
+    }
 
     work = config = _conf_parseConfig(config_file_fd);
     if (! config)
@@ -1072,17 +1119,30 @@ int mlvpn_config(int config_file_fd)
             _DEBUG("Section %s\n", lastSection);
             if (mystr_eq(lastSection, "general"))
             {
-                char *mode;
+                if (first_time)
+                {
+                    _conf_set_str_from_conf(config, lastSection,
+                        "statuscommand", &status_command, NULL, NULL, 0);
+                    _conf_set_str_from_conf(config, lastSection,
+                        "interface_name", &tundevname, "mlvpn0", NULL, 0);
 
-                _conf_set_str_from_conf(config, lastSection,
-                    "statuscommand", &status_command, NULL, NULL, 0);
-                _conf_set_str_from_conf(config, lastSection,
-                    "logfile", &(log->filename), NULL, NULL, 0);
-                _conf_set_int_from_conf(config, lastSection,
-                    "loglevel", &(log->level), 4, NULL, 0);
+                    _conf_set_str_from_conf(config, lastSection,
+                        "tuntap", &tmp, "tun", NULL, 0);
+                    if (mystr_eq(tmp, "tun"))
+                        tuntap.type = MLVPN_TUNTAPMODE_TUN;
+                    else
+                        tuntap.type = MLVPN_TUNTAPMODE_TAP;
+                }
 
                 _conf_set_str_from_conf(config, lastSection,
                     "mode", &mode, NULL, "Operation mode is mandatory.", 1);
+                if (mystr_eq(mode, "server"))
+                    default_server_mode = 1;
+
+                _conf_set_str_from_conf(config, lastSection,
+                    "logfile", &(logger->filename), NULL, NULL, 0);
+                _conf_set_int_from_conf(config, lastSection,
+                    "loglevel", &(logger->level), 4, NULL, 0);
 
                 _conf_set_str_from_conf(config, lastSection,
                     "protocol", &tmp, "udp", NULL, 0);
@@ -1096,28 +1156,17 @@ int mlvpn_config(int config_file_fd)
 
                 _conf_set_int_from_conf(config, lastSection,
                     "timeout", &default_timeout, 60, NULL, 0);
-                _conf_set_str_from_conf(config, lastSection,
-                    "interface_name", &tundevname, "mlvpn0", NULL, 0);
-
-                _conf_set_str_from_conf(config, lastSection,
-                    "tuntap", &tmp, "tun", NULL, 0);
-                if (mystr_eq(tmp, "tun")) {
-                    tuntap.type = MLVPN_TUNTAPMODE_TUN;
-                } else {
-                    tuntap.type = MLVPN_TUNTAPMODE_TAP;
-                }
-
-                if (mystr_eq(mode, "server"))
-                    server_mode = 1;
             } else {
                 char *bindaddr;
                 char *bindport;
                 char *dstaddr;
                 char *dstport;
                 int bwlimit = 0;
+                int timeout = 30;
                 int protocol = default_protocol;
+                int create_tunnel = 1;
 
-                if (server_mode)
+                if (default_server_mode)
                 {
                     _conf_set_str_from_conf(config, lastSection,
                         "bindhost",
@@ -1167,27 +1216,107 @@ int mlvpn_config(int config_file_fd)
                     }
                 }
 
-                tmptun = mlvpn_rtun_new(lastSection, bindaddr, bindport, dstaddr, dstport,
-                    server_mode);
-                tmptun->encap_prot = protocol;
-
                 _conf_set_int_from_conf(config, lastSection,
                     "timeout",
-                    (int *)&(tmptun->timeout), default_timeout, NULL, 0);
+                    (int *)&timeout, default_timeout, NULL, 0);
 
-                if (bwlimit > 0)
+                if (rtun_start)
                 {
-                    tmptun->sbuf->bandwidth = bwlimit;
+                    tmptun = rtun_start;
+                    while (tmptun)
+                    {
+                        if (mystr_eq(lastSection, tmptun->name))
+                        {
+                            _INFO("Updating tunnel %s during config reload.\n",
+                                tmptun->name);
+                            if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
+                                (! mystr_eq(tmptun->bindport, bindport)) ||
+                                (! mystr_eq(tmptun->destaddr, dstaddr)) ||
+                                (! mystr_eq(tmptun->destport, dstport)) ||
+                                (tmptun->encap_prot != protocol))
+                            {
+                                mlvpn_rtun_status_down(tmptun);
+                            }
+
+                            if (bindaddr)
+                            {
+                                if (! tmptun->bindaddr)
+                                    tmptun->bindaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
+                                strlcpy(tmptun->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
+                            }
+                            if (bindport)
+                            {
+                                if (! tmptun->bindport)
+                                    tmptun->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
+                                strlcpy(tmptun->bindport, bindport, MLVPN_MAXPORTSTR);
+                            }
+                            if (dstaddr)
+                            {
+                                if (! tmptun->destaddr)
+                                    tmptun->destaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
+                                strlcpy(tmptun->destaddr, dstaddr, MLVPN_MAXHNAMSTR);
+                            }
+                            if (dstport)
+                            {
+                                if (! tmptun->destport)
+                                    tmptun->destport = calloc(1, MLVPN_MAXPORTSTR+1);
+                                strlcpy(tmptun->destport, dstport, MLVPN_MAXPORTSTR);
+                            }
+                            create_tunnel = 0;
+                            break; /* Very important ! */
+                        }
+                        tmptun = tmptun->next;
+                    }
                 }
+
+                if (create_tunnel)
+                {
+                    _INFO("Adding tunnel %s.\n", lastSection);
+                    tmptun = mlvpn_rtun_new(lastSection, bindaddr, bindport,
+                        dstaddr, dstport, default_server_mode);
+                }
+                tmptun->encap_prot = protocol;
+
+                tmptun->timeout = timeout;
+                if (bwlimit > 0)
+                    tmptun->sbuf->bandwidth = bwlimit;
             }
-        } else if (lastSection == NULL) {
+        } else if (lastSection == NULL)
             lastSection = work->section;
-        }
 
         work = work->next;
     }
 
-    logger_init(log);
+    /* Ok, let's delete old tunnels */
+    if (! first_time)
+    {
+        tmptun = rtun_start;
+        while (tmptun)
+        {
+            int found_in_config = 0;
+
+            work = config;
+            while (work)
+            {
+                if (work->conf && work->section &&
+                    mystr_eq(work->section, tmptun->name))
+                {
+                    found_in_config = 1;
+                    break;
+                }
+                work = work->next;
+            }
+
+            if (! found_in_config)
+            {
+                _INFO("Deleting tunnel %s.\n", tmptun->name);
+                mlvpn_rtun_drop(tmptun);
+            }
+            tmptun = tmptun->next;
+        }
+    }
+
+    logger_init(logger);
     if (status_command)
         priv_init_script(status_command);
     return 0;
@@ -1388,7 +1517,7 @@ int main(int argc, char **argv)
         _exit(1);
     }
 
-    if (mlvpn_config(mlvpn_options.config_fd) != 0)
+    if (mlvpn_config(mlvpn_options.config_fd, 1) != 0)
         _exit(1);
 
     /* tun/tap initialization */

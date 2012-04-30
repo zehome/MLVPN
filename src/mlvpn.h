@@ -147,7 +147,7 @@ enum {
     MLVPN_TUNTAPMODE_TAP
 };
 
-int mlvpn_config(int config_file_fd);
+int mlvpn_config(int config_file_fd, int first_time);
 void init_buffers();
 
 uint64_t mlvpn_millis();
