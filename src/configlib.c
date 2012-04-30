@@ -76,41 +76,41 @@ _conf_parseConfig(int config_file_fd)
         {
             case '\r': break; /* Do nothing */
             case '\n':
-                       linenum++;
-                       buf[i] = 0;
-                       newline = _conf_strip_comment(buf, i);
+               linenum++;
+               buf[i] = 0;
+               newline = _conf_strip_comment(buf, i);
 
-                       if (newline)
+               if (newline)
+               {
+                   if ( (tmp = _conf_get_section(newline, i, linenum)) != NULL)
+                   {
+                       if (section != NULL)
+                           free(section);
+
+                       section = tmp;
+                   } else if ( (confObj = _conf_parseLine(newline,
+                                   strlen(newline), linenum)) != NULL)
+                   {
+                       if (section == NULL)
                        {
-                           if ( (tmp = _conf_get_section(newline, i, linenum)) != NULL)
-                           {
-                               if (section != NULL)
-                                   free(section);
-
-                               section = tmp;
-                           } else if ( (confObj = _conf_parseLine(newline,
-                                           strlen(newline), linenum)) != NULL)
-                           {
-                               if (section == NULL)
-                               {
-                                   _ERROR("Parse error near line %d: variables should "
-                                           "always been defined in a section!\n", linenum);
-                               } else if (_conf_setValue(config, confObj, section) == NULL) {
-                                   /* Error there, cleanup memory */
-                                   if (confObj->var)
-                                       free(confObj->var);
-                                   if (confObj->val)
-                                       free(confObj->val);
-                                   free(confObj);
-                               }
-                           }
-                           free(newline);
+                           _ERROR("Parse error near line %d: variables should "
+                                   "always been defined in a section!\n", linenum);
+                       } else if (_conf_setValue(config, confObj, section) == NULL) {
+                           /* Error there, cleanup memory */
+                           if (confObj->var)
+                               free(confObj->var);
+                           if (confObj->val)
+                               free(confObj->val);
+                           free(confObj);
                        }
+                   }
+                   free(newline);
+               }
 
-                       i = 0;
-                       break;
+               i = 0;
+               break;
             default:
-                       buf[i++] = c;
+               buf[i++] = c;
         }
     }
 
@@ -187,15 +187,15 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
     int i, j;
     char *section = NULL;
     char *errorMsg = NULL;
+    int found_terminator = 0;
 
-    for (i = 0, j = 0; i < linelen; i++)
+    for (i = 0, j = 0; i < linelen && !found_terminator; i++)
     {
         switch(line[i])
         {
             case '[':
                 if (section)
                 {
-                    free(section);
                     errorMsg = "Parse error near line %d: '[' followed by another '['\n";
                     goto error;
                 }
@@ -207,6 +207,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
                     errorMsg = "Parse error near line %d: ']' found, without '['.\n";
                     goto error;
                 }
+                found_terminator = 1;
                 section[j] = 0;
                 break;
             default:
@@ -216,8 +217,16 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
         }
     }
 
+    if (! found_terminator)
+    {
+        errorMsg = "Parse error near line %d: Terminator ']' not found.\n";
+        goto error;
+    }
+
     return section;
 error:
+    if (section)
+        free(section);
     if (errorMsg)
         _ERROR(errorMsg, linenum);
     return NULL;
@@ -261,7 +270,8 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
             case '=':
                 if (j == 0)
                 {
-                    _ERROR("Parse error near line %d: line should not start with '='.\n", linenum);
+                    _ERROR("Parse error near line %d: line should not start with '='.\n",
+                        linenum);
                     free(confObj);
                     free(buf);
                     return NULL;
@@ -300,8 +310,9 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
                 if (! isascii(c))
                 {
-                    _ERROR("Parse error: variable/value can't contain "
-                            "something other than ASCII.\n");
+                    _ERROR("Parse error near line %d: "
+                        "variable/value must be *ASCII ONLY*\n",
+                        linenum);
                     free(buf);
                     if (confObj->var)
                         free(confObj->var);
@@ -455,12 +466,13 @@ next:
 void
 _conf_printConfig(config_t *start)
 {
-    while (start != NULL)
+    config_t *tmp = start;
+    while (tmp != NULL)
     {
-        if (start->conf)
-            printf("section: %s, var: `%s' val: `%s'\n", start->section,
-                    start->conf->var, start->conf->val);
-        start = start->next;
+        if (tmp->conf)
+            printf("section: %s, var: `%s' val: `%s'\n",
+                tmp->section, tmp->conf->var, tmp->conf->val);
+        tmp = tmp->next;
     }
 }
 
