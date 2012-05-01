@@ -25,6 +25,8 @@ struct mlvpn_control
     char *wbuf;
     int wbuflen;
     int wbufpos;
+    int http; /* HTTP mode ? 1 for inet socket */
+    int close_after_write;
 };
 
 enum {

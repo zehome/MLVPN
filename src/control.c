@@ -22,6 +22,15 @@ extern char *progname;
 extern time_t start_time;
 extern time_t last_reload;
 
+void mlvpn_control_write_status(struct mlvpn_control *ctrl);
+
+#define HTTP_HEADERS "HTTP/1.1 200 OK\r\n" \
+    "Connection: close\r\n" \
+    "Content-type: application/json\r\n" \
+    "Access-Control-Allow-Origin: *\r\n" \
+    "Server: mlvpn\r\n" \
+    "\r\n"
+
 /* Yeah this is a bit uggly I admit :-) */
 #define JSON_STATUS_BASE "{" \
     "\"name\": \"%s\",\n" \
@@ -53,6 +62,7 @@ extern time_t last_reload;
     "   \"last_packet\": %u,\n" \
     "   \"timeout\": %u\n" \
     "}%s\n"
+#define JSON_STATUS_ERROR_UNKNOWN_COMMAND "{\"error\": 'unknown command'}\n"
 
 void
 mlvpn_control_close_client(struct mlvpn_control *ctrl)
@@ -80,6 +90,8 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
     ctrl->clientfd = -1;
     ctrl->wbuflen = 4096;
     ctrl->wbuf = malloc(ctrl->wbuflen);
+    ctrl->http = 0;
+    ctrl->close_after_write = 0;
 
     /* UNIX domain socket */
     if (*ctrl->fifo_path)
@@ -109,6 +121,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
     /* INET socket */
     if (*ctrl->bindaddr && *ctrl->bindport)
     {
+        ctrl->http = 1;
         memset(&hints, 0, sizeof(hints));
         hints.ai_flags = AI_PASSIVE;
         hints.ai_family = AF_INET;
@@ -257,89 +270,94 @@ mlvpn_control_timeout(struct mlvpn_control *ctrl)
 void
 mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
 {
-    char *cmd;
     char cline[MLVPN_CTRL_BUFSIZ];
+    char *cmd = NULL;
     int i, j;
 
     /* Cleanup \r */
     for (i = 0, j = 0; i <= strlen(line); i++)
         if (line[i] != '\r')
             cline[j++] = line[i];
-
     cmd = strtok(cline, " ");
+    if (ctrl->http)
+        cmd = strtok(NULL, " ");
+
     if (! cmd)
         return;
     else
         _DEBUG("control command: %s\n", cmd);
 
-    if (strncasecmp(cmd, "status", 6) == 0)
+    if (ctrl->http)
+        mlvpn_control_write(ctrl, HTTP_HEADERS, strlen(HTTP_HEADERS));
+
+    if (strncasecmp(cmd, "status", 6) == 0 || strncasecmp(cmd, "/status", 7) == 0)
     {
-        char buf[1024];
-        size_t ret;
-        mlvpn_tunnel_t *t = rtun_start;
-        ret = snprintf(buf, 1024, JSON_STATUS_BASE,
-            progname,
-            1, 1,
-            (uint32_t) start_time,
-            (uint32_t) last_reload,
-            0,
-            tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
-            tuntap.devname
-        );
-        mlvpn_control_write(ctrl, buf, ret);
-        while (t)
-        {
-            char *mode = t->server_mode ? "server" : "client";
-            char *status;
-            char *encap = t->encap_prot == ENCAP_PROTO_UDP ? "udp" : "tcp";
-
-            if (t->status == MLVPN_CHAP_DISCONNECTED)
-                status = "disconnected";
-            else if (t->status == MLVPN_CHAP_AUTHSENT)
-                status = "waiting peer";
-            else
-                status = "connected";
-
-            ret = snprintf(buf, 1024, JSON_STATUS_RTUN,
-                t->name,
-                mode,
-                encap,
-                t->bindaddr ? t->bindaddr : "any",
-                t->bindport ? t->bindport : "any",
-                t->destaddr ? t->destaddr : "",
-                t->destport ? t->destport : "",
-                status,
-                (long long unsigned int)t->sentpackets,
-                (long long unsigned int)t->recvpackets,
-                (long long unsigned int)t->sentbytes,
-                (long long unsigned int)t->recvbytes,
-                t->sbuf->bandwidth,
-                t->disconnects,
-                (uint32_t) t->last_packet_time,
-                (uint32_t) t->timeout,
-                (t->next) ? "," : ""
-            );
-            mlvpn_control_write(ctrl, buf, ret);
-
-            t = t->next;
-        }
-        mlvpn_control_write(ctrl, "]}\n", 3);
+        mlvpn_control_write_status(ctrl);
     } else if (strncasecmp(cmd, "quit", 4) == 0) {
-        mlvpn_control_write(ctrl, "bye\n", 4);
+        mlvpn_control_write(ctrl, "bye.", 4);
         mlvpn_control_close_client(ctrl);
     } else {
-        mlvpn_control_write(ctrl, "error\n", 6);
+        mlvpn_control_write(ctrl, JSON_STATUS_ERROR_UNKNOWN_COMMAND,
+            strlen(JSON_STATUS_ERROR_UNKNOWN_COMMAND));
     }
 
-    /*
-     * char *arg;
-     * int argpos = 0;
-     *while( (arg = strtok(NULL, " ")) != NULL)
-     *{
-     *    printf("ARG[%d]: `%s'\n", argpos, arg);
-     *    argpos++;
-     *}
-     */
+    if (ctrl->http)
+        ctrl->close_after_write = 1;
+}
+
+void mlvpn_control_write_status(struct mlvpn_control *ctrl)
+{
+    char buf[1024];
+    size_t ret;
+    mlvpn_tunnel_t *t = rtun_start;
+
+    ret = snprintf(buf, 1024, JSON_STATUS_BASE,
+        progname,
+        1, 1,
+        (uint32_t) start_time,
+        (uint32_t) last_reload,
+        0,
+        tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
+        tuntap.devname
+    );
+    mlvpn_control_write(ctrl, buf, ret);
+    while (t)
+    {
+        char *mode = t->server_mode ? "server" : "client";
+        char *status;
+        char *encap = t->encap_prot == ENCAP_PROTO_UDP ? "udp" : "tcp";
+
+        if (t->status == MLVPN_CHAP_DISCONNECTED)
+            status = "disconnected";
+        else if (t->status == MLVPN_CHAP_AUTHSENT)
+            status = "waiting peer";
+        else
+            status = "connected";
+
+        ret = snprintf(buf, 1024, JSON_STATUS_RTUN,
+            t->name,
+            mode,
+            encap,
+            t->bindaddr ? t->bindaddr : "any",
+            t->bindport ? t->bindport : "any",
+            t->destaddr ? t->destaddr : "",
+            t->destport ? t->destport : "",
+            status,
+            (long long unsigned int)t->sentpackets,
+            (long long unsigned int)t->recvpackets,
+            (long long unsigned int)t->sentbytes,
+            (long long unsigned int)t->recvbytes,
+            t->sbuf->bandwidth,
+            t->disconnects,
+            (uint32_t) t->last_packet_time,
+            (uint32_t) t->timeout,
+            (t->next) ? "," : ""
+        );
+        mlvpn_control_write(ctrl, buf, ret);
+
+        t = t->next;
+    }
+    mlvpn_control_write(ctrl, "]}\n", 3);
 }
 
 /* Returns 1 if a valid line is found. 0 otherwise. */
@@ -452,6 +470,9 @@ mlvpn_control_send(struct mlvpn_control *ctrl)
         if (ctrl->wbufpos > 0)
             memmove(ctrl->wbuf, ctrl->wbuf+len, ctrl->wbufpos);
     }
+
+    if (ctrl->close_after_write && ctrl->wbufpos <= 0)
+        mlvpn_control_close_client(ctrl);
 
     return len;
 }
