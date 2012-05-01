@@ -21,9 +21,8 @@
 #define MAXLINE 1024
 
 config_t *
-_conf_parseConfig(int config_file_fd)
+_conf_parseConfig(int config_fd)
 {
-    FILE *configFile;
     int size, i = 0;
     int bufsize = 256;
     unsigned int linenum = 0;
@@ -32,15 +31,16 @@ _conf_parseConfig(int config_file_fd)
     char *newline;
     char *tmp;
     char *section = NULL;
+    FILE *configFile;
 
     config_t *config;
     confObj_t *confObj;
 
-    configFile = fdopen(config_file_fd, "r");
+    configFile = fdopen(config_fd, "r");
     if (! configFile)
     {
         _ERROR("Unable to open config file fd: %d: %s\n",
-            config_file_fd, strerror(errno));
+            config_fd, strerror(errno));
         return NULL;
     }
     config = (config_t *)malloc(sizeof(config_t));
@@ -117,6 +117,7 @@ _conf_parseConfig(int config_file_fd)
     if (section)
         free(section);
     free(buf);
+    /* Do not close for fseeking */
     fclose(configFile);
     return config;
 }
@@ -217,7 +218,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
         }
     }
 
-    if (! found_terminator)
+    if (section && ! found_terminator)
     {
         errorMsg = "Parse error near line %d: Terminator ']' not found.\n";
         goto error;
