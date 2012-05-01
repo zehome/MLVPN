@@ -80,10 +80,10 @@ static int priv_fd = -1;
 static volatile pid_t child_pid = -1;
 static volatile sig_atomic_t cur_state = STATE_INIT;
 
-/* Allowed logfile */
-static char allowed_logfile[MAXPATHLEN];
+/* No-change runtime file path */
+static char allowed_logfile[MAXPATHLEN] = {0};
+static char allowed_configfile[MAXPATHLEN] = {0};
 
-static void root_check_log_name(char *, size_t);
 static int root_open_file(char *, int);
 int root_linux_open_tun(int tuntapmode, char *devname);
 static int root_launch_script(char *, int, char **);
@@ -204,20 +204,24 @@ priv_init(char *argv[], char *username)
         if (may_read(socks[0], &cmd, sizeof(cmd)))
             break;
         switch (cmd) {
-        case PRIV_OPEN_CONFIG:
-            if (cur_state != STATE_CONFIG)
-                _exit(0);
 
+        case PRIV_OPEN_CONFIG:
             must_read(socks[0], &len, sizeof(len));
             if (len == 0 || len > sizeof(path) || len > MAXPATHLEN)
                 _exit(0);
             must_read(socks[0], &path, len);
             path[len - 1] = '\0';
 
-            fd = root_open_file(path, O_RDONLY|O_NONBLOCK);
+            if (cur_state == STATE_CONFIG)
+                strlcpy(allowed_configfile, path, len);
+
+            if (! *allowed_configfile)
+                _exit(0);
+
+            fd = root_open_file(allowed_configfile, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
             if (fd < 0)
-                warnx("priv_open_config `%s' failed", path);
+                warnx("priv_open_config `%s' failed", allowed_configfile);
             else
                 close(fd);
             break;
@@ -232,15 +236,22 @@ priv_init(char *argv[], char *username)
                 _exit(0);
             must_read(socks[0], &path, len);
             path[len - 1] = '\0';
-            root_check_log_name(path, len);
-            fd = root_open_file(path, O_WRONLY|O_APPEND|O_NONBLOCK|O_CREAT);
+            if (cur_state == STATE_CONFIG)
+                strlcpy(allowed_logfile, path, len);
+
+            if (! *allowed_logfile)
+            {
+                send_fd(socks[0], -1);
+                break;
+            }
+
+            fd = root_open_file(allowed_logfile, O_WRONLY|O_APPEND|O_NONBLOCK|O_CREAT);
             send_fd(socks[0], fd);
             if (fd < 0)
-                warnx("priv_open_log failed");
+                warnx("priv_open_log `%s' failed", allowed_logfile);
             else
                 close(fd);
             break;
-
 
         case PRIV_OPEN_TUN:
             /* we should not re-open the tuntap device ever! */
@@ -265,12 +276,14 @@ priv_init(char *argv[], char *username)
             fd = root_linux_open_tun(tuntapmode, tuntapname);
             if (fd < 0)
             {
-                must_write(socks[0], &fd, sizeof(fd));
-            } else {
-                len = strlen(tuntapname) + 1;
+                len = 0;
                 must_write(socks[0], &len, sizeof(len));
-                must_write(socks[0], tuntapname, len);
+                break;
             }
+
+            len = strlen(tuntapname) + 1;
+            must_write(socks[0], &len, sizeof(len));
+            must_write(socks[0], tuntapname, len);
             send_fd(socks[0], fd);
             if (fd >= 0)
                 close(fd);
@@ -423,42 +436,6 @@ root_open_file(char *path, int flags)
     return (open(path, flags, 0));
 }
 
-/* If we are in the initial configuration state, accept a logname and add
- * it to the list of acceptable logfiles.  Otherwise, check against this list
- * and rewrite to /dev/null if it's a bad path.
- */
-static void
-root_check_log_name(char *lognam, size_t loglen)
-{
-    char *p;
-
-    /* Any path containing '..' is invalid.  */
-    for (p = lognam; *p && (p - lognam) < loglen; p++)
-        if (*p == '.' && *(p + 1) == '.')
-            goto bad_path;
-
-    switch (cur_state) {
-    case STATE_CONFIG:
-        strncpy(allowed_logfile, lognam, MAXPATHLEN);
-        break;
-    case STATE_RUNNING:
-        if (!strcmp(allowed_logfile, lognam))
-            return;
-        goto bad_path;
-        break;
-    default:
-        /* Any other state should just refuse the request */
-        goto bad_path;
-        break;
-    }
-    return;
-
-bad_path:
-    warnx("%s: invalid attempt to open %s: rewriting to /dev/null",
-        "root_check_log_name", lognam);
-    strlcpy(lognam, "/dev/null", loglen);
-}
-
 static int
 root_launch_script(char *setup_script, int argc, char **argv)
 {
@@ -503,9 +480,13 @@ root_launch_script(char *setup_script, int argc, char **argv)
 
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             return status;
+        } else {
+            fprintf(stderr, "network script exit status %d != 0!\n",
+                status);
         }
-    }
-    fprintf(stderr, "%s: could not launch network script\n", setup_script);
+    } else
+        fprintf(stderr, "%s: could not launch network script:  %s\n",
+            setup_script, strerror(errno));
     return status;
 }
 
@@ -594,14 +575,17 @@ int priv_open_tun(int tuntapmode, char *devname)
     must_write(priv_fd, &tuntapmode, sizeof(tuntapmode));
 
     must_write(priv_fd, &len, sizeof(len));
-    must_write(priv_fd, devname, len);
+    if (len > 0)
+        must_write(priv_fd, devname, len);
 
     must_read(priv_fd, &len, sizeof(len));
     if (len > 0)
+    {
         must_read(priv_fd, devname, len);
-
-    devname[len] = '\0';
-    fd = receive_fd(priv_fd);
+        devname[len] = '\0';
+        fd = receive_fd(priv_fd);
+    } else
+        fd = len;
     return fd;
 }
 
@@ -626,7 +610,7 @@ int root_linux_open_tun(int tuntapmode, char *devname)
             ifr.ifr_flags = IFF_TAP;
 
         /* We do not want kernel packet info (IFF_NO_PI) */
-        ifr.ifr_flags |= IFF_NO_PI; 
+        ifr.ifr_flags |= IFF_NO_PI;
 
         /* Allocate with specified name, otherwise the kernel
          * will find a name for us. */
@@ -635,7 +619,10 @@ int root_linux_open_tun(int tuntapmode, char *devname)
 
         /* ioctl to create the if */
         if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
-            warn("priv_open_tun failed");
+        {
+            warn("priv_open_tun failed. (Already registered ?)");
+            return -1;
+        }
 
         /* The kernel is the only one able to "name" the if.
          * so we reread it to get the real name set by the kernel. */
