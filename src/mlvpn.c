@@ -45,7 +45,8 @@ struct tuntap_s tuntap;
 mlvpn_tunnel_t *rtun_start = NULL;
 char *progname;
 char *tundevname = NULL;
-logfile_t *logger;
+logfile_t *logger = NULL;
+int reload_config_needed = 0;
 
 /* "private" */
 static char *status_command = NULL;
@@ -56,7 +57,7 @@ time_t start_time;
 time_t last_reload;
 
 /* Triggered by signal if sigint is raised */
-static int global_exit = 0;
+int global_exit = 0;
 static char *optstr = "bc:n:p:u:vV";
 static struct option long_options[] = {
     {"background",    no_argument,       0, 'b' },
@@ -495,14 +496,19 @@ void mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
 
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t)
 {
-    mlvpn_tunnel_t *tmp, *prev = rtun_start;
+    mlvpn_tunnel_t *tmp = rtun_start;
+    mlvpn_tunnel_t *prev = NULL;
     mlvpn_rtun_status_down(t);
 
     while (tmp)
     {
-        if (tmp == t) /* Yes, compare pointers */
+        if (mystr_eq(tmp->name, t->name))
         {
-            prev->next = tmp->next;
+            if (prev)
+                prev->next = tmp->next;
+            else
+                rtun_start = NULL;
+
             if (tmp->name)
                 free(tmp->name);
             if (tmp->bindaddr)
@@ -521,6 +527,7 @@ void mlvpn_rtun_drop(mlvpn_tunnel_t *t)
             free(tmp->hpsbuf);
             /* Safety */
             tmp->name = NULL;
+            break;
         } else
             prev = tmp;
 
@@ -1315,9 +1322,12 @@ int mlvpn_config(int config_file_fd, int first_time)
             tmptun = tmptun->next;
         }
     }
+    _conf_printConfig(config);
+    _conf_freeConfig(config);
 
+    /* TODO: Memleak here ! */
     logger_init(logger);
-    if (status_command)
+    if (first_time && status_command)
         priv_init_script(status_command);
     return 0;
 error:
@@ -1336,27 +1346,20 @@ void init_buffers()
 void signal_handler(int sig)
 {
     _DEBUG("Signal received: %d\n", sig);
+    if (global_exit > 0)
+        _exit(sig);
     global_exit = 1;
 }
 
 void signal_hup(int sig)
 {
-    fprintf(stderr, "Must reload ? Received sig hup\n");
+    reload_config_needed = 1;
 }
 
-
-int main(int argc, char **argv)
+void signal_setup()
 {
-    char **save_argv;
-    int ret, i;
-    struct timeval timeout;
-    int maxfd = 0;
+    int i;
     struct sigaction sa;
-#ifdef MLVPN_CONTROL
-    struct mlvpn_control control;
-#endif
-    mlvpn_tunnel_t *tmptun;
-
     /* setup signals */
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
@@ -1375,6 +1378,18 @@ int main(int argc, char **argv)
 
     sa.sa_handler = signal_hup;
     sigaction(SIGHUP, &sa, NULL);
+}
+
+int main(int argc, char **argv)
+{
+    char **save_argv;
+    int ret;
+    struct timeval timeout;
+    int maxfd = 0;
+#ifdef MLVPN_CONTROL
+    struct mlvpn_control control;
+#endif
+    mlvpn_tunnel_t *tmptun;
 
     /* uptime statistics */
     last_reload = start_time = time((time_t *)NULL);
@@ -1400,9 +1415,6 @@ int main(int argc, char **argv)
 
     /* TODO: Usefull anymore? */
     srand(time((time_t *)NULL));
-
-    //printf("ML-VPN (c) 2012 Laurent Coustet\n");
-    signal(SIGINT, signal_handler);
 
     /* Parse the command line quickly for config file name.
      * This is needed for priv_init to know where the config
@@ -1504,6 +1516,9 @@ int main(int argc, char **argv)
     priv_init(argv, mlvpn_options.unpriv_user);
     set_ps_display(mlvpn_process_name);
 
+    /* Handle signals properly */
+    signal_setup();
+
     /* TODO: Linux specific */
     /* Kill me if my root process dies ! */
     prctl(PR_SET_PDEATHSIG, SIGCHLD);
@@ -1558,6 +1573,15 @@ int main(int argc, char **argv)
 
     while (1)
     {
+        if (reload_config_needed)
+        {
+            _INFO("Received SIGHUP, reload configuration.\n");
+            if (mlvpn_config(priv_open_config(mlvpn_options.config), 0) != 0)
+                _ERROR("configuration reload failed.\n");
+            else
+                mlvpn_rtun_recalc_weight();
+            reload_config_needed = 0;
+        }
 #ifdef MLVPN_CONTROL
         /* TODO: Optimize */
         mlvpn_control_timeout(&control);
