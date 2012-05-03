@@ -7,7 +7,7 @@
     <meta name="description" content="MLVPN status">
     <meta name="author" content="Laurent Coustet">
 
-    <!-- Le styles -->
+    <link type="text/css" href="css/smoothness/jquery-ui-1.8.20.custom.css" rel="stylesheet" />
     <link href="bootstrap/css/bootstrap.css" rel="stylesheet">
     <style>
       body {
@@ -16,7 +16,15 @@
       .tun {
         width: 300px;
         float: left;
-        border: 1px solid black;
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      .status {
+        width: 280px; /* TODO: UGGLY */
+      }
+      dt {
+        text-align: left !important;
+        font-size: 1.1em;
       }
     </style>
     <link href="bootstrap/css/bootstrap-responsive.css" rel="stylesheet">
@@ -51,12 +59,19 @@
     </div>
 
     <div class="container">
-      <h1>MLVPN Status</h1>
+      <!-- Tunnels info -->
       <div id="tuntap">
       </div> <!-- /tuntap -->
+
+      <!-- Bandwidth chart -->
+      <div id="bwchart">
+      </div> <!-- /bwchart -->
     </div> <!-- /container -->
     <script src="js/jquery-1.7.2.min.js"></script>
+    <script src="js/jquery-ui-1.8.20.custom.min.js"></script>
     <script src="bootstrap/js/bootstrap.min.js"></script>
+    <script src="highcharts/js/highcharts.js"></script>
+    <script src="highcharts/js/themes/gray.js"></script>
     <script src="js/mlvpn.js"></script>
   </body>
 </html>
