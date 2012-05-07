@@ -9,12 +9,9 @@ function bwchart_setup(container)
     bwchart = new Highcharts.Chart({
         chart: {
             renderTo: container,
-            defaultSeriesType: 'spline',
-            animation: {
-                duration: 900,
-                easing: 'easeInOutCubic'
-            },
-            shadow: true
+            type: 'area',
+            animation: false,
+            height: 350,
         },
         title: {
             text: 'Bandwidth utilization'
@@ -27,24 +24,23 @@ function bwchart_setup(container)
             title: {
                 text: 'Bytes/s'
             },
-
-            plotLines: [{
-                value: 0,
-                width: 1,
-                color: '#808080'
-            }]
         },
-        tooltip: {
-            formatter: function() {
-                return '<b>'+ this.series.name +'</b><br/>'+
-                Highcharts.dateFormat('%Y-%m-%d %H:%M:%S', this.x) +'<br/>'+
-                Highcharts.numberFormat(this.y, 2);
+        plotOptions: {
+            series: {
+                stacking: 'normal',
+                lineWidth: 1,
+                lineColor: '#ffffff',
+                marker: {
+                    enabled: false
+                }
             }
         },
+        tooltip: false,
         legend: {
             align: 'left',
             verticalAlign: 'top',
-            y: 20,
+            y: 0,
+            x: 50,
             floating: true,
             borderWidth: 0
         },
@@ -64,10 +60,33 @@ function bwchart_setup(container)
     }, 1000);
 }
 
+function pretty_print_size(size, factor, display_unit)
+{
+    var unit = "B";
+    var value = size;
+    var tsize = size * factor;
+
+    if (tsize > 1024 * 1024 * 1024) {
+        unit = "GiB";
+        value = size / 1024 / 1024 / 1024;
+    } else if (tsize > 1024 * 1024) {
+        unit = "MiB";
+        value = size / 1024 / 1024;
+    } else if (tsize > 1024) {
+        unit = "KiB";
+        value = size / 1024;
+    }
+    if (display_unit)
+        return Math.round(value) + " " + unit;
+    else
+        return Math.round(value);
+}
+
 function bwchart_refresh(data)
 {
     var i, j;
     var series = bwchart.series;
+    var now = (new Date()).getTime();
     for (i = 0; i < data.tunnels.length; i++)
     {
         var tun = data.tunnels[i];
@@ -76,18 +95,21 @@ function bwchart_refresh(data)
             var s = series[j];
             if (s.name == tun.name)
             {
-                var x = (new Date()).getTime();
-                var y = tun["recvbytes"] - s.lastValue;
+                var shift = s.data.length > bwchart_maxpoints;
+                var y = tun["sentbytes"] - s.lastValue;
                 if (! y)
                     y = 0;
-                s.lastValue = tun["recvbytes"];
-                console.log("x: "+x+" y: "+y);
-                var shift = s.data.length > bwchart_maxpoints;
-                s.addPoint([x,y], true, s.data.length > bwchart_maxpoints);
+                s.lastValue = tun["sentbytes"];
+                s.addPoint([now,y], false, shift);
+                /* Update progress bar */
+                var percentage = Math.round(y / tun["bandwidth"] * 100);
+                $('#'+tun["name"]+' .bar').attr("style", 'width: '+percentage+'%');
+                $('#'+tun["name"]+' .bw_up').html("Upload: <strong>"+pretty_print_size(y, 1.2, true)+"/s</strong>");
                 break;
             }
         }
     }
+    bwchart.redraw();
 }
 
 function initial_dump(json)
@@ -106,7 +128,7 @@ function initial_dump(json)
     for (var i = 0; i < mlvpn_tunnels.length; i++)
     {
         var tun = mlvpn_tunnels[i];
-        var tundiv = $('<div>');
+        var tundiv = $('<div id="'+tun["name"]+'">');
         tundiv.addClass("tun well");
 
         /* Status button */
@@ -132,14 +154,17 @@ function initial_dump(json)
         /* BW Usage if appropriate */
         if (tun["bandwidth"] != "0" || 1)
         {
-            var progressbar = $('<div class="progress progress-sucess progress-striped active"><div class="bar" style="width: 42%;"></div></div>')
+            var progressbar = $('<div class="progress progress-sucess progress-striped active"></div>');
+            progressbar.append($('<div class="bar" style="width: 0%;"></div>'));
             tundiv.append(progressbar);
+            tundiv.append($('<span class="bw_up">Upload: 0 Bytes/s</span>'));
+            tundiv.append($('<span class="bw_down">Download: 0 Bytes/s</span>'));
         }
         container.append(tundiv);
 
         /* Chart series */
         bwchart.addSeries({
-            type: 'spline',
+            type: 'area',
             name: tun["name"],
             lastValue: 0,
             data: (function() {
@@ -149,7 +174,7 @@ function initial_dump(json)
                     for (i = -bwchart_maxpoints; i < 0; i++) {
                         data.push({
                             x: time + i * 1000,
-                            y: 0
+                            y: null
                         });
                     }
                     return data;

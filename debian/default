@@ -9,6 +9,9 @@
 # Empty meens "all".
 # The VPN name refers to /etc/mlvpn/{VPNNAME}.conf without the brackets.
 
+# On which unprivileged user the service should run
+USER=mlvpn
+
 #AUTOSTART="all"
 #AUTOSTART="none"
 #AUTOSTART="paris berlin"

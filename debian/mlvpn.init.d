@@ -26,6 +26,7 @@
 test $DEBIAN_SCRIPT_DEBUG && set -v -x
 
 DAEMON=/usr/sbin/mlvpn
+USER=mlvpn
 DESC="virtual private network daemon"
 CONFIG_DIR=/etc/mlvpn
 test -x $DAEMON || exit 0
@@ -45,7 +46,7 @@ start_vpn () {
         --pidfile /var/run/mlvpn.$NAME.pid \
         --background \
         --make-pidfile \
-        --exec $DAEMON -- $CONFIG_DIR/$NAME.conf || STATUS=1
+        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER || STATUS=1
 }
 stop_vpn () {
   kill `cat $PIDFILE` || true
