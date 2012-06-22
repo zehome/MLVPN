@@ -995,8 +995,6 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
             }
         }
         tun->rbuf.len += len;
-        /* THX philpep for this optimisation. Snake eyes ;-) */
-        while (mlvpn_rtun_tick_rbuf(tun) > 0);
     } else if (len < 0) {
         _ERROR("Read error on %d: %s\n", tun->fd, strerror(errno));
         mlvpn_rtun_status_down(tun);
