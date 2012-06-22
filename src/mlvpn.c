@@ -993,6 +993,7 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                 _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len,
                             clienthost, clientport);
             }
+            mlvpn_rtun_tick_rbuf(tun);
         }
         tun->rbuf.len += len;
     } else if (len < 0) {
