@@ -993,9 +993,9 @@ int mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                 _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len,
                             clienthost, clientport);
             }
-            mlvpn_rtun_tick_rbuf(tun);
         }
         tun->rbuf.len += len;
+        mlvpn_rtun_tick_rbuf(tun);
     } else if (len < 0) {
         _ERROR("Read error on %d: %s\n", tun->fd, strerror(errno));
         mlvpn_rtun_status_down(tun);
