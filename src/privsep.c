@@ -35,10 +35,10 @@
 #include <unistd.h>
 #include <grp.h>
 
-/* TODO: Linux specific */
-#include <sys/prctl.h>
 
+#include "privsep.h"
 #include "mlvpn.h"
+#include "tuntap_generic.h"
 #include "ps_status.h"
 #include "strlcpy.h"
 
@@ -85,7 +85,7 @@ static char allowed_logfile[MAXPATHLEN] = {0};
 static char allowed_configfile[MAXPATHLEN] = {0};
 
 static int root_open_file(char *, int);
-int root_linux_open_tun(int tuntapmode, char *devname);
+int root_tuntap_open(int tuntapmode, char *devname);
 static int root_launch_script(char *, int, char **);
 static void increase_state(int);
 static void sig_got_chld(int);
@@ -273,7 +273,8 @@ priv_init(char *argv[], char *username)
                 tuntapname[0] = '\0';
             }
 
-            fd = root_linux_open_tun(tuntapmode, tuntapname);
+            /* see tuntap/ folder. That's where this is defined. */
+            fd = root_tuntap_open(tuntapmode, tuntapname);
             if (fd < 0)
             {
                 len = 0;
@@ -568,7 +569,10 @@ int priv_open_tun(int tuntapmode, char *devname)
     if (priv_fd < 0)
         errx(1, "priv_open_tun: called from privileged portion");
 
-    len = strlen(devname) + 1;
+    if (devname == NULL)
+        len = 0;
+    else
+        len = strlen(devname) + 1;
 
     cmd = PRIV_OPEN_TUN;
     must_write(priv_fd, &cmd, sizeof(cmd));
@@ -589,47 +593,6 @@ int priv_open_tun(int tuntapmode, char *devname)
     return fd;
 }
 
-/* Really open the tun device.
- * returns tun file descriptor.
- *
- * Compatibility: Linux 2.4+
- * Scope: private
- */
-int root_linux_open_tun(int tuntapmode, char *devname)
-{
-    struct ifreq ifr;
-    int fd;
-
-    fd = open("/dev/net/tun", O_RDWR);
-    if (fd >= 0)
-    {
-        memset(&ifr, 0, sizeof(ifr));
-        if (tuntapmode == MLVPN_TUNTAPMODE_TAP)
-            ifr.ifr_flags = IFF_TUN;
-        else
-            ifr.ifr_flags = IFF_TAP;
-
-        /* We do not want kernel packet info (IFF_NO_PI) */
-        ifr.ifr_flags |= IFF_NO_PI;
-
-        /* Allocate with specified name, otherwise the kernel
-         * will find a name for us. */
-        if (*devname)
-            strncpy(ifr.ifr_name, devname, MLVPN_IFNAMSIZ);
-
-        /* ioctl to create the if */
-        if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
-        {
-            warn("priv_open_tun failed. (Already registered ?)");
-            return -1;
-        }
-
-        /* The kernel is the only one able to "name" the if.
-         * so we reread it to get the real name set by the kernel. */
-        strncpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ);
-   }
-   return fd;
-}
 
 /* Name/service to address translation.  Response is placed into addr, and
  * the length is returned (zero on error) */

@@ -28,17 +28,23 @@
 #include <netinet/tcp.h>
 #include <netdb.h>
 
-/* TODO: Linux specific */
-#include <sys/prctl.h>
-
 #include "debug.h"
 #include "mlvpn.h"
 #include "tool.h"
 #include "configlib.h"
 #include "ps_status.h"
 #include "config.h"
+#ifdef HAVE_MLVPN_CONTROL
 #include "control.h"
+#endif
 #include "strlcpy.h"
+#include "tuntap_generic.h"
+
+/* Linux specific things */
+#ifdef HAVE_LINUX
+ #include <sys/prctl.h>
+ #include "tuntap_linux.h"
+#endif
 
 /* GLOBALS */
 struct tuntap_s tuntap;
@@ -50,7 +56,6 @@ int reload_config_needed = 0;
 
 /* "private" */
 static char *status_command = NULL;
-static pktbuffer_t *tap_send;
 
 /* Statistics */
 time_t start_time;
@@ -711,23 +716,6 @@ int mlvpn_server_accept()
     return accepted;
 }
 
-int mlvpn_tuntap_alloc()
-{
-    int fd;
-
-    if ((fd = priv_open_tun(tuntap.type, tuntap.devname)) < 0 )
-    {
-        _ERROR("Unable to open /dev/net/tun RW. Check permissions.\n");
-        return fd;
-    }
-    tuntap.fd = fd;
-    {
-        char *args[3] = {tuntap.devname, "tuntap_up", NULL};
-        priv_run_script(2, args);
-    }
-    return fd;
-}
-
 struct mlvpn_ether *
 decap_ethernet_frame(struct mlvpn_ether *ether, const void *buffer)
 {
@@ -793,76 +781,6 @@ void mlvpn_rtun_check_timeout()
     }
 }
 
-int mlvpn_tuntap_read()
-{
-    pktbuffer_t *sbuf;
-    mlvpn_tunnel_t *lpt;
-    mlvpn_pkt_t *pkt;
-
-    /* least packets tunnel */
-    lpt = mlvpn_rtun_choose();
-
-    /* Not connected to anyone. read and discard packet. */
-    if (! lpt)
-    {
-        char blackhole[DEFAULT_MTU];
-        return read(tuntap.fd, blackhole, DEFAULT_MTU);
-    }
-
-    sbuf = lpt->sbuf;
-    if (mlvpn_check_buffer(sbuf, 1) != 0)
-        _WARNING("TUN %d buffer overflow.\n", lpt->fd);
-
-    pkt = mlvpn_get_free_pkt(sbuf);
-    pkt->pktdata.len = read(tuntap.fd, pkt->pktdata.data, DEFAULT_MTU);
-
-    if (pkt->pktdata.len < 0)
-    {
-        /* useless! */
-        sbuf->len--;
-
-        _ERROR("Error during read on %d: %s\n", tuntap.fd, strerror(errno));
-        exit(1);
-    } else if (pkt->pktdata.len == 0) {
-        /* End of file */
-        _ERROR("Big error dude, should never reach end of file on tuntap device!\n");
-        exit(1);
-    }
-
-    return pkt->pktdata.len;
-}
-
-int mlvpn_tuntap_write()
-{
-    int len;
-    mlvpn_pkt_t *pkt;
-    pktbuffer_t *buf = tap_send;
-
-    if (buf->len <= 0)
-    {
-        _ERROR(
-            "Nothing to write on tap! (%d) PROGRAMMING ERROR.\n",
-                (int)buf->len);
-        return -1;
-    }
-    pkt = &buf->pkts[0]; /* First pkt in queue */
-    len = write(tuntap.fd, pkt->pktdata.data, pkt->pktdata.len);
-    if (len < 0)
-    {
-        _ERROR("Write error on tuntap: %s\n", strerror(errno));
-    } else {
-        if (len != pkt->pktdata.len)
-        {
-            _ERROR("Error writing to tap device: written %d bytes out of %d.\n",
-                len, pkt->pktdata.len);
-        } else {
-            _DEBUG("> Written %d bytes on TAP (%d pkts left).\n",
-                len, (int)buf->len);
-        }
-    }
-    mlvpn_pop_pkt(buf);
-    return len;
-}
 
 /* Pass thru the mlvpn_rbuf to find packets received
  * from the TCP/UDP channel and prepare packets for TUN/TAP device. */
@@ -902,10 +820,10 @@ int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                 } else {
                     if (tun->status == MLVPN_CHAP_AUTHOK)
                     {
-                        if (mlvpn_check_buffer(tap_send, 1) != 0)
+                        if (mlvpn_check_buffer(tuntap.sbuf, 1) != 0)
                             _WARNING("TAP buffer overflow.\n");
 
-                        pkt = mlvpn_get_free_pkt(tap_send);
+                        pkt = mlvpn_get_free_pkt(tuntap.sbuf);
                         pkt->pktdata.len = pktdata.len;
                         memcpy(pkt->pktdata.data, pktdata.data, pktdata.len);
                     } else {
@@ -1111,6 +1029,7 @@ int mlvpn_config(int config_file_fd, int first_time)
         logger->level = 4;
 
         tuntap.type = MLVPN_TUNTAPMODE_TUN;
+        tuntap.sbuf = NULL;
     }
 
     work = config = _conf_parseConfig(config_file_fd);
@@ -1337,10 +1256,10 @@ error:
 
 void init_buffers()
 {
-    tap_send = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    tap_send->len = 0;
-    tap_send->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
-    tap_send->bandwidth = 0;
+    tuntap.sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
+    tuntap.sbuf->len = 0;
+    tuntap.sbuf->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
+    tuntap.sbuf->bandwidth = 0;
 }
 
 void signal_handler(int sig)
@@ -1386,7 +1305,7 @@ int main(int argc, char **argv)
     int ret;
     struct timeval timeout;
     int maxfd = 0;
-#ifdef MLVPN_CONTROL
+#ifdef HAVE_MLVPN_CONTROL
     struct mlvpn_control control;
 #endif
     mlvpn_tunnel_t *tmptun;
@@ -1519,9 +1438,10 @@ int main(int argc, char **argv)
     /* Handle signals properly */
     signal_setup();
 
-    /* TODO: Linux specific */
     /* Kill me if my root process dies ! */
+#ifdef HAVE_LINUX
     prctl(PR_SET_PDEATHSIG, SIGCHLD);
+#endif
 
     /* Config file opening / parsing */
     mlvpn_options.config_fd = priv_open_config(mlvpn_options.config);
@@ -1551,7 +1471,7 @@ int main(int argc, char **argv)
 
     priv_set_running_state();
 
-#ifdef MLVPN_CONTROL
+#ifdef HAVE_MLVPN_CONTROL
     /* Initialize mlvpn remote control system */
     strlcpy(control.fifo_path, "mlvpn.sock", 11);
     control.mode = MLVPN_CONTROL_READWRITE;
@@ -1582,7 +1502,7 @@ int main(int argc, char **argv)
                 mlvpn_rtun_recalc_weight();
             reload_config_needed = 0;
         }
-#ifdef MLVPN_CONTROL
+#ifdef HAVE_MLVPN_CONTROL
         /* TODO: Optimize */
         mlvpn_control_timeout(&control);
 #endif
@@ -1595,7 +1515,7 @@ int main(int argc, char **argv)
         FD_ZERO(&rfds);
         FD_ZERO(&wfds);
 
-#ifdef MLVPN_CONTROL
+#ifdef HAVE_MLVPN_CONTROL
         if (control.fifofd >= 0)
         {
             FD_SET(control.fifofd, &rfds);
@@ -1614,7 +1534,7 @@ int main(int argc, char **argv)
         if (tuntap.fd > maxfd)
             maxfd = tuntap.fd;
 
-        if (tap_send->len > 0)
+        if (tuntap.sbuf->len > 0)
             FD_SET(tuntap.fd, &wfds);
 
         /* set rfds/wfds for rtunnels */
@@ -1639,7 +1559,7 @@ int main(int argc, char **argv)
             tmptun = tmptun->next;
         }
 
-#ifdef MLVPN_CONTROL
+#ifdef HAVE_MLVPN_CONTROL
         /* Control system */
         if (control.fifofd >= 0)
         {
@@ -1674,9 +1594,9 @@ int main(int argc, char **argv)
         if (ret > 0)
         {
             if (FD_ISSET(tuntap.fd, &rfds))
-                mlvpn_tuntap_read();
+                mlvpn_tuntap_read(&tuntap);
             if (FD_ISSET(tuntap.fd, &wfds))
-                mlvpn_tuntap_write();
+                mlvpn_tuntap_write(&tuntap);
             tmptun = rtun_start;
             while (tmptun)
             {
@@ -1695,7 +1615,7 @@ int main(int argc, char **argv)
 
                 tmptun = tmptun->next;
             }
-#ifdef MLVPN_CONTROL
+#ifdef HAVE_MLVPN_CONTROL
             if (control.clientfd >= 0)
                 if(FD_ISSET(control.clientfd, &rfds))
                     mlvpn_control_read(&control);
@@ -1735,9 +1655,13 @@ int main(int argc, char **argv)
     }
     {
         char *cmdargs[3] = {tuntap.devname, "tuntap_down", NULL};
-        priv_run_script(2, cmdargs);
+        mlvpn_hook(MLVPN_HOOK_TUNTAP, 2, cmdargs);
     }
 
     return 0;
 }
 
+int mlvpn_hook(enum mlvpn_hook hook, int argc, char **argv)
+{
+    return priv_run_script(argc, argv);
+}

@@ -15,7 +15,16 @@ mlvpn_SOURCES = \
     privsep.c privsep_fdpass.c \
     wrr.c \
     strlcpy.c \
-	control.c control.h \
+    tuntap_generic.c \
     mlvpn.c mlvpn.h
+
+if LINUX
+mlvpn_SOURCES += tuntap_linux.c tuntap_linux.h
+endif
+
+if MLVPN_CONTROL
+mlvpn_SOURCES += control.c
+endif
+
 mlvpn_LDFLAGS=-lm
 CFLAGS=-g -Wall -Wno-strict-aliasing -Wno-format-zero-length

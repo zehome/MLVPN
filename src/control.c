@@ -15,6 +15,7 @@
 #include "debug.h"
 #include "control.h"
 #include "mlvpn.h"
+#include "tuntap_generic.h"
 
 extern struct tuntap_s tuntap;
 extern mlvpn_tunnel_t *rtun_start;

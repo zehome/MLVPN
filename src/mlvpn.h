@@ -5,18 +5,12 @@
 #define VER_MIN 1
 
 #include <stdint.h>
-#include <arpa/inet.h>
-#include <linux/if_tun.h>
-#include <linux/if.h>
 #include <stdio.h>
+#include <arpa/inet.h>
 
 #include "pkt.h"
 #include "buffer.h"
 
-/* undef this to disable control system completly.
-   will gain in security and very small performance,
-   but lack of statistics & remote control obviously! */
-#define MLVPN_CONTROL
 /* undef this to disable frame introspection
  * This can improve performance, but will
  * disable the "high priority queue"
@@ -42,14 +36,6 @@
 
 /* tuntap interface name size */
 #define MLVPN_IFNAMSIZ IFNAMSIZ
-
-struct tuntap_s
-{
-    int fd;
-    int mtu;
-    char devname[IFNAMSIZ];
-    int type; /* MLVPN_TUNTAPMODE_* */
-};
 
 
 struct mlvpn_ether
@@ -100,6 +86,17 @@ struct mlvpn_options
     int root_allowed;
 };
 
+enum encap_proto {
+    ENCAP_PROTO_UDP,
+    ENCAP_PROTO_TCP
+};
+
+enum chap_status {
+    MLVPN_CHAP_DISCONNECTED,
+    MLVPN_CHAP_AUTHSENT,
+    MLVPN_CHAP_AUTHOK
+};
+
 typedef struct mlvpn_tunnel_s
 {
     char *name;           /* tunnel name */
@@ -122,29 +119,13 @@ typedef struct mlvpn_tunnel_s
     pktbuffer_t *hpsbuf;  /* high priority buffer */
     struct mlvpn_buffer rbuf;    /* receive buffer */
     struct mlvpn_tunnel_s *next; /* chained list to next element */
-    int encap_prot;       /* ENCAP_PROTO_UDP or ENCAP_PROTO_TCP */
+    enum encap_proto encap_prot;
     struct addrinfo *addrinfo;
-    int status;           /* CHAP status */
+    enum chap_status status;     /* Auth status */
     time_t last_packet_time; /* Used to timeout the link */
     time_t timeout;
     time_t next_keepalive; /* when to send the "next" keepalive packet */
 } mlvpn_tunnel_t;
-
-enum {
-    ENCAP_PROTO_UDP,
-    ENCAP_PROTO_TCP
-};
-
-enum {
-    MLVPN_CHAP_DISCONNECTED,
-    MLVPN_CHAP_AUTHSENT,
-    MLVPN_CHAP_AUTHOK
-};
-
-enum {
-    MLVPN_TUNTAPMODE_TUN,
-    MLVPN_TUNTAPMODE_TAP
-};
 
 int mlvpn_config(int config_file_fd, int first_time);
 void init_buffers();
@@ -160,10 +141,6 @@ decap_ethernet_frame(struct mlvpn_ether *ether, const void *buffer);
 struct mlvpn_ipv4 *
 decap_ip4_frame(struct mlvpn_ipv4 *ip4, const void *buffer);
 void print_frame(const char *frame);
-
-int mlvpn_tuntap_read();
-int mlvpn_tuntap_write();
-int mlvpn_taptun_alloc();
 
 void mlvpn_rtun_status_up(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
@@ -189,22 +166,19 @@ mlvpn_rtun_new(const char *name,
 
 int mlvpn_server_accept();
 
-/* privsep */
-int priv_init(char *argv[], char *username);
-void send_fd(int sock, int fd);
-int receive_fd(int sock);
-int priv_open_config(char *);
-int priv_open_tun(int tuntapmode, char *devname);
-FILE *priv_open_log(char *lognam);
-int
-priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
-    struct addrinfo *hints);
-void priv_set_running_state(void);
-int priv_init_script(char *);
-int priv_run_script(int argc, char **argv);
-
 /* wrr */
 int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
+
+/* privsep */
+#include "privsep.h"
+
+/* hook system */
+enum mlvpn_hook {
+    MLVPN_HOOK_TUNTAP,
+    MLVPN_HOOK_RTUN
+};
+
+int mlvpn_hook(enum mlvpn_hook, int argc, char **argv);
 
 #endif
