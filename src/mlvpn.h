@@ -21,7 +21,6 @@
  * This can improve performance, but will
  * disable the "high priority queue"
  */
-#define MLVPN_DECAP_FRAMES
 
 #define MLVPN_ETH_IP4 0x0800
 #define MLVPN_ETH_IP6 0x86DD
