@@ -13,3 +13,6 @@ config.h.in~
 **/*.plist
 *.swp
 *.swo
+debian/mlvpn.debhelper.log
+debian/mlvpn.postinst.debhelper
+debian/mlvpn.postrm.debhelper
