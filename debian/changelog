@@ -1,5 +1,6 @@
-mlvpn (1.1-1) UNRELEASED; urgency=low
+mlvpn (1.2-1) UNRELEASED; urgency=low
   * New version, not a public release yet
+  * Based on mlvpn 1.2 (dev/untested)
 
  -- Laurent Coustet <ed@zehome.com>  Sat, 05 May 2012 16:47:19 +0200
 

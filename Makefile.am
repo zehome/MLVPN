@@ -14,4 +14,5 @@ MAINTAINERCLEANFILES = \
     $(srcdir)/mlvpn.spec
 
 SUBDIRS = src man
-dist_doc_DATA = LICENCE AUTHORS README.md examples/mlvpn.conf examples/mlvpn_updown.sh examples/mlvpn.init.d
+dist_doc_DATA = LICENCE AUTHORS README.md examples/mlvpn.conf \
+    examples/mlvpn_updown.sh examples/mlvpn.init.d default_mlvpn

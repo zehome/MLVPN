@@ -26,6 +26,7 @@
 test $DEBIAN_SCRIPT_DEBUG && set -v -x
 
 DAEMON=/usr/sbin/mlvpn
+USER=mlvpn
 DESC="virtual private network daemon"
 CONFIG_DIR=/etc/mlvpn
 test -x $DAEMON || exit 0
@@ -37,15 +38,46 @@ if test -e /etc/default/mlvpn ; then
   . /etc/default/mlvpn
 fi
 
+if [ "$DISABLE_PROCTITLE" = "yes" ]; then
+  INIT_NATURAL_TITLE="--natural-title"
+else
+  INIT_NATURAL_TITLE="--name $NAME"
+fi
+
+# Check / change permissions on the script run by mlvpn (hooks)
+check_updown_script () {
+    # First get mlvpn_updown_script path
+    script_path=$(awk 'match($0, /^\s*[^#]*(statuscommand\s*=\s*)([^ ]*)/, grp) {print grp[2]}' ${CONFIG_DIR}/${NAME}.conf)
+    STATUS=1
+    if [ -z "${script_path}" ]; then
+      log_failure_msg " ${CONFIG_DIR}/${NAME}.conf must have a valid statuscommand!"
+      return
+    fi
+    if [ ! -f "${script_path}" ]; then
+      log_failure_msg " ${CONFIG_DIR}/${NAME}.conf must exists."
+      return
+    fi
+    if ! (stat -t -c '%u %g %a' ${script_path} | grep -q '0 0 700'); then
+      log_failure_msg " ${CONFIG_DIR}/${NAME}.conf must be owned by root:root mode 700."
+      return
+    fi
+    STATUS=0
+}
+
 start_vpn () {
     log_progress_msg "$NAME"
-    STATUS=0
+    check_updown_script
+
+    if [ "$STATUS" != "0" ]; then
+      return
+    fi
 
     start-stop-daemon --start --quiet --oknodo \
         --pidfile /var/run/mlvpn.$NAME.pid \
         --background \
         --make-pidfile \
-        --exec $DAEMON -- $CONFIG_DIR/$NAME.conf || STATUS=1
+        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER \
+        $INIT_NATURAL_TITLE || STATUS=1
 }
 stop_vpn () {
   kill `cat $PIDFILE` || true

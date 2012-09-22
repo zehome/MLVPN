@@ -1,4 +1,4 @@
-AC_INIT([mlvpn], [1.1], [ed@zehome.com])
+AC_INIT([mlvpn], [1.2], [ed@zehome.com])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
 AM_SILENT_RULES([yes])
