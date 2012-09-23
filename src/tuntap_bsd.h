@@ -5,8 +5,9 @@
 #include <err.h>
 #include <sys/ioctl.h>
 #include <netdb.h>
-
+#include <net/if.h>
 #include <net/if_tun.h>
+
 #ifndef IFNAMSIZ
  #define IFNAMSIZ 64
 #endif
