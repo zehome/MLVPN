@@ -22,6 +22,10 @@ if LINUX
 mlvpn_SOURCES += tuntap_linux.c tuntap_linux.h
 endif
 
+if BSD
+mlvpn_SOURCES += tuntap_bsd.c tuntap_bsd.h
+endif
+
 if MLVPN_CONTROL
 mlvpn_SOURCES += control.c
 endif

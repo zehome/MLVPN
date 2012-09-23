@@ -35,6 +35,10 @@
 #include <unistd.h>
 #include <grp.h>
 
+#ifdef HAVE_FREEBSD
+ #include <signal.h>
+ #define _NSIG _SIG_MAXSIG
+#endif
 
 #include "privsep.h"
 #include "mlvpn.h"
