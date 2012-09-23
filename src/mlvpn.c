@@ -1459,7 +1459,7 @@ int main(int argc, char **argv)
     memset(&tuntap, 0, sizeof(tuntap));
     snprintf(tuntap.devname, IFNAMSIZ, "%s", tundevname);
     tuntap.mtu = 1500;
-    ret = mlvpn_tuntap_alloc();
+    ret = mlvpn_tuntap_alloc(&tuntap);
     if (ret <= 0)
     {
         _ERROR("Unable to create tunnel device.\n");

@@ -8,7 +8,7 @@
 #include <linux/if_tun.h>
 #include <linux/if.h>
 
-int mlvpn_tuntap_alloc();
+int mlvpn_tuntap_alloc(struct tuntap_s *tuntap);
 
 /* runs as root! */
 int root_tuntap_open(int tuntapmode, char *devname);
