@@ -46,6 +46,11 @@
  #include "tuntap_linux.h"
 #endif
 
+#ifdef HAVE_FREEBSD
+ #include "tuntap_bsd.h"
+ #define _NSIG _SIG_MAXSIG
+#endif
+
 /* GLOBALS */
 struct tuntap_s tuntap;
 mlvpn_tunnel_t *rtun_start = NULL;

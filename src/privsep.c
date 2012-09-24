@@ -35,6 +35,8 @@
 #include <unistd.h>
 #include <grp.h>
 
+#include "config.h"
+
 #ifdef HAVE_FREEBSD
  #include <signal.h>
  #define _NSIG _SIG_MAXSIG

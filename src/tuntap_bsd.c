@@ -12,7 +12,7 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     /* examples: /dev/tun0, /dev/tun2 (man 2 if_tun) */
     for (i=0; i < 32; i++)
     {
-        snprintf(devname, "%s%d", tuntapmode == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
+        snprintf(devname, IFNAMSIZ, "%s%d", tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
         snprintf(tuntap->devname, IFNAMSIZ-8, "/dev/%s", devname);
 
         if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) > 0 )
@@ -22,7 +22,7 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     if (fd < 0)
     {
         _FATAL("[tuntap] unable to open any /dev/%s0 to 32 read/write. Check permissions.\n",
-            tuntapmode == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
+            tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
         return fd;
     }
     tuntap->fd = fd;
@@ -53,7 +53,7 @@ int root_tuntap_open(int tuntapmode, char *devname)
     if (fd >= 0)
     {
         flags = IFF_POINTOPOINT | IFF_MULTICAST;
-        if (ioctl(fd, TUNSIFMODE, &i) < 0) {
+        if (ioctl(fd, TUNSIFMODE, &flags) < 0) {
             warn("ioctl(TUNSIFMODE)");
             return -1;
         }
@@ -62,7 +62,7 @@ int root_tuntap_open(int tuntapmode, char *devname)
          * on read for family (INET6 & so on)
          */
         flags = 0;
-        if (ioctl(fd, TUNSIFHEAD, &i) < 0)
+        if (ioctl(fd, TUNSIFHEAD, &flags) < 0)
         {
             warn("ioctl(TUNSIFHEAD)");
             return -1;
