@@ -12,14 +12,14 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     /* examples: /dev/tun0, /dev/tun2 (man 2 if_tun) */
     for (i=0; i < 32; i++)
     {
-        snprintf(devname, IFNAMSIZ, "%s%d", tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
-        snprintf(tuntap->devname, IFNAMSIZ-8, "/dev/%s", devname);
+        snprintf(devname, 5, "%s%d", tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
+        snprintf(tuntap->devname, 10, "/dev/%s", devname);
 
         if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) > 0 )
             break;
     }
 
-    if (fd < 0)
+    if (fd <= 0)
     {
         _FATAL("[tuntap] unable to open any /dev/%s0 to 32 read/write. Check permissions.\n",
             tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
@@ -30,7 +30,6 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     /* geting the actual tun%d inside devname
      * is required for hooks to work properly */
     strlcpy(tuntap->devname, devname, IFNAMSIZ);
-
 
     char *hook_args[3] = {tuntap->devname, "tuntap_up", NULL};
     mlvpn_hook(MLVPN_HOOK_TUNTAP, 2, hook_args);
