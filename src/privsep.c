@@ -279,7 +279,7 @@ priv_init(char *argv[], char *username)
                 tuntapname[0] = '\0';
             }
 
-            /* see tuntap/ folder. That's where this is defined. */
+            /* see tuntap_*.c . That's where this is defined. */
             fd = root_tuntap_open(tuntapmode, tuntapname);
             if (fd < 0)
             {
