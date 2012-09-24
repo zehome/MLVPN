@@ -5,7 +5,7 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
 {
     int fd;
 
-    if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) < 0 )
+    if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) <= 0 )
     {
         _FATAL("[tuntap %s] unable to open /dev/net/tun read/write. Check permissions.\n",
             tuntap->devname);
