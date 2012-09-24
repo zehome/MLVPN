@@ -1430,12 +1430,14 @@ int main(int argc, char **argv)
         fprintf(stderr, "Invalid config file: `%s'.\n", mlvpn_options.config);
         _exit(1);
     }
-    /* TODO: Linux only */
+
+#ifdef HAVE_LINUX
     if (access("/dev/net/tun", R_OK|W_OK) != 0)
     {
         fprintf(stderr, "Unable to open tuntap node `%s'.\n", "/dev/net/tun");
         _exit(1);
     }
+#endif
 
     priv_init(argv, mlvpn_options.unpriv_user);
     set_ps_display(mlvpn_process_name);
