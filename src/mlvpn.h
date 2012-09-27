@@ -1,11 +1,18 @@
 #ifndef _MLVPN_H
 #define _MLVPN_H
 
+#include "config.h"
+
 #define VER_MAJ 1
 #define VER_MIN 2
 
 #include <stdint.h>
 #include <stdio.h>
+
+#ifdef HAVE_OPENBSD
+ #include <netinet/in.h>
+#endif
+
 #include <arpa/inet.h>
 
 #include "pkt.h"

@@ -1,6 +1,8 @@
 #ifndef MLVPN_TUNTAP_GENERIC_H
 #define MLVPN_TUNTAP_GENERIC_H
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
@@ -8,6 +10,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+
+#ifdef HAVE_OPENBSD
+ #include <netinet/in.h>
+#endif
 
 #include "buffer.h"
 #include "privsep.h"

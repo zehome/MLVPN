@@ -8,7 +8,7 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     int i;
 
     /* TODO: handle this by command line/config file ! */
-    /* FreeBSD (and others maybe) supports each tun on different device. */
+    /* FreeBSD/OpenBSD (and others maybe) supports each tun on different device. */
     /* examples: /dev/tun0, /dev/tun2 (man 2 if_tun) */
     for (i=0; i < 32; i++)
     {
@@ -45,12 +45,23 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
  */
 int root_tuntap_open(int tuntapmode, char *devname)
 {
-    int flags;
     int fd;
 
     fd = open(devname, O_RDWR);
     if (fd >= 0)
     {
+#ifdef HAVE_OPENBSD
+        struct tuninfo tuninfo;
+        tuninfo.mtu = 1500;
+//        tuninfo.type = IFT_TUNNEL; /* IP */
+        tuninfo.flags = IFF_POINTOPOINT;
+        tuninfo.baudrate = 0;
+        if (ioctl(fd, TUNSIFINFO, &tuninfo, sizeof(tuninfo)) < 0) {
+            warn("ioctl(TUNSIFMODE)");
+            return -1;
+        }
+#else
+        int flags;
         flags = IFF_POINTOPOINT | IFF_MULTICAST;
         if (ioctl(fd, TUNSIFMODE, &flags) < 0) {
             warn("ioctl(TUNSIFMODE)");
@@ -66,7 +77,7 @@ int root_tuntap_open(int tuntapmode, char *devname)
             warn("ioctl(TUNSIFHEAD)");
             return -1;
         }
-
+#endif
    }
    return fd;
 }

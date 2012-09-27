@@ -3,9 +3,12 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#ifdef HAVE_OPENBSD
+ #include <netinet/in.h>
+#endif
+#include <arpa/inet.h>
 
 /* privsep */
 int priv_init(char *argv[], char *username);

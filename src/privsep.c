@@ -18,6 +18,9 @@
 
 #define _BSD_SOURCE
 #define _GNU_SOURCE
+
+#include "config.h"
+
 #include <sys/ioctl.h>
 #include <sys/param.h>
 #include <sys/wait.h>
@@ -35,10 +38,10 @@
 #include <unistd.h>
 #include <grp.h>
 
-#include "config.h"
-
-#ifdef HAVE_FREEBSD
+#if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
  #include <signal.h>
+#endif
+#ifdef HAVE_FREEBSD
  #define _NSIG _SIG_MAXSIG
 #endif
 
