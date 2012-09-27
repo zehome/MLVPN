@@ -35,9 +35,9 @@ int root_tuntap_open(int tuntapmode, char *devname)
     {
         memset(&ifr, 0, sizeof(ifr));
         if (tuntapmode == MLVPN_TUNTAPMODE_TAP)
-            ifr.ifr_flags = IFF_TUN;
-        else
             ifr.ifr_flags = IFF_TAP;
+        else
+            ifr.ifr_flags = IFF_TUN;
 
         /* We do not want kernel packet info (IFF_NO_PI) */
         ifr.ifr_flags |= IFF_NO_PI;
