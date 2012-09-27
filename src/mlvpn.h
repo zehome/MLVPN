@@ -2,7 +2,7 @@
 #define _MLVPN_H
 
 #define VER_MAJ 1
-#define VER_MIN 1
+#define VER_MIN 2
 
 #include <stdint.h>
 #include <stdio.h>
