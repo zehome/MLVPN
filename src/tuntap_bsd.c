@@ -1,6 +1,9 @@
+#include "config.h"
+
 #include <err.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <netdb.h>
 #include <net/if.h>
 #include <net/if_types.h>
