@@ -1353,20 +1353,20 @@ int main(int argc, char **argv)
             mlvpn_options.background = 1;
             break;
         case 'c':
-            strlcpy(mlvpn_options.config, optarg, 1024);
+            strlcpy(mlvpn_options.config, optarg, 1023);
             break;
         case 'n':
-            strlcpy(mlvpn_options.process_name, optarg, 1024);
+            strlcpy(mlvpn_options.process_name, optarg, 1023);
             break;
         case 'p':
-            strlcpy(mlvpn_options.pidfile, optarg, 1024);
+            strlcpy(mlvpn_options.pidfile, optarg, 1023);
             break;
         case 'r':
             /* Yes run as root */
             mlvpn_options.root_allowed = 1;
             break;
         case 'u':
-            strlcpy(mlvpn_options.unpriv_user, optarg, 128);
+            strlcpy(mlvpn_options.unpriv_user, optarg, 127);
             break;
         case 'v':
             mlvpn_options.verbose++;
@@ -1391,8 +1391,8 @@ int main(int argc, char **argv)
                 mlvpn_options.process_name);
             init_ps_display(mlvpn_priv_process_name);
         } else {
-            strlcpy(mlvpn_priv_process_name, "mlvpn [priv]", 2048);
-            strlcpy(mlvpn_process_name, "mlvpn", 2048);
+            strlcpy(mlvpn_priv_process_name, "mlvpn [priv]", 2047);
+            strlcpy(mlvpn_process_name, "mlvpn", 2047);
             init_ps_display("mlvpn");
         }
     }

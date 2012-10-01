@@ -20,7 +20,6 @@
 #include <stdbool.h>
 #include <assert.h>
 #include "ps_status.h"
-#include "strlcpy.h"
 
 extern char **environ;
 
@@ -255,7 +254,7 @@ set_ps_display(const char *activity)
 #endif
 
 	/* Update ps_buffer to contain both fixed part and activity */
-	strlcpy(ps_buffer + ps_buffer_fixed_size, activity,
+	strncpy(ps_buffer + ps_buffer_fixed_size, activity,
 			ps_buffer_size - ps_buffer_fixed_size);
 	ps_buffer_cur_len = strlen(ps_buffer);
 
