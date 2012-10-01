@@ -1032,7 +1032,6 @@ int mlvpn_config(int config_file_fd, int first_time)
         logger->level = 4;
 
         tuntap.type = MLVPN_TUNTAPMODE_TUN;
-        tuntap.sbuf = NULL;
     }
 
     work = config = _conf_parseConfig(config_file_fd);
@@ -1257,14 +1256,6 @@ error:
     return 1;
 }
 
-void init_buffers()
-{
-    tuntap.sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    tuntap.sbuf->len = 0;
-    tuntap.sbuf->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
-    tuntap.sbuf->bandwidth = 0;
-}
-
 void signal_handler(int sig)
 {
     _DEBUG("Signal received: %d\n", sig);
@@ -1464,6 +1455,11 @@ int main(int argc, char **argv)
     memset(&tuntap, 0, sizeof(tuntap));
     snprintf(tuntap.devname, IFNAMSIZ, "%s", tundevname);
     tuntap.mtu = 1500;
+    tuntap.sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
+    tuntap.sbuf->len = 0;
+    tuntap.sbuf->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
+    tuntap.sbuf->bandwidth = 0;
+
     ret = mlvpn_tuntap_alloc(&tuntap);
     if (ret <= 0)
     {
@@ -1472,7 +1468,6 @@ int main(int argc, char **argv)
     } else {
         _INFO("Created tap interface %s\n", tuntap.devname);
     }
-    init_buffers();
 
     priv_set_running_state();
 

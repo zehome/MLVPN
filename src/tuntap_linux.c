@@ -1,4 +1,6 @@
 
+#include "config.h"
+
 #include <err.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -52,7 +54,6 @@ int mlvpn_tuntap_read(struct tuntap_s *tuntap)
     pkt = mlvpn_get_free_pkt(sbuf);
 
     ret = read(tuntap->fd, pkt->pktdata.data, DEFAULT_MTU);
-
     if (ret < 0)
     {
         /* read error on tuntap is not recoverable. We must die. */

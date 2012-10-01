@@ -135,7 +135,6 @@ typedef struct mlvpn_tunnel_s
 } mlvpn_tunnel_t;
 
 int mlvpn_config(int config_file_fd, int first_time);
-void init_buffers();
 
 uint64_t mlvpn_millis();
 int mlvpn_sock_set_nonblocking(int fd);
