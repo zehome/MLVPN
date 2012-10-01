@@ -43,12 +43,8 @@
 /* Linux specific things */
 #ifdef HAVE_LINUX
  #include <sys/prctl.h>
- #include "tuntap_linux.h"
 #endif
 
-#if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
- #include "tuntap_bsd.h"
-#endif
 #ifdef HAVE_FREEBSD
  #define _NSIG _SIG_MAXSIG
 #endif

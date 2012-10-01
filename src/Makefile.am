@@ -15,15 +15,14 @@ mlvpn_SOURCES = \
     privsep.c privsep_fdpass.c \
     wrr.c \
     strlcpy.c \
-    tuntap_generic.c \
     mlvpn.c mlvpn.h
 
 if LINUX
-mlvpn_SOURCES += tuntap_linux.c tuntap_linux.h
+mlvpn_SOURCES += tuntap_linux.c
 endif
 
 if BSD
-mlvpn_SOURCES += tuntap_bsd.c tuntap_bsd.h
+mlvpn_SOURCES += tuntap_bsd.c
 endif
 
 if MLVPN_CONTROL
