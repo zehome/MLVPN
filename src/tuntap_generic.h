@@ -19,11 +19,7 @@
 #include "buffer.h"
 #include "privsep.h"
 #include "debug.h"
-
-/* Not sure if that's usefull. Just doing it in seek of maximum portability. */
-#ifndef IFNAMSIZ
- #define IFNAMSIZ 64
-#endif
+#include "mlvpn.h"
 
 enum tuntap_type {
     MLVPN_TUNTAPMODE_TUN,
@@ -34,12 +30,10 @@ struct tuntap_s
 {
     int fd;
     int mtu;
-    char devname[IFNAMSIZ];
+    char devname[MLVPN_IFNAMSIZ];
     enum tuntap_type type;
     pktbuffer_t *sbuf;
 };
-
-#include "mlvpn.h"
 
 int mlvpn_tuntap_alloc(struct tuntap_s *tuntap);
 int mlvpn_tuntap_read(struct tuntap_s *tuntap);

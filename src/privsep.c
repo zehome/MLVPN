@@ -592,13 +592,18 @@ int priv_open_tun(int tuntapmode, char *devname)
         must_write(priv_fd, devname, len);
 
     must_read(priv_fd, &len, sizeof(len));
-    if (len > 0)
+    if (len > 0 && len < MLVPN_IFNAMSIZ)
     {
         must_read(priv_fd, devname, len);
-        devname[len] = '\0';
+        devname[len-1] = '\0';
         fd = receive_fd(priv_fd);
-    } else
+    } else if (len <= 0) {
         fd = len;
+    } else {
+        /* Too big ! */
+        errx(1, "priv_open_tun: device name returned by privileged "
+                "service is too long.");
+    }
     return fd;
 }
 
@@ -617,9 +622,9 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_gethostserv");
 
-    strlcpy(hostcpy, host, sizeof(hostcpy));
+    strlcpy(hostcpy, host, sizeof(hostcpy)-1);
     hostname_len = strlen(hostcpy) + 1;
-    strlcpy(servcpy, serv, sizeof(servcpy));
+    strlcpy(servcpy, serv, sizeof(servcpy)-1);
     servname_len = strlen(servcpy) + 1;
 
     cmd = PRIV_GETADDRINFO;
@@ -679,7 +684,16 @@ priv_init_script(char *path)
     must_write(priv_fd, path, len);
 
     must_read(priv_fd, &len, sizeof(len));
+    
+    if (len <= 0)
+    {
+        errx(1, "priv_init_script: invalid answer from server.");
+    } else if (len > ERRMSGSIZ) {
+        warnx("priv_init_script: error message truncated.");
+        len = ERRMSGSIZ;
+    }
     must_read(priv_fd, errormessage, len);
+    errormessage[len-1] = 0;
 
     if (*errormessage)
     {
