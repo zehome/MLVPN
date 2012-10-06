@@ -84,6 +84,45 @@ static struct mlvpn_options mlvpn_options;
 static char mlvpn_priv_process_name[2048] = {0};
 static char mlvpn_process_name[2048] = {0};
 
+/* Don't know why it works when compiled in this file.. */
+#include <linux/if_tun.h>
+#include <linux/if.h>
+int mlvpn_tuntap_write(struct tuntap_s *tuntap)
+{
+    int len;
+    mlvpn_pkt_t *pkt;
+    pktbuffer_t *buf = tuntap->sbuf;
+
+    /* Safety checks */
+    if (buf->len <= 0)
+    {
+        _FATAL("[tuntap %s] tuntap_write called with empty buffer!\n", tuntap->devname);
+        return -1;
+    }
+
+    /* TODO: rewrite this to let buffer system handle this */
+    pkt = &buf->pkts[0]; /* First pkt in queue */
+
+    len = write(tuntap->fd, pkt->pktdata.data, pkt->pktdata.len);
+    if (len < 0)
+    {
+        _ERROR("[tuntap %s] write error: %s\n", tuntap->devname, strerror(errno));
+    } else {
+        if (len != pkt->pktdata.len)
+        {
+            _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
+                tuntap->devname, len, pkt->pktdata.len);
+        } else {
+            _DEBUG("[tuntap %s] >> wrote %d bytes (%d pkts left).\n",
+                tuntap->devname, len, (int)buf->len);
+        }
+    }
+
+    /* freeing sent data */
+    mlvpn_pop_pkt(buf);
+    return len;
+}
+
 static void
 usage(char **argv)
 {
