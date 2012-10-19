@@ -49,7 +49,7 @@ Fonctions non supportées
 ========================
 MLVPN ne cherche pas a faire de la sécurité au niveau des paquets qu'il traite.
 
-Il n'y a **pas** de chiffrement, ni de compression, 
+Il n'y a **pas** de chiffrement, ni de compression,
 ni de vérification des paquets qu'il relaye.
 
 Il conviens donc de faire attention à la mise en place de ce système
@@ -64,7 +64,7 @@ et l'autre des droits d'un simple utilisateur.
 Une interface tuntap est ouverte pour permettre la communication entre le noyau
 et l'espace utilisateur.
 
-Ensuite, des sockets établissent la connexion entre 
+Ensuite, des sockets établissent la connexion entre
 le routeur A et le routeur B.
 
 Aggrégation du débit
@@ -88,7 +88,7 @@ La limitation de débit est contrôlé par le fichier de configuration de MLVPN.
 La limitation se fait en ajustant le temps nécessaire entre l'envoi de deux
 paquets, via un calcul savant.
 
-Ainsi on évite la file d'attente au niveau de l'opérateur, ce qui permet de 
+Ainsi on évite la file d'attente au niveau de l'opérateur, ce qui permet de
 garantir une latence faible.
 
 Authentification
@@ -110,10 +110,9 @@ Le principe est (trop) simple:
 
 Compatiblité
 ============
-Linux seulement.
+Linux, OpenBSD, FreeBSD (untested)
 
-D'autre systèmes UNIX viendrons s'ajouter a la liste, comme FreeBSD ou OpenBSD.
-Le portage n'est pas une priorité pour ce projet dans l'immédiat.
+*NO* windows support.
 
 Contributeurs au projet
 =======================
