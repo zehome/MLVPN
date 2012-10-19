@@ -123,6 +123,8 @@ Philippe Pepiot, contributeur (séparation de privilèges, bugfixes, ...)
 
 Ghislain Lévèque, contributeur
 
+Fabien Dupont, bugfix!
+
 LICENCE
 =======
 Voir le fichier LICENCE.

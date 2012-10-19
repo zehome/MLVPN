@@ -11,11 +11,6 @@
 #include <stdlib.h>
 #include <errno.h>
 
-/* Needed to have this here because arpa.h include need it */
-#ifdef HAVE_OPENBSD
- #include <netinet/in.h>
-#endif
-
 #include "buffer.h"
 #include "privsep.h"
 #include "debug.h"
@@ -37,6 +32,7 @@ struct tuntap_s
 
 int mlvpn_tuntap_alloc(struct tuntap_s *tuntap);
 int mlvpn_tuntap_read(struct tuntap_s *tuntap);
+int mlvpn_tuntap_write(struct tuntap_s *tuntap);
 
 /* runs as root! */
 int root_tuntap_open(int tuntapmode, char *devname);

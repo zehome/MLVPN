@@ -13,6 +13,14 @@
  #include <netinet/in.h>
 #endif
 
+/* Many thanks Fabien Dupont! */
+#ifdef HAVE_LINUX
+ /* Absolutely essential to have it there for IFNAMSIZ */
+#include <sys/types.h>
+#include <netdb.h>
+#include <linux/if.h>
+#endif
+
 #include <arpa/inet.h>
 
 #include "pkt.h"
@@ -30,7 +38,7 @@
 
 /* tuntap interface name size */
 #ifndef IFNAMSIZ
- #define IFNAMSIZ 64
+ #define IFNAMSIZ 16
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 
