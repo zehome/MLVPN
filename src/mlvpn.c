@@ -221,19 +221,11 @@ mlvpn_rtun_new(const char *name,
         strlcpy(new->destport, destport, MLVPN_MAXPORTSTR);
     }
 
-    new->sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    new->sbuf->len = 0;
-    new->sbuf->bandwidth = 0;
-
-    new->hpsbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    new->hpsbuf->len = 0;
-    new->hpsbuf->bandwidth = 0;
+    new->sbuf = mlvpn_cb_init(PKTBUFSIZE);
+    new->hpsbuf = mlvpn_cb_init(PKTBUFSIZE);
 
     memset(new->rbuf.data, 0, BUFSIZE);
     new->rbuf.len = 0;
-
-    new->sbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
-    new->hpsbuf->pkts = (mlvpn_pkt_t *)calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
 
     mlvpn_rtun_tick(new);
 
@@ -340,7 +332,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     if (n < 0)
     {
-        _ERROR("Bind error on %d: %s\n", fd, strerror(errno));
+        _ERROR("bind error on %d: %s\n", fd, strerror(errno));
         return -1;
     }
     return 0;
@@ -360,11 +352,9 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             fd = t->server_fd;
         addr = t->bindaddr;
         port = t->bindport;
-        _INFO("server_rtun_connect %s %s\n", addr, port);
     } else {
         addr = t->destaddr;
         port = t->destport;
-        _INFO("client_rtun_connect %s %s\n", addr, port);
     }
 
     /* Initialize hints */
@@ -391,10 +381,9 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
                           t->addrinfo->ai_socktype,
                           t->addrinfo->ai_protocol)) < 0)
         {
-            _ERROR("Socket creation error while connecting to %s:%s: %s\n",
-                addr, port, strerror(fd));
+            _ERROR("[rtun %s] Socket creation error: %s\n",
+                    t->name, strerror(fd));
         } else {
-            _DEBUG("Created socket %d.\n", fd);
             if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
                 t->server_fd = fd;
             else
@@ -406,7 +395,8 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
 
     if (fd < 0)
     {
-        _ERROR("Connection failed. Check DNS?\n");
+        _ERROR("[rtun %s] connection failed. Check DNS?\n",
+                t->name);
         return 1;
     }
 
@@ -419,7 +409,7 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     {
         if (mlvpn_rtun_bind(t) < 0)
         {
-            _ERROR("Unable to bind socket %d.\n", fd);
+            _ERROR("[rtun %s] unable to bind socket %d.\n", t->name, fd);
             if (t->server_mode)
                 return -2;
         }
@@ -432,20 +422,22 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             /* listen, only allow 1 socket in accept() queue */
             if ((ret = listen(fd, 1)) < 0)
             {
-                _ERROR("Unable to listen on socket %d.\n", fd);
+                _ERROR("[rtun %s] unable to listen on socket %d.\n",
+                        t->name, fd);
                 return -3;
             }
         } else {
             /* client mode */
-            _ERROR("Connecting to [%s]:%s\n", addr, port);
+            _INFO("[rtun %s] connecting to [%s]:%s\n",
+                   t->name, addr, port);
             /* connect(2) */
             if (connect(fd, t->addrinfo->ai_addr, t->addrinfo->ai_addrlen) == 0)
             {
-                _ERROR("Successfully connected to [%s]:%s.\n",
-                    addr, port);
+                _INFO("[rtun %s] successfully connected to [%s]:%s.\n",
+                       t->name, addr, port);
             } else {
-                _ERROR("Connection to [%s]:%s failed: %s\n",
-                    addr, port, strerror(errno));
+                _ERROR("[rtun %s] connection to [%s]:%s failed: %s\n",
+                        t->name, addr, port, strerror(errno));
                 t->fd = -1;
                 t->status = 0;
                 return -4;
@@ -486,8 +478,8 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     t->server_fd = -1;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->rbuf.len = 0;
-    t->sbuf->len = 0;
-    t->hpsbuf->len = 0;
+    mlvpn_cb_reset(t->sbuf);
+    mlvpn_cb_reset(t->hpsbuf);
     t->next_keepalive = 0;
     if (old_status >= MLVPN_CHAP_AUTHOK)
     {
@@ -526,10 +518,8 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
                 free(tmp->destport);
             if (tmp->addrinfo)
                 freeaddrinfo(tmp->addrinfo);
-            free(tmp->sbuf->pkts);
-            free(tmp->sbuf);
-            free(tmp->hpsbuf->pkts);
-            free(tmp->hpsbuf);
+            mlvpn_cb_free(tmp->sbuf);
+            mlvpn_cb_free(tmp->hpsbuf);
             /* Safety */
             tmp->name = NULL;
             break;
@@ -545,10 +535,10 @@ mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 {
     mlvpn_pkt_t *pkt;
 
-    if (mlvpn_check_buffer(t->hpsbuf, 1) != 0)
-        _WARNING("TUN %d buffer overflow.\n", t->fd);
+    if (mlvpn_cb_is_full(t->hpsbuf))
+        _WARNING("[rtun %s] buffer overflow.\n", t->name);
 
-    pkt = mlvpn_get_free_pkt(t->hpsbuf);
+    pkt = mlvpn_cb_write(t->hpsbuf);
     pkt->pktdata.data[0] = 'A';
     pkt->pktdata.data[1] = 'U';
     pkt->pktdata.len = 2;
@@ -593,10 +583,10 @@ mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
                 return;
             }
 
-            if (mlvpn_check_buffer(t->hpsbuf, 1) != 0)
-                _WARNING("TUN %d buffer overflow.\n", t->fd);
+            if (mlvpn_cb_is_full(t->hpsbuf))
+                _WARNING("[rtun %s] buffer overflow.\n", t->name);
 
-            pkt = mlvpn_get_free_pkt(t->hpsbuf);
+            pkt = mlvpn_cb_write(t->hpsbuf);
             pkt->pktdata.data[0] = 'O';
             pkt->pktdata.data[1] = 'K';
             pkt->pktdata.len = 2;
@@ -604,7 +594,7 @@ mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
             t->status = MLVPN_CHAP_AUTHSENT;
             _DEBUG("Sending 'OK' packet to client.\n");
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
-            _INFO("TUN %d authenticated.\n", t->fd);
+            _INFO("[rtun %s] authenticated.\n", t->name);
             mlvpn_rtun_status_up(t);
         }
     } else {
@@ -732,10 +722,10 @@ void
 mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
 {
     mlvpn_pkt_t *pkt;
-    if (mlvpn_check_buffer(t->hpsbuf, 0) != 0)
-        _ERROR("rtun %d buffer overflow.\n", t->fd);
+    if (mlvpn_cb_is_full(t->hpsbuf))
+        _ERROR("[rtun %s] buffer overflow.\n", t->name);
     else {
-        pkt = mlvpn_get_free_pkt(t->hpsbuf);
+        pkt = mlvpn_cb_write(t->hpsbuf);
         pkt->pktdata.len = 0;
     }
     t->next_keepalive = now + t->timeout/2;
@@ -804,18 +794,19 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                      * are client side, as we would create a send/recv loop */
                     if (tun->server_mode)
                     {
-                        if (mlvpn_check_buffer(tun->hpsbuf, 1) != 0)
-                            _WARNING("rtun %d buffer overflow.\n", tun->fd);
-                        pkt = mlvpn_get_free_pkt(tun->hpsbuf);
+                        if (mlvpn_cb_is_full(tun->hpsbuf))
+                            _WARNING("[rtun %s] buffer overflow.\n", tun->name);
+                        pkt = mlvpn_cb_write(tun->hpsbuf);
                         pkt->pktdata.len = 0;
                     }
                 } else {
                     if (tun->status == MLVPN_CHAP_AUTHOK)
                     {
-                        if (mlvpn_check_buffer(tuntap.sbuf, 1) != 0)
-                            _WARNING("TAP buffer overflow.\n");
+                        /* Directly send data to the network */
+                        if (mlvpn_cb_is_full(tuntap.sbuf))
+                            _WARNING("TUN/TAP buffer overflow.\n");
 
-                        pkt = mlvpn_get_free_pkt(tuntap.sbuf);
+                        pkt = mlvpn_cb_write(tuntap.sbuf);
                         pkt->pktdata.len = pktdata.len;
                         memcpy(pkt->pktdata.data, pktdata.data, pktdata.len);
                     } else {
@@ -862,7 +853,7 @@ mlvpn_rtun_read(mlvpn_tunnel_t *tun)
     rlen = BUFSIZE - tun->rbuf.len;
     if (rlen <= 0)
     {
-        _WARNING("Tun %d receive buffer overrun.\n", tun->fd);
+        _WARNING("[rtun %s] receive buffer overrun.\n", tun->name);
         tun->rbuf.len = 0;
     }
 
@@ -880,7 +871,7 @@ mlvpn_rtun_read(mlvpn_tunnel_t *tun)
 
         if (tun->encap_prot == ENCAP_PROTO_TCP)
         {
-            _DEBUG("< TUN %d read %u bytes.\n", tun->fd, (uint32_t)len);
+            _DEBUG("< rtun %d read %u bytes.\n", tun->fd, (uint32_t)len);
         } else {
             if (! tun->addrinfo)
             {
@@ -899,24 +890,26 @@ mlvpn_rtun_read(mlvpn_tunnel_t *tun)
                                  clientport, sizeof(clientport),
                                  NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
                 {
-                    _ERROR("Error in getnameinfo: %d: %s\n", 
-                        ret, strerror(errno));
+                    _ERROR("[rtun %s] Error in getnameinfo: %d: %s\n", 
+                            tun->name, ret, strerror(errno));
                 } else {
-                    _DEBUG("New UDP connection -> %s\n", clienthost);
+                    _DEBUG("[rtun %s] new UDP connection -> %s\n",
+                            tun->name, clienthost);
                     memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
                     tun->status = MLVPN_CHAP_DISCONNECTED;
                 }
-                _DEBUG("< TUN %d read %d bytes from %s:%s.\n", tun->fd, len,
+                _DEBUG("< rtun %d read %d bytes from %s:%s.\n", tun->fd, len,
                             clienthost, clientport);
             }
         }
         tun->rbuf.len += len;
         mlvpn_rtun_tick_rbuf(tun);
     } else if (len < 0) {
-        _ERROR("Read error on %d: %s\n", tun->fd, strerror(errno));
+        _ERROR("[rtun %s] read error on %d: %s\n",
+                tun->name, tun->fd, strerror(errno));
         mlvpn_rtun_status_down(tun);
     } else {
-        _INFO("Peer closed the connection %d.\n", tun->fd);
+        _INFO("[rtun %s] peer closed the connection %d.\n", tun->name, tun->fd);
         mlvpn_rtun_status_down(tun);
     }
     return len;
@@ -927,7 +920,8 @@ mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
 {
     ssize_t len;
     size_t wlen;
-    mlvpn_pkt_t *pkt = &pktbuf->pkts[0];
+
+    mlvpn_pkt_t *pkt = mlvpn_cb_read(pktbuf);
 
     wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
 
@@ -940,20 +934,19 @@ mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
     }
     if (len < 0)
     {
-        _ERROR("Write error on %d: %s\n", tun->fd, strerror(errno));
+        _ERROR("[rtun %s] write error: %s\n", tun->name, strerror(errno));
         mlvpn_rtun_status_down(tun);
     } else {
         tun->sentbytes += len;
         if (wlen != len)
         {
-            _ERROR("Error writing on TUN %d: written %u bytes over %u.\n",
-                tun->fd, len, wlen);
+            _ERROR("[rtun %s] write error: written %u over %u.n",
+                tun->name, len, wlen);
         } else {
-            _DEBUG("> TUN %d written %u bytes (%u pkts left).\n",
-                tun->fd, len, (int)pktbuf->len - 1);
+            _DEBUG("> rtun %d written %u bytes.\n",
+                tun->fd, len);
         }
     }
-    mlvpn_pop_pkt(pktbuf);
     return len;
 }
 
@@ -961,10 +954,10 @@ int
 mlvpn_rtun_write(mlvpn_tunnel_t *tun)
 {
     int bytes = 0;
-    if (tun->hpsbuf->len > 0)
+    if (! mlvpn_cb_is_empty(tun->hpsbuf))
         bytes += mlvpn_rtun_write_pkt(tun, tun->hpsbuf);
 
-    if (tun->sbuf->len > 0)
+    if (! mlvpn_cb_is_empty(tun->sbuf))
         bytes += mlvpn_rtun_write_pkt(tun, tun->sbuf);
 
     return bytes;
@@ -978,24 +971,24 @@ mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
     mlvpn_pkt_t *pkt;
 
     /* Send high priority buffer as soon as possible */
-    if (t->hpsbuf->len > 0)
+    if (! mlvpn_cb_is_empty(t->hpsbuf))
         bytesent = mlvpn_rtun_write_pkt(t, t->hpsbuf);
 
-    if (t->sbuf->len <= 0)
+    if (mlvpn_cb_is_empty(t->sbuf))
         return bytesent;
 
-    pkt = &t->sbuf->pkts[0];
+    pkt = mlvpn_cb_read_norelease(t->sbuf);
     now = mlvpn_millis();
     if (now >= pkt->next_packet_send || pkt->next_packet_send == 0)
     {
         bytesent += mlvpn_rtun_write_pkt(t, t->sbuf);
-        if (t->sbuf->len > 0)
+        if (! mlvpn_cb_is_empty(t->sbuf))
         {
-            pkt = &t->sbuf->pkts[0];
+            pkt = mlvpn_cb_read_norelease(t->sbuf);
             if (t->sbuf->bandwidth > 0 && pkt->pktdata.len > 0)
             {
                 pkt->next_packet_send = mlvpn_millis() +
-                    1000/(t->sbuf->bandwidth/pkt->pktdata.len);
+                    (1000 / (t->sbuf->bandwidth / pkt->pktdata.len));
             }
         }
     } else {
@@ -1297,10 +1290,7 @@ void mlvpn_tuntap_init()
     snprintf(tuntap.devname, MLVPN_IFNAMSIZ-1, "%s", "mlvpn0");
     tuntap.mtu = 1500;
     tuntap.type = MLVPN_TUNTAPMODE_TUN;
-    tuntap.sbuf = (pktbuffer_t *)calloc(1, sizeof(pktbuffer_t));
-    tuntap.sbuf->len = 0;
-    tuntap.sbuf->pkts = calloc(PKTBUFSIZE, sizeof(mlvpn_pkt_t));
-    tuntap.sbuf->bandwidth = 0;
+    tuntap.sbuf = mlvpn_cb_init(PKTBUFSIZE);
 }
 
 int
@@ -1502,7 +1492,7 @@ main(int argc, char **argv)
         {
             _INFO("Received SIGHUP, reload configuration.\n");
             if (mlvpn_config(priv_open_config(mlvpn_options.config), 0) != 0)
-                _ERROR("configuration reload failed.\n");
+                _ERROR("Configuration reload failed.\n");
             else
                 mlvpn_rtun_recalc_weight();
             reload_config_needed = 0;
@@ -1539,7 +1529,7 @@ main(int argc, char **argv)
         if (tuntap.fd > maxfd)
             maxfd = tuntap.fd;
 
-        if (tuntap.sbuf->len > 0)
+        if (! mlvpn_cb_is_empty(tuntap.sbuf))
             FD_SET(tuntap.fd, &wfds);
 
         /* set rfds/wfds for rtunnels */
@@ -1555,8 +1545,12 @@ main(int argc, char **argv)
 
             if (tmptun->fd > 0)
             {
-                if (tmptun->sbuf->len > 0 || tmptun->hpsbuf->len > 0)
+                if (! mlvpn_cb_is_empty(tmptun->sbuf) ||
+                    ! mlvpn_cb_is_empty(tmptun->hpsbuf))
+                {
                     FD_SET(tmptun->fd, &wfds);
+                }
+
                 FD_SET(tmptun->fd, &rfds);
                 if (tmptun->fd > maxfd)
                     maxfd = tmptun->fd;

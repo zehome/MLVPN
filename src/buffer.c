@@ -5,40 +5,76 @@
 #include "debug.h"
 #include "mlvpn.h"
 
-/* checks the selected pktbuffer if a packet can be inserted
- * returns 0 on success
- * returns -1 on error
- * if the reset flag is set to 1, then the buffer is flushed
- */
-int
-mlvpn_check_buffer(pktbuffer_t *buf, int reset)
+pktbuffer_t *
+mlvpn_cb_init(int size)
 {
-    if (buf->len > PKTBUFSIZE)
-    {
-        if (reset)
-            buf->len = 0;
-        return -1;
-    }
-    return 0;
+    pktbuffer_t *buf = calloc(1, sizeof(pktbuffer_t));
+    buf->size = size + 1; /* Add 1 element to know when we are full or empty */
+    buf->pkts = (mlvpn_pkt_t *)calloc(buf->size, sizeof(mlvpn_pkt_t));
+    mlvpn_cb_reset(buf);
+    return buf;
 }
 
-/* Returns the next free mlvpn_pkt_t* */
-mlvpn_pkt_t *
-mlvpn_get_free_pkt(pktbuffer_t *buf)
+void
+mlvpn_cb_free(pktbuffer_t *buf)
 {
-    mlvpn_pkt_t *pkt = &buf->pkts[buf->len++];
+    free(buf->pkts);
+    free(buf);
+}
+
+/* Re-initialize the ring buffer to default values */
+void
+mlvpn_cb_reset(pktbuffer_t *buf)
+{
+    buf->start = 0;
+    buf->end = 0;
+    buf->bandwidth = 0;
+}
+
+int
+mlvpn_cb_is_full(pktbuffer_t *buf)
+{
+    return (buf->end + 1) % buf->size == buf->start;
+}
+
+int
+mlvpn_cb_is_empty(pktbuffer_t *buf)
+{
+    return buf->end == buf->start;
+}
+
+/* Release and return the packet if available. */
+mlvpn_pkt_t *
+mlvpn_cb_read(pktbuffer_t *buf)
+{
+    mlvpn_pkt_t *pkt;
+    pkt = &buf->pkts[buf->start];
+    buf->start = (buf->start + 1) % buf->size;
+    return pkt;
+}
+
+/* Return the packet if available. (NO RELEASE) */
+mlvpn_pkt_t *
+mlvpn_cb_read_norelease(pktbuffer_t *buf)
+{
+    mlvpn_pkt_t *pkt;
+    pkt = &buf->pkts[buf->start];
+    return pkt;
+}
+
+/* Register & return a new packet. */
+mlvpn_pkt_t *
+mlvpn_cb_write(pktbuffer_t *buf)
+{
+    mlvpn_pkt_t *pkt = &buf->pkts[buf->end];
+    buf->end = (buf->end + 1) % buf->size;
+    if (buf->end == buf->start)
+    {
+        /* Should not go there (overwrite) */
+        buf->start = (buf->start + 1) % buf->size;
+    }
+    /* Initialize the new packet to send */
     pkt->pktdata.magic = MLVPN_MAGIC;
     pkt->next_packet_send = 0;
     return pkt;
 }
-
-/* TODO: find a better way to do that! */
-void
-mlvpn_pop_pkt(pktbuffer_t *buf)
-{
-    int i;
-    for (i = 0; i < buf->len-1; i++)
-        memmove(&buf->pkts[i], &buf->pkts[i+1], sizeof(mlvpn_pkt_t));
-    buf->len -= 1;
-}
-

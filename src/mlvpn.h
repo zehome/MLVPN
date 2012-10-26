@@ -154,4 +154,6 @@ enum mlvpn_hook {
 
 int mlvpn_hook(enum mlvpn_hook, int argc, char **argv);
 
+#define BUFFER_REASSEMBLY
+
 #endif

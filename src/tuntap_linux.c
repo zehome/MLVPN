@@ -8,64 +8,12 @@
 #include <linux/if_tun.h>
 #include <linux/if.h>
 
+#include "buffer.h"
 #include "tuntap_generic.h"
 #include "strlcpy.h"
 
-int mlvpn_tuntap_write(struct tuntap_s *tuntap)
-{
-    int len;
-    mlvpn_pkt_t *pkt;
-    pktbuffer_t *buf = tuntap->sbuf;
-
-    /* Safety checks */
-    if (buf->len <= 0)
-    {
-        _FATAL("[tuntap %s] tuntap_write called with empty buffer!\n", tuntap->devname);
-        return -1;
-    }
-
-    /* TODO: rewrite this to let buffer system handle this */
-    pkt = &buf->pkts[0]; /* First pkt in queue */
-
-    len = write(tuntap->fd, pkt->pktdata.data, pkt->pktdata.len);
-    if (len < 0)
-    {
-        _ERROR("[tuntap %s] write error: %s\n", tuntap->devname, strerror(errno));
-    } else {
-        if (len != pkt->pktdata.len)
-        {
-            _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
-                tuntap->devname, len, pkt->pktdata.len);
-        } else {
-            _DEBUG("[tuntap %s] >> wrote %d bytes (%d pkts left).\n",
-                tuntap->devname, len, (int)buf->len);
-        }
-    }
-
-    /* freeing sent data */
-    mlvpn_pop_pkt(buf);
-    return len;
-}
-
-
-int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
-{
-    int fd;
-
-    if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) <= 0 )
-    {
-        _FATAL("[tuntap %s] unable to open /dev/net/tun read/write. Check permissions.\n",
-            tuntap->devname);
-        return fd;
-    }
-    tuntap->fd = fd;
-
-    char *hook_args[3] = {tuntap->devname, "tuntap_up", NULL};
-    mlvpn_hook(MLVPN_HOOK_TUNTAP, 2, hook_args);
-    return fd;
-}
-
-int mlvpn_tuntap_read(struct tuntap_s *tuntap)
+int
+mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
     pktbuffer_t *sbuf;
     mlvpn_tunnel_t *rtun;
@@ -84,22 +32,22 @@ int mlvpn_tuntap_read(struct tuntap_s *tuntap)
 
     /* Buffer checking / reset in case of overflow */
     sbuf = rtun->sbuf;
-    if (mlvpn_check_buffer(sbuf, 1) != 0)
-        _WARNING("[tun %s] buffer overflow.\n", rtun->name);
+    if (mlvpn_cb_is_full(sbuf))
+        _WARNING("[rtun %s] buffer overflow.\n", rtun->name);
 
-    /* Ask for a free buffer (protected by the check just above) */
-    pkt = mlvpn_get_free_pkt(sbuf);
-
+    /* Ask for a free buffer */
+    pkt = mlvpn_cb_write(sbuf);
     ret = read(tuntap->fd, pkt->pktdata.data, DEFAULT_MTU);
     if (ret < 0)
     {
         /* read error on tuntap is not recoverable. We must die. */
         _FATAL("[tuntap %s] unrecoverable read error: %s\n",
-            tuntap->devname, strerror(errno));
+                tuntap->devname, strerror(errno));
         exit(1);
     } else if (ret == 0) {
         /* End of file */
-        _FATAL("[tuntap %s] unrecoverable error (reached EOF on tuntap!)\n");
+        _FATAL("[tuntap %s] unrecoverable error (reached EOF on tuntap!)\n",
+                tuntap->devname);
         exit(1);
     }
     pkt->pktdata.len = ret;
@@ -107,6 +55,59 @@ int mlvpn_tuntap_read(struct tuntap_s *tuntap)
     return pkt->pktdata.len;
 }
 
+int
+mlvpn_tuntap_write(struct tuntap_s *tuntap)
+{
+    int len;
+    mlvpn_pkt_t *pkt;
+    pktbuffer_t *buf = tuntap->sbuf;
+
+    /* Safety checks */
+    if (mlvpn_cb_is_empty(buf))
+    {
+        _FATAL("[tuntap %s] tuntap_write called with empty buffer!\n",
+                tuntap->devname);
+        return -1;
+    }
+
+    pkt = mlvpn_cb_read(buf);
+    len = write(tuntap->fd, pkt->pktdata.data, pkt->pktdata.len);
+    if (len < 0)
+    {
+        _ERROR("[tuntap %s] write error: %s\n",
+                tuntap->devname, strerror(errno));
+    } else {
+        if (len != pkt->pktdata.len)
+        {
+            _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
+                    tuntap->devname, len, pkt->pktdata.len);
+        } else {
+            _DEBUG("[tuntap %s] >> wrote %d bytes.\n",
+                    tuntap->devname, len);
+        }
+    }
+
+    return len;
+}
+
+int
+mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
+{
+    int fd;
+
+    if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) <= 0 )
+    {
+        _FATAL("[tuntap %s] unable to open /dev/net/tun read/write. "
+               "Check permissions.\n",
+            tuntap->devname);
+        return fd;
+    }
+    tuntap->fd = fd;
+
+    char *hook_args[3] = {tuntap->devname, "tuntap_up", NULL};
+    mlvpn_hook(MLVPN_HOOK_TUNTAP, 2, hook_args);
+    return fd;
+}
 
 /* WARNING: called as root
  *
@@ -115,7 +116,8 @@ int mlvpn_tuntap_read(struct tuntap_s *tuntap)
  *
  * Compatibility: Linux 2.4+
  */
-int root_tuntap_open(int tuntapmode, char *devname)
+int
+root_tuntap_open(int tuntapmode, char *devname)
 {
     struct ifreq ifr;
     int fd;

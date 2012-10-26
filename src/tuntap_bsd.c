@@ -10,10 +10,12 @@
 #include <net/if_tun.h>
 #include <sys/uio.h>
 
+#include "buffer.h"
 #include "tuntap_generic.h"
 #include "strlcpy.h"
 
-int mlvpn_tuntap_read(struct tuntap_s *tuntap)
+int
+mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
     pktbuffer_t *sbuf;
     mlvpn_tunnel_t *rtun;
@@ -34,11 +36,11 @@ int mlvpn_tuntap_read(struct tuntap_s *tuntap)
 
     /* Buffer checking / reset in case of overflow */
     sbuf = rtun->sbuf;
-    if (mlvpn_check_buffer(sbuf, 1) != 0)
-        _WARNING("[tun %s] buffer overflow.\n", rtun->name);
+    if (mlvpn_cb_is_full(sbuf))
+        _WARNING("[rtun %s] buffer overflow.\n", rtun->name);
 
-    /* Ask for a free buffer (protected by the check just above) */
-    pkt = mlvpn_get_free_pkt(sbuf);
+    /* Ask for a free buffer */
+    pkt = mlvpn_cb_write(sbuf);
 
     iov[0].iov_base = &type;
     iov[0].iov_len = sizeof(type);
@@ -50,11 +52,12 @@ int mlvpn_tuntap_read(struct tuntap_s *tuntap)
     {
         /* read error on tuntap is not recoverable. We must die. */
         _FATAL("[tuntap %s] unrecoverable read error: %s\n",
-            tuntap->devname, strerror(errno));
+                tuntap->devname, strerror(errno));
         exit(1);
     } else if (ret == 0) {
         /* End of file */
-        _FATAL("[tuntap %s] unrecoverable error (reached EOF on tuntap!)\n");
+        _FATAL("[tuntap %s] unrecoverable error (reached EOF on tuntap!)\n",
+                tuntap->devname);
         exit(1);
     }
     pkt->pktdata.len = ret - sizeof(type);
@@ -62,7 +65,8 @@ int mlvpn_tuntap_read(struct tuntap_s *tuntap)
     return pkt->pktdata.len;
 }
 
-int mlvpn_tuntap_write(struct tuntap_s *tuntap)
+int
+mlvpn_tuntap_write(struct tuntap_s *tuntap)
 {
     int len, datalen;
     mlvpn_pkt_t *pkt;
@@ -71,14 +75,14 @@ int mlvpn_tuntap_write(struct tuntap_s *tuntap)
     struct iovec iov[2];
 
     /* Safety checks */
-    if (buf->len <= 0)
+    if (mlvpn_cb_is_empty(buf))
     {
-        _FATAL("[tuntap %s] tuntap_write called with empty buffer!\n", tuntap->devname);
+        _FATAL("[tuntap %s] tuntap_write called with empty buffer!\n",
+                tuntap->devname);
         return -1;
     }
 
-    /* TODO: rewrite this to let buffer system handle this */
-    pkt = &buf->pkts[0]; /* First pkt in queue */
+    pkt = mlvpn_cb_read(buf);
 
     type = htonl(AF_INET);
 
@@ -91,23 +95,23 @@ int mlvpn_tuntap_write(struct tuntap_s *tuntap)
     datalen = len - iov[0].iov_len;
     if (len < 0)
     {
-        _ERROR("[tuntap %s] write error: %s\n", tuntap->devname, strerror(errno));
+        _ERROR("[tuntap %s] write error: %s\n",
+                tuntap->devname, strerror(errno));
     } else {
         if (datalen != pkt->pktdata.len)
         {
             _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
-                tuntap->devname, datalen, pkt->pktdata.len);
+                    tuntap->devname, datalen, pkt->pktdata.len);
         } else {
-            _DEBUG("[tuntap %s] >> wrote %d bytes (%d pkts left).\n",
-                tuntap->devname, datalen, (int)buf->len);
+            _DEBUG("[tuntap %s] >> wrote %d bytes.\n",
+                    tuntap->devname, datalen);
         }
     }
 
-    /* freeing sent data */
-    mlvpn_pop_pkt(buf);
     return datalen;
 }
-int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
+int
+mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
 {
     char devname[8];
     int fd;
@@ -118,7 +122,8 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     /* examples: /dev/tun0, /dev/tun2 (man 2 if_tun) */
     for (i=0; i < 32; i++)
     {
-        snprintf(devname, 5, "%s%d", tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
+        snprintf(devname, 5, "%s%d",
+            tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
         snprintf(tuntap->devname, 10, "/dev/%s", devname);
 
         if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) > 0 )
@@ -127,7 +132,8 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
 
     if (fd <= 0)
     {
-        _FATAL("[tuntap] unable to open any /dev/%s0 to 32 read/write. Check permissions.\n",
+        _FATAL("[tuntap] unable to open any /dev/%s0 to 32 read/write. "
+               "Check permissions.\n",
             tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
         return fd;
     }
@@ -149,7 +155,8 @@ int mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
  *
  * Compatibility: BSD
  */
-int root_tuntap_open(int tuntapmode, char *devname)
+int
+root_tuntap_open(int tuntapmode, char *devname)
 {
     int fd;
 

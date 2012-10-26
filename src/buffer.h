@@ -7,8 +7,9 @@
 
 typedef struct pktbuffer_s
 {
-    size_t len;
-    mlvpn_pkt_t *pkts;
+    int size;
+    int start;
+    int end;
     /* This represents the bandwidth to use on this queue
      * in bytes per second.
      * Set to <= 0 for not limiting bandwidth.
@@ -18,15 +19,31 @@ typedef struct pktbuffer_s
      * next_packet_send = now_in_millis + 1/(bandwidth/packetlen)
      */
     uint32_t bandwidth;
+    mlvpn_pkt_t *pkts;
 } pktbuffer_t;
 
-int
-mlvpn_check_buffer(pktbuffer_t *buf, int reset);
-
-mlvpn_pkt_t *
-mlvpn_get_free_pkt(pktbuffer_t *buf);
+pktbuffer_t *
+mlvpn_cb_init(int size);
 
 void
-mlvpn_pop_pkt(pktbuffer_t *buf);
+mlvpn_cb_free(pktbuffer_t *buf);
+
+void
+mlvpn_cb_reset(pktbuffer_t *buf);
+
+int
+mlvpn_cb_is_full(pktbuffer_t *buf);
+
+int
+mlvpn_cb_is_empty(pktbuffer_t *buf);
+
+mlvpn_pkt_t *
+mlvpn_cb_read(pktbuffer_t *buf);
+
+mlvpn_pkt_t *
+mlvpn_cb_read_norelease(pktbuffer_t *buf);
+
+mlvpn_pkt_t *
+mlvpn_cb_write(pktbuffer_t *buf);
 
 #endif
