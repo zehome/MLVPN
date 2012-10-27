@@ -5,76 +5,146 @@
 #include "debug.h"
 #include "mlvpn.h"
 
-pktbuffer_t *
+/**
+  * Generic handlers
+  */
+
+circular_buffer_t *
 mlvpn_cb_init(int size)
 {
-    pktbuffer_t *buf = calloc(1, sizeof(pktbuffer_t));
+    circular_buffer_t *buf = calloc(1, sizeof(circular_buffer_t));
     buf->size = size + 1; /* Add 1 element to know when we are full or empty */
-    buf->pkts = (mlvpn_pkt_t *)calloc(buf->size, sizeof(mlvpn_pkt_t));
+    buf->data = NULL;
     mlvpn_cb_reset(buf);
     return buf;
 }
 
+/* Please note you MUST free yourself the data associated! */
 void
-mlvpn_cb_free(pktbuffer_t *buf)
+mlvpn_cb_free(circular_buffer_t *buf)
 {
-    free(buf->pkts);
     free(buf);
 }
 
 /* Re-initialize the ring buffer to default values */
 void
-mlvpn_cb_reset(pktbuffer_t *buf)
+mlvpn_cb_reset(circular_buffer_t *buf)
 {
     buf->start = 0;
     buf->end = 0;
-    buf->bandwidth = 0;
 }
 
 int
-mlvpn_cb_is_full(pktbuffer_t *buf)
+mlvpn_cb_is_full(const circular_buffer_t *buf)
 {
     return (buf->end + 1) % buf->size == buf->start;
 }
 
 int
-mlvpn_cb_is_empty(pktbuffer_t *buf)
+mlvpn_cb_is_empty(const circular_buffer_t *buf)
 {
     return buf->end == buf->start;
 }
 
-/* Release and return the packet if available. */
-mlvpn_pkt_t *
-mlvpn_cb_read(pktbuffer_t *buf)
+/* Release and return the packet if available.
+ * data must point to a valid location in memory
+ * where the actual data is stored.
+*/
+void *
+mlvpn_cb_read(circular_buffer_t *buf, void **data)
 {
-    mlvpn_pkt_t *pkt;
-    pkt = &buf->pkts[buf->start];
+    void *ret = data[buf->start];
     buf->start = (buf->start + 1) % buf->size;
-    return pkt;
+    return ret;
 }
 
-/* Return the packet if available. (NO RELEASE) */
-mlvpn_pkt_t *
-mlvpn_cb_read_norelease(pktbuffer_t *buf)
+/* Return the packet if available. (NO RELEASE)
+ * See comment in cb_read for **data signification.
+ */
+void *
+mlvpn_cb_read_norelease(const circular_buffer_t *buf, void **data)
 {
-    mlvpn_pkt_t *pkt;
-    pkt = &buf->pkts[buf->start];
-    return pkt;
+    return data[buf->start];
 }
 
-/* Register & return a new packet. */
-mlvpn_pkt_t *
-mlvpn_cb_write(pktbuffer_t *buf)
+/* Register & return a new packet.
+ * See comment in cb_read for **data signification.
+ */
+void *
+mlvpn_cb_write(circular_buffer_t *buf, void **data)
 {
-    mlvpn_pkt_t *pkt = &buf->pkts[buf->end];
+    void *ret = data[buf->end];
     buf->end = (buf->end + 1) % buf->size;
     if (buf->end == buf->start)
-    {
-        /* Should not go there (overwrite) */
         buf->start = (buf->start + 1) % buf->size;
-    }
+    return ret;
+}
+
+/**
+ * Application specific handlers
+ */
+circular_buffer_t *
+mlvpn_pktbuffer_init(int size)
+{
+    int i;
+    /* Basic circular buffer allocation */
+    circular_buffer_t *buf = mlvpn_cb_init(size);
+
+    /* Actual packet buffer memory allocation */
+    pktbuffer_t *pktbuf = calloc(1, sizeof(pktbuffer_t));
+    pktbuf->pkts = malloc(buf->size * sizeof(mlvpn_pkt_t *));
+
+    for(i = 0; i < buf->size; i++)
+        pktbuf->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
+
+    buf->data = pktbuf;
+    /* This is sub-optimal as we call cb_free another time.
+     * Not a big deal though. */
+    mlvpn_pktbuffer_reset(buf);
+    return buf;
+}
+
+void
+mlvpn_pktbuffer_free(circular_buffer_t *buf)
+{
+    pktbuffer_t *pktbuffer = buf->data;
+    free(pktbuffer->pkts);
+    mlvpn_cb_free(buf);
+}
+
+void
+mlvpn_pktbuffer_reset(circular_buffer_t *buf)
+{
+    pktbuffer_t *pktbuffer = buf->data;
+    pktbuffer->bandwidth = 0;
+    mlvpn_cb_reset(buf);
+}
+
+mlvpn_pkt_t *
+mlvpn_pktbuffer_write(circular_buffer_t *buf)
+{
+    pktbuffer_t *pktbuffer = buf->data;
+    mlvpn_pkt_t *pkt = (mlvpn_pkt_t *)mlvpn_cb_write(buf,
+                                (void *)pktbuffer->pkts);
     /* Initialize the new packet to send */
     pkt->pktdata.magic = MLVPN_MAGIC;
     pkt->next_packet_send = 0;
     return pkt;
+}
+
+mlvpn_pkt_t *
+mlvpn_pktbuffer_read(circular_buffer_t *buf)
+{
+    pktbuffer_t *pktbuffer = buf->data;
+    return (mlvpn_pkt_t *)mlvpn_cb_read(buf,
+                                (void *)pktbuffer->pkts);
+}
+
+/* Return the packet if available. (NO RELEASE) */
+mlvpn_pkt_t *
+mlvpn_pktbuffer_read_norelease(circular_buffer_t *buf)
+{
+    pktbuffer_t *pktbuffer = buf->data;
+    return (mlvpn_pkt_t *)mlvpn_cb_read_norelease(buf,
+                                (void *)pktbuffer->pkts);
 }

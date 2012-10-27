@@ -27,7 +27,7 @@ struct tuntap_s
     int mtu;
     char devname[MLVPN_IFNAMSIZ];
     enum tuntap_type type;
-    pktbuffer_t *sbuf;
+    circular_buffer_t *sbuf;
 };
 
 int mlvpn_tuntap_alloc(struct tuntap_s *tuntap);

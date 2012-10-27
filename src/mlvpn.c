@@ -221,8 +221,8 @@ mlvpn_rtun_new(const char *name,
         strlcpy(new->destport, destport, MLVPN_MAXPORTSTR);
     }
 
-    new->sbuf = mlvpn_cb_init(PKTBUFSIZE);
-    new->hpsbuf = mlvpn_cb_init(PKTBUFSIZE);
+    new->sbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
+    new->hpsbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
 
     memset(new->rbuf.data, 0, BUFSIZE);
     new->rbuf.len = 0;
@@ -258,14 +258,14 @@ mlvpn_rtun_recalc_weight()
      * it's impossible to balance correctly! */
     while (t)
     {
-        if (t->sbuf->bandwidth == 0)
+        if (mlvpn_pktbuffer_bandwidth(t->sbuf) == 0)
         {
             _WARNING("MLVPN can't balance correctly the traffic on"
                 " tunnels if bandwidth limit is disabled! (tun '%s')\n",
                 t->name);
             warned++;
         }
-        bandwidth_total += t->sbuf->bandwidth;
+        bandwidth_total += mlvpn_pktbuffer_bandwidth(t->sbuf);
         t = t->next;
     }
 
@@ -275,11 +275,12 @@ mlvpn_rtun_recalc_weight()
         while (t)
         {
             /* useless, but we want to be sure not to divide by 0 ! */
-            if (t->sbuf->bandwidth > 0 && bandwidth_total > 0)
+            if (mlvpn_pktbuffer_bandwidth(t->sbuf) > 0 && bandwidth_total > 0)
             {
-                t->weight = (((double)t->sbuf->bandwidth/(double)bandwidth_total) * 100.0);
+                t->weight = (((double)mlvpn_pktbuffer_bandwidth(t->sbuf) /
+                                        (double)bandwidth_total) * 100.0);
                 _DEBUG("tun %s weight = %f (%u %u)\n", t->name, t->weight,
-                    t->sbuf->bandwidth, bandwidth_total);
+                    mlvpn_pktbuffer_bandwidth(t->sbuf), bandwidth_total);
             }
             t = t->next;
         }
@@ -478,8 +479,8 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     t->server_fd = -1;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->rbuf.len = 0;
-    mlvpn_cb_reset(t->sbuf);
-    mlvpn_cb_reset(t->hpsbuf);
+    mlvpn_pktbuffer_reset(t->sbuf);
+    mlvpn_pktbuffer_reset(t->hpsbuf);
     t->next_keepalive = 0;
     if (old_status >= MLVPN_CHAP_AUTHOK)
     {
@@ -518,8 +519,8 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
                 free(tmp->destport);
             if (tmp->addrinfo)
                 freeaddrinfo(tmp->addrinfo);
-            mlvpn_cb_free(tmp->sbuf);
-            mlvpn_cb_free(tmp->hpsbuf);
+            mlvpn_pktbuffer_free(tmp->sbuf);
+            mlvpn_pktbuffer_free(tmp->hpsbuf);
             /* Safety */
             tmp->name = NULL;
             break;
@@ -538,7 +539,7 @@ mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
     if (mlvpn_cb_is_full(t->hpsbuf))
         _WARNING("[rtun %s] buffer overflow.\n", t->name);
 
-    pkt = mlvpn_cb_write(t->hpsbuf);
+    pkt = mlvpn_pktbuffer_write(t->hpsbuf);
     pkt->pktdata.data[0] = 'A';
     pkt->pktdata.data[1] = 'U';
     pkt->pktdata.len = 2;
@@ -586,7 +587,7 @@ mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
             if (mlvpn_cb_is_full(t->hpsbuf))
                 _WARNING("[rtun %s] buffer overflow.\n", t->name);
 
-            pkt = mlvpn_cb_write(t->hpsbuf);
+            pkt = mlvpn_pktbuffer_write(t->hpsbuf);
             pkt->pktdata.data[0] = 'O';
             pkt->pktdata.data[1] = 'K';
             pkt->pktdata.len = 2;
@@ -725,7 +726,7 @@ mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
     if (mlvpn_cb_is_full(t->hpsbuf))
         _ERROR("[rtun %s] buffer overflow.\n", t->name);
     else {
-        pkt = mlvpn_cb_write(t->hpsbuf);
+        pkt = mlvpn_pktbuffer_write(t->hpsbuf);
         pkt->pktdata.len = 0;
     }
     t->next_keepalive = now + t->timeout/2;
@@ -796,7 +797,7 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                     {
                         if (mlvpn_cb_is_full(tun->hpsbuf))
                             _WARNING("[rtun %s] buffer overflow.\n", tun->name);
-                        pkt = mlvpn_cb_write(tun->hpsbuf);
+                        pkt = mlvpn_pktbuffer_write(tun->hpsbuf);
                         pkt->pktdata.len = 0;
                     }
                 } else {
@@ -806,7 +807,7 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
                         if (mlvpn_cb_is_full(tuntap.sbuf))
                             _WARNING("TUN/TAP buffer overflow.\n");
 
-                        pkt = mlvpn_cb_write(tuntap.sbuf);
+                        pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
                         pkt->pktdata.len = pktdata.len;
                         memcpy(pkt->pktdata.data, pktdata.data, pktdata.len);
                     } else {
@@ -916,12 +917,12 @@ mlvpn_rtun_read(mlvpn_tunnel_t *tun)
 }
 
 int
-mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf)
+mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 {
     ssize_t len;
     size_t wlen;
 
-    mlvpn_pkt_t *pkt = mlvpn_cb_read(pktbuf);
+    mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
 
     wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
 
@@ -977,18 +978,19 @@ mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
     if (mlvpn_cb_is_empty(t->sbuf))
         return bytesent;
 
-    pkt = mlvpn_cb_read_norelease(t->sbuf);
+    pkt = mlvpn_pktbuffer_read_norelease(t->sbuf);
     now = mlvpn_millis();
     if (now >= pkt->next_packet_send || pkt->next_packet_send == 0)
     {
         bytesent += mlvpn_rtun_write_pkt(t, t->sbuf);
         if (! mlvpn_cb_is_empty(t->sbuf))
         {
-            pkt = mlvpn_cb_read_norelease(t->sbuf);
-            if (t->sbuf->bandwidth > 0 && pkt->pktdata.len > 0)
+            pkt = mlvpn_pktbuffer_read_norelease(t->sbuf);
+            if (mlvpn_pktbuffer_bandwidth(t->sbuf) > 0 && pkt->pktdata.len > 0)
             {
                 pkt->next_packet_send = mlvpn_millis() +
-                    (1000 / (t->sbuf->bandwidth / pkt->pktdata.len));
+                    (1000 / (mlvpn_pktbuffer_bandwidth(t->sbuf) /
+                                pkt->pktdata.len));
             }
         }
     } else {
@@ -1198,7 +1200,7 @@ mlvpn_config(int config_file_fd, int first_time)
 
                 tmptun->timeout = timeout;
                 if (bwlimit > 0)
-                    tmptun->sbuf->bandwidth = bwlimit;
+                    mlvpn_pktbuffer_bandwidth(tmptun->sbuf) = bwlimit;
             }
         } else if (lastSection == NULL)
             lastSection = work->section;
@@ -1290,7 +1292,7 @@ void mlvpn_tuntap_init()
     snprintf(tuntap.devname, MLVPN_IFNAMSIZ-1, "%s", "mlvpn0");
     tuntap.mtu = 1500;
     tuntap.type = MLVPN_TUNTAPMODE_TUN;
-    tuntap.sbuf = mlvpn_cb_init(PKTBUFSIZE);
+    tuntap.sbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
 }
 
 int

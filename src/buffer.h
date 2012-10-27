@@ -5,45 +5,83 @@
 
 #include "pkt.h"
 
-typedef struct pktbuffer_s
+/* Basic circular buffer
+ * data can be stored inside the struct, but that's not mandatory.
+ * data is not used directly by mlvpn_cb_*.
+ */
+typedef struct
 {
     int size;
     int start;
     int end;
-    /* This represents the bandwidth to use on this queue
-     * in bytes per second.
-     * Set to <= 0 for not limiting bandwidth.
-     *
-     * The above flag is calculated from the bandwidth
-     * using the following formula:
-     * next_packet_send = now_in_millis + 1/(bandwidth/packetlen)
-     */
+    void *data;
+} circular_buffer_t;
+
+typedef struct
+{
     uint32_t bandwidth;
-    mlvpn_pkt_t *pkts;
+    mlvpn_pkt_t **pkts;
 } pktbuffer_t;
 
-pktbuffer_t *
+typedef struct
+{
+    /* This will hold the time when we last sent a data
+     * packet to handle packet loss. */
+    uint32_t last_packet_sent;
+    mlvpn_pkt_t **pkts;
+} reassembly_buffer_t;
+
+/**
+ * Generic circular buffer handling
+ */
+
+/* Allocate a circular of size +1 element of sizememb length */
+circular_buffer_t *
 mlvpn_cb_init(int size);
 
 void
-mlvpn_cb_free(pktbuffer_t *buf);
+mlvpn_cb_free(circular_buffer_t *buf);
 
 void
-mlvpn_cb_reset(pktbuffer_t *buf);
+mlvpn_cb_reset(circular_buffer_t *buf);
 
 int
-mlvpn_cb_is_full(pktbuffer_t *buf);
+mlvpn_cb_is_full(const circular_buffer_t *buf);
 
 int
-mlvpn_cb_is_empty(pktbuffer_t *buf);
+mlvpn_cb_is_empty(const circular_buffer_t *buf);
+
+void *
+mlvpn_cb_read(circular_buffer_t *buf, void **data);
+
+void *
+mlvpn_cb_read_norelease(const circular_buffer_t *buf, void **data);
+
+void *
+mlvpn_cb_write(circular_buffer_t *buf, void **data);
+
+/**
+ * Application specific cirtular buffer handlers
+ */
+
+#define mlvpn_pktbuffer_bandwidth(buf) ((pktbuffer_t *)buf->data)->bandwidth
+
+circular_buffer_t *
+mlvpn_pktbuffer_init(int size);
+
+void
+mlvpn_pktbuffer_free(circular_buffer_t *buf);
+
+void
+mlvpn_pktbuffer_reset(circular_buffer_t *buf);
 
 mlvpn_pkt_t *
-mlvpn_cb_read(pktbuffer_t *buf);
+mlvpn_pktbuffer_read(circular_buffer_t *buf);
 
 mlvpn_pkt_t *
-mlvpn_cb_read_norelease(pktbuffer_t *buf);
+mlvpn_pktbuffer_read_norelease(circular_buffer_t *buf);
 
 mlvpn_pkt_t *
-mlvpn_cb_write(pktbuffer_t *buf);
+mlvpn_pktbuffer_write(circular_buffer_t *buf);
 
 #endif

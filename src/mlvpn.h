@@ -98,8 +98,8 @@ typedef struct mlvpn_tunnel_s
     uint64_t recvpackets; /* 64bit packets recv counter */
     uint64_t sentbytes;   /* 64bit bytes sent counter */
     uint64_t recvbytes;   /* 64bit bytes recv counter */
-    pktbuffer_t *sbuf;    /* send buffer */
-    pktbuffer_t *hpsbuf;  /* high priority buffer */
+    circular_buffer_t *sbuf;    /* send buffer */
+    circular_buffer_t *hpsbuf;  /* high priority buffer */
     struct mlvpn_buffer rbuf;    /* receive buffer */
     struct mlvpn_tunnel_s *next; /* chained list to next element */
     enum encap_proto encap_prot;
@@ -127,7 +127,7 @@ int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
 int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun);
 int mlvpn_rtun_read(mlvpn_tunnel_t *tun);
 int mlvpn_rtun_write(mlvpn_tunnel_t *tun);
-int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, pktbuffer_t *pktbuf);
+int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
 int mlvpn_rtun_timer_write(mlvpn_tunnel_t *t);
 mlvpn_tunnel_t *mlvpn_rtun_last();
 mlvpn_tunnel_t *mlvpn_rtun_choose();

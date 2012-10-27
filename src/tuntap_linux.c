@@ -15,7 +15,7 @@
 int
 mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
-    pktbuffer_t *sbuf;
+    circular_buffer_t *sbuf;
     mlvpn_tunnel_t *rtun;
     mlvpn_pkt_t *pkt;
     int ret;
@@ -36,7 +36,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
         _WARNING("[rtun %s] buffer overflow.\n", rtun->name);
 
     /* Ask for a free buffer */
-    pkt = mlvpn_cb_write(sbuf);
+    pkt = mlvpn_pktbuffer_write(sbuf);
     ret = read(tuntap->fd, pkt->pktdata.data, DEFAULT_MTU);
     if (ret < 0)
     {
@@ -60,7 +60,7 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
 {
     int len;
     mlvpn_pkt_t *pkt;
-    pktbuffer_t *buf = tuntap->sbuf;
+    circular_buffer_t *buf = tuntap->sbuf;
 
     /* Safety checks */
     if (mlvpn_cb_is_empty(buf))
@@ -70,7 +70,7 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
         return -1;
     }
 
-    pkt = mlvpn_cb_read(buf);
+    pkt = mlvpn_pktbuffer_read(buf);
     len = write(tuntap->fd, pkt->pktdata.data, pkt->pktdata.len);
     if (len < 0)
     {

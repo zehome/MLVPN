@@ -17,7 +17,7 @@
 int
 mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
-    pktbuffer_t *sbuf;
+    circular_buffer_t *sbuf;
     mlvpn_tunnel_t *rtun;
     mlvpn_pkt_t *pkt;
     int ret;
@@ -40,7 +40,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
         _WARNING("[rtun %s] buffer overflow.\n", rtun->name);
 
     /* Ask for a free buffer */
-    pkt = mlvpn_cb_write(sbuf);
+    pkt = mlvpn_pktbuffer_write(sbuf);
 
     iov[0].iov_base = &type;
     iov[0].iov_len = sizeof(type);
@@ -70,7 +70,7 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
 {
     int len, datalen;
     mlvpn_pkt_t *pkt;
-    pktbuffer_t *buf = tuntap->sbuf;
+    circular_buffer_t *buf = tuntap->sbuf;
     uint32_t type;
     struct iovec iov[2];
 
@@ -82,7 +82,7 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
         return -1;
     }
 
-    pkt = mlvpn_cb_read(buf);
+    pkt = mlvpn_pktbuffer_read(buf);
 
     type = htonl(AF_INET);
 
