@@ -4,8 +4,12 @@
 #include <errno.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <stdint.h>
+#include <sys/time.h>
 
+#include "config.h"
 #include "tool.h"
+#include "debug.h"
 
 int mystr_eq(const char *s1, const char *s2)
 {
