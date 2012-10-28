@@ -37,20 +37,22 @@ esac
 AM_CONDITIONAL([LINUX], [test x$linux = xtrue])
 AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
 
-# --enable-control (MLVPN simple http/CLI control system)
+### Command lines options ###
+
+### --enable-control (MLVPN simple http/CLI control system)
 AC_ARG_ENABLE([control],
 [  --disable-control              Turn off remote control system (cli and http)],
 [case "${enableval}" in
     yes)
-        AC_DEFINE(HAVE_MLVPN_CONTROL, 1, [Enable MVPN Control])
-        mlvncontrol=true
+        AC_DEFINE(HAVE_MLVPN_CONTROL, 1, [Enable MLVPN Control])
+        mlvpncontrol=true
     ;;
-    no) mlvncontrol=false ;;
+    no) mlvpncontrol=false ;;
     *)
         AC_MSG_ERROR([bad value ${enableval} for --enable-control])
     ;;
 esac], [
-    AC_DEFINE(HAVE_MLVPN_CONTROL, 1, [Enable MVPN Control (set by default value)])
+    AC_DEFINE(HAVE_MLVPN_CONTROL, 1, [Enable MLVPN Control (set by default value)])
     mlvpncontrol=true
 ])
 AM_CONDITIONAL([MLVPN_CONTROL], [test x$mlvpncontrol = xtrue ])
