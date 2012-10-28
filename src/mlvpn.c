@@ -1363,7 +1363,7 @@ main(int argc, char **argv)
             mlvpn_options.verbose++;
             break;
         case 'V':
-            printf("mlvpn version %u.%u.\n", VER_MAJ, VER_MIN);
+            printf("mlvpn version %s.\n", MLVPN_VERSION);
             _exit(0);
             break;
         case 'h':
