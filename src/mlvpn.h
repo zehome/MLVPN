@@ -112,7 +112,6 @@ typedef struct mlvpn_tunnel_s
 
 int mlvpn_config(int config_file_fd, int first_time);
 
-uint64_t mlvpn_millis();
 int mlvpn_sock_set_nonblocking(int fd);
 
 void mlvpn_rtun_status_up(mlvpn_tunnel_t *t);

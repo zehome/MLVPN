@@ -105,18 +105,6 @@ usage(char **argv)
     exit(2);
 }
 
-uint64_t
-mlvpn_millis()
-{
-    struct timeval tv;
-    if (gettimeofday(&tv, NULL) != 0)
-    {
-        _ERROR("Error in gettimeofday: %s\n", strerror(errno));
-        return 1;
-    }
-    return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-}
-
 int
 mlvpn_sock_set_nonblocking(int fd)
 {
