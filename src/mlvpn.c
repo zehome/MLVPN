@@ -768,6 +768,7 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
         void *rbuf = tun->rbuf.data + i;
         /* Finding the magic and re-assemble valid pkt */
         memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata));
+        pktdata.len = ntohs(pktdata.len);
         if (pktdata.magic == MLVPN_MAGIC)
         {
             mlvpn_rtun_tick(tun);
@@ -775,6 +776,7 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
             {
                 /* Valid packet, copy the rest */
                 memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata)+pktdata.len);
+                pktdata.len = ntohs(pktdata.len);
 
                 /* This is a keepalive packet. Just send it back */
                 if (pktdata.len == 0 && tun->status == MLVPN_CHAP_AUTHOK)
@@ -913,6 +915,7 @@ mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
 
     wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
+    pkt->pktdata.len = htons(pkt->pktdata.len);
 
     if (tun->encap_prot == ENCAP_PROTO_TCP)
     {
