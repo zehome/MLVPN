@@ -11,6 +11,7 @@
 #include "buffer.h"
 #include "tuntap_generic.h"
 #include "strlcpy.h"
+#include "tool.h"
 
 int
 mlvpn_tuntap_read(struct tuntap_s *tuntap)
@@ -51,7 +52,8 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
         exit(1);
     }
     pkt->pktdata.len = ret;
-
+    if (rtun->latency_increase)
+        pkt->next_packet_send = mlvpn_millis() + rtun->latency_increase;
     return pkt->pktdata.len;
 }
 

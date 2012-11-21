@@ -1077,6 +1077,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 int timeout = 30;
                 int protocol = default_protocol;
                 int create_tunnel = 1;
+                uint32_t latency_increase = 0;
 
                 if (default_server_mode)
                 {
@@ -1117,6 +1118,7 @@ mlvpn_config(int config_file_fd, int first_time)
 
                 _conf_set_str_from_conf(config, lastSection,
                     "protocol", &tmp, NULL, NULL, 0);
+
                 if (tmp)
                 {
                     if (mystr_eq(tmp, "udp")) {
@@ -1131,6 +1133,10 @@ mlvpn_config(int config_file_fd, int first_time)
                 _conf_set_int_from_conf(config, lastSection,
                     "timeout",
                     (int *)&timeout, default_timeout, NULL, 0);
+
+                _conf_set_int_from_conf(config, lastSection,
+                    "latency_increase",
+                    (int *)&latency_increase, 0, NULL, 0);
 
                 if (rtun_start)
                 {
@@ -1192,6 +1198,8 @@ mlvpn_config(int config_file_fd, int first_time)
                 tmptun->timeout = timeout;
                 if (bwlimit > 0)
                     mlvpn_pktbuffer_bandwidth(tmptun->sbuf) = bwlimit;
+
+                tmptun->latency_increase = latency_increase;
             }
         } else if (lastSection == NULL)
             lastSection = work->section;

@@ -38,7 +38,7 @@ Prameters:
 
   - (*) mode = "client" or "server"
     mlvpn(1) should act as a socket server or socket client?
-  
+
   - (*) protocol = "udp" or "tcp"
     Prefer UDP for better performance.
 
@@ -49,9 +49,9 @@ Prameters:
     Change the log level.
     Valid values from **1** (quiet) to **4** (debug)
 
-  - timeout = 5
+  - timeout = 30
     Integer value for detecting "link" timeout.
-  
+
   - interface_name = "mlvpn0"
     Change the **Tun/Tap** interface name.
 
@@ -77,17 +77,26 @@ Parameters:
   - (both) bandwidth_upload = 61440
     client => server max bandwidth used by mlvpn for this link.
     Bandwidth is specified in Bytes (1024 base).
-  
+
   - (both) bandwidth_download = 512000
     server => client max bandwidth used by mlvpn for this link.
     Bandwidth is specified in Bytes (1024 base).
 
-  - (both) timeout = 10
+  - (both) timeout = 25
     Override **[general]** timeout for this link.
 
   - (both) protocol = 10
     Override **[general]** protocol for this link.
-  
+
+  - latency_increase = 40
+    artificial latency increase expressed in milliseconds.
+    This setting can be used to "match" latency of two links.
+    Latency matching is very important because it will minimize packet
+    reordering when MLVPN is used in a multi-link environment.
+    If ping adsl1 to server  is ~ 120ms and adsl2 to server is ~ 200 ms
+    then add half the difference: (200 - 120)/2 = 40
+    This calculation can be wrong as the path from adsl1 to server
+    can have a different latency than the server to adsl1 path.
 
 ## EXAMPLE
 

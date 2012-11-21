@@ -95,6 +95,7 @@ typedef struct mlvpn_tunnel_s
     uint64_t recvpackets; /* 64bit packets recv counter */
     uint64_t sentbytes;   /* 64bit bytes sent counter */
     uint64_t recvbytes;   /* 64bit bytes recv counter */
+    uint32_t latency_increase; /* 32bit latency increase counter in ms */
     circular_buffer_t *sbuf;    /* send buffer */
     circular_buffer_t *hpsbuf;  /* high priority buffer */
     struct mlvpn_buffer rbuf;    /* receive buffer */
