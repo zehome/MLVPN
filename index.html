@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+
+    <title>MLVPN - MultiLink Virtual Public Network by zehome</title>
+  </head>
+
+  <body>
+
+    <header>
+      <div class="container">
+        <h1>MLVPN - MultiLink Virtual Public Network</h1>
+        <h2>Multi-link VPN (ADSL/SDSL/xDSL/Network aggregator)</h2>
+
+        <section id="downloads">
+          <a href="https://github.com/zehome/MLVPN/zipball/master" class="btn">Download as .zip</a>
+          <a href="https://github.com/zehome/MLVPN/tarball/master" class="btn">Download as .tar.gz</a>
+          <a href="https://github.com/zehome/MLVPN" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
+        </section>
+      </div>
+    </header>
+
+    <div class="container">
+      <section id="main_content">
+        <h1></h1>
+
+<h1>MLVPN - Multi-Link Virtual Public Network</h1>
+
+<p>author: Laurent Coustet </p>
+
+<h1>Introduction</h1>
+
+<p>MLVPN a pour but de fournir un tunnel entre 2 routeurs,
+en utilisant plusieurs liens, dans le but de fournir:</p>
+
+<ul>
+<li>Aggrégation du débit montant/descendant</li>
+<li>Maintenir une latence faible</li>
+<li>Redondance importante</li>
+</ul><h1>Quick install</h1>
+
+<h2>Build from source</h2>
+
+<div class="highlight"><pre><span class="nv">$ </span>./autogen.sh
+<span class="nv">$ </span>./configure
+<span class="nv">$ </span>make
+<span class="nv">$ </span>make install
+</pre></div>
+
+<h2>Build debian package</h2>
+
+<div class="highlight"><pre><span class="nv">$ </span>dpkg-buildpackage -us -uc -rfakeroot
+OR
+<span class="c"># dpkg-buildpackage -us -uc</span>
+</pre></div>
+
+<h1>Fonctionnalités</h1>
+
+<ul>
+<li>Aggératation de lien</li>
+<li>Contrôle fin de la bande passante</li>
+<li>File d'émission "haute performance" sans limitation de débit (QoS)</li>
+<li>Haute-Disponibilité (supporte la perte de liens)</li>
+<li>Sécurité par séparation des privilèges</li>
+<li>Authentification du client</li>
+</ul><h1>Fonctions non supportées</h1>
+
+<p>MLVPN ne cherche pas a faire de la sécurité au niveau des paquets qu'il traite.</p>
+
+<p>Il n'y a <strong>pas</strong> de chiffrement, ni de compression,
+ni de vérification des paquets qu'il relaye.</p>
+
+<p>Il conviens donc de faire attention à la mise en place de ce système
+en mettant en place les protections indispensables au niveau du noyau
+des machines hôtes. (iptables, pf, ...)</p>
+
+<h1>Principe de fonctionnement</h1>
+
+<p>MLVPN commence par créer deux processus, un disposant de droits root,
+et l'autre des droits d'un simple utilisateur.</p>
+
+<p>Une interface tuntap est ouverte pour permettre la communication entre le noyau
+et l'espace utilisateur.</p>
+
+<p>Ensuite, des sockets établissent la connexion entre
+le routeur A et le routeur B.</p>
+
+<h2>Aggrégation du débit</h2>
+
+<p>Une fois les sockets connectées, tout parquet reçu sur l'interface tuntap
+est relayée en Round-Robin sur chacune des sockets.</p>
+
+<h2>Qualité de service</h2>
+
+<p>Si un paquet IP dipose du champ TOS positioné sur 0x10, ou qu'il sagit d'un
+paquet ICMP, alors MLVPN utilise une queue particulière sur chaque socket
+pour une émission immédiate sans limitation de débit.</p>
+
+<p>La qualité de service ne peut être assurée que si la file d'attente au niveau
+de l'opérateur reste vide ou très peu chargée.
+Il conviens donc d'ajuster correctement la limitation du débit.</p>
+
+<h2>Limitation de débit</h2>
+
+<p>La limitation de débit est contrôlé par le fichier de configuration de MLVPN.
+La limitation se fait en ajustant le temps nécessaire entre l'envoi de deux
+paquets, via un calcul savant.</p>
+
+<p>Ainsi on évite la file d'attente au niveau de l'opérateur, ce qui permet de
+garantir une latence faible.</p>
+
+<h2>Authentification</h2>
+
+<p>Ce système permet de gérer correctement les timeout. Il n'a pas pour but
+d'améliorer la sécurité du système.</p>
+
+<p>Un mot de passe partagé entre les 2 parties est stocké dans le fichier de configuration.</p>
+
+<p>Le client ne relaye les paquets qu'il reçoit que si la communication a été
+authentifié via ce mot de passe.</p>
+
+<p>Le principe est (trop) simple:</p>
+
+<ul>
+<li>client envoie un challenge aléatoire</li>
+<li>serveur reçoit le challenge, y contatene le mot de passe</li>
+<li>serveur renvoie un hash sha1 du motdepasse+challenge</li>
+<li>client vérifie que le hash correspond a ce qu'il a lui même calculé</li>
+</ul><h1>Compatiblité</h1>
+
+<p>Linux, OpenBSD, FreeBSD (untested)</p>
+
+<p><em>NO</em> windows support.</p>
+
+<h1>Contributeurs au projet</h1>
+
+<p>Laurent Coustet, auteur et mainteneur du projet.</p>
+
+<p>Philippe Pepiot, contributeur (séparation de privilèges, bugfixes, ...)</p>
+
+<p>Ghislain Lévèque, contributeur</p>
+
+<p>Fabien Dupont, bugfix!</p>
+
+<h1>LICENCE</h1>
+
+<p>Voir le fichier LICENCE.</p>
+
+<h1>BUGS</h1>
+
+<p>Le système de décapsulation des paquets n'est pas fonctionnel sur la plateforme i386.</p>
+
+<h1>Documentation</h1>
+
+<p>La documentation est écrite au format restructuredtext.
+La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
+ronn (<a href="http://rtomayko.github.com/ronn/">http://rtomayko.github.com/ronn/</a>).</p>
+      </section>
+    </div>
+
+    
+  </body>
+</html>
