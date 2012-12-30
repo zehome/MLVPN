@@ -4,6 +4,8 @@ MLVPN - Multi-Link Virtual Public Network
 
 author: Laurent Coustet <ed arobase zehome.com>
 
+Take a look at the official documentation on readthedocs.org: http://mlvpn.readthedocs.org/en/latest/
+
 Introduction
 ============
 MLVPN a pour but de fournir un tunnel entre 2 routeurs,
