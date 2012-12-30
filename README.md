@@ -8,11 +8,9 @@ Introduction
 ============
 MLVPN a pour but de fournir un tunnel entre 2 routeurs,
 en utilisant plusieurs liens, dans le but de fournir:
-  * Aggrï¿½gation du dï¿½bit montant/descendant
+  * Aggrégation du débit montant/descendant
   * Maintenir une latence faible
   * Redondance importante
-
-Checkout documentation on ReadTheDocs.org: http://mlvpn.readthedocs.org/en/latest/
 
 Quick install
 =============
@@ -35,79 +33,79 @@ OR
 # dpkg-buildpackage -us -uc
 ```
 
-Fonctionnalitï¿½s
+Fonctionnalités
 ===============
-  * Aggï¿½ratation de lien
-  * Contrï¿½le fin de la bande passante
-  * File d'ï¿½mission "haute performance" sans limitation de dï¿½bit (QoS)
-  * Haute-Disponibilitï¿½ (supporte la perte de liens)
-  * Sï¿½curitï¿½ par sï¿½paration des privilï¿½ges
+  * Aggératation de lien
+  * Contrôle fin de la bande passante
+  * File d'émission "haute performance" sans limitation de débit (QoS)
+  * Haute-Disponibilité (supporte la perte de liens)
+  * Sécurité par séparation des privilèges
   * Authentification du client
 
-Fonctions non supportï¿½es
+Fonctions non supportées
 ========================
-MLVPN ne cherche pas a faire de la sï¿½curitï¿½ au niveau des paquets qu'il traite.
+MLVPN ne cherche pas a faire de la sécurité au niveau des paquets qu'il traite.
 
 Il n'y a **pas** de chiffrement, ni de compression,
-ni de vï¿½rification des paquets qu'il relaye.
+ni de vérification des paquets qu'il relaye.
 
-Il conviens donc de faire attention ï¿½ la mise en place de ce systï¿½me
+Il conviens donc de faire attention à la mise en place de ce système
 en mettant en place les protections indispensables au niveau du noyau
-des machines hï¿½tes. (iptables, pf, ...)
+des machines hôtes. (iptables, pf, ...)
 
 Principe de fonctionnement
 ==========================
-MLVPN commence par crï¿½er deux processus, un disposant de droits root,
+MLVPN commence par créer deux processus, un disposant de droits root,
 et l'autre des droits d'un simple utilisateur.
 
 Une interface tuntap est ouverte pour permettre la communication entre le noyau
 et l'espace utilisateur.
 
-Ensuite, des sockets ï¿½tablissent la connexion entre
+Ensuite, des sockets établissent la connexion entre
 le routeur A et le routeur B.
 
-Aggrï¿½gation du dï¿½bit
+Aggrégation du débit
 --------------------
-Une fois les sockets connectï¿½es, tout parquet reï¿½u sur l'interface tuntap
-est relayï¿½e en Round-Robin sur chacune des sockets.
+Une fois les sockets connectées, tout parquet reçu sur l'interface tuntap
+est relayée en Round-Robin sur chacune des sockets.
 
-Qualitï¿½ de service
+Qualité de service
 ------------------
-Si un paquet IP dipose du champ TOS positionï¿½ sur 0x10, ou qu'il sagit d'un
-paquet ICMP, alors MLVPN utilise une queue particuliï¿½re sur chaque socket
-pour une ï¿½mission immï¿½diate sans limitation de dï¿½bit.
+Si un paquet IP dipose du champ TOS positioné sur 0x10, ou qu'il sagit d'un
+paquet ICMP, alors MLVPN utilise une queue particulière sur chaque socket
+pour une émission immédiate sans limitation de débit.
 
-La qualitï¿½ de service ne peut ï¿½tre assurï¿½e que si la file d'attente au niveau
-de l'opï¿½rateur reste vide ou trï¿½s peu chargï¿½e.
-Il conviens donc d'ajuster correctement la limitation du dï¿½bit.
+La qualité de service ne peut être assurée que si la file d'attente au niveau
+de l'opérateur reste vide ou très peu chargée.
+Il conviens donc d'ajuster correctement la limitation du débit.
 
-Limitation de dï¿½bit
+Limitation de débit
 -------------------
-La limitation de dï¿½bit est contrï¿½lï¿½ par le fichier de configuration de MLVPN.
-La limitation se fait en ajustant le temps nï¿½cessaire entre l'envoi de deux
+La limitation de débit est contrôlé par le fichier de configuration de MLVPN.
+La limitation se fait en ajustant le temps nécessaire entre l'envoi de deux
 paquets, via un calcul savant.
 
-Ainsi on ï¿½vite la file d'attente au niveau de l'opï¿½rateur, ce qui permet de
+Ainsi on évite la file d'attente au niveau de l'opérateur, ce qui permet de
 garantir une latence faible.
 
 Authentification
 ----------------
-Ce systï¿½me permet de gï¿½rer correctement les timeout. Il n'a pas pour but
-d'amï¿½liorer la sï¿½curitï¿½ du systï¿½me.
+Ce système permet de gérer correctement les timeout. Il n'a pas pour but
+d'améliorer la sécurité du système.
 
-Un mot de passe partagï¿½ entre les 2 parties est stockï¿½ dans le fichier de configuration.
+Un mot de passe partagé entre les 2 parties est stocké dans le fichier de configuration.
 
-Le client ne relaye les paquets qu'il reï¿½oit que si la communication a ï¿½tï¿½
-authentifiï¿½ via ce mot de passe.
+Le client ne relaye les paquets qu'il reçoit que si la communication a été
+authentifié via ce mot de passe.
 
 Le principe est (trop) simple:
-  - client envoie un challenge alï¿½atoire
-  - serveur reï¿½oit le challenge, y contatene le mot de passe
+  - client envoie un challenge aléatoire
+  - serveur reçoit le challenge, y contatene le mot de passe
   - serveur renvoie un hash sha1 du motdepasse+challenge
-  - client vï¿½rifie que le hash correspond a ce qu'il a lui mï¿½me calculï¿½
+  - client vérifie que le hash correspond a ce qu'il a lui même calculé
 
 
-Compatiblitï¿½
+Compatiblité
 ============
 Linux, OpenBSD, FreeBSD (untested)
 
@@ -117,9 +115,9 @@ Contributeurs au projet
 =======================
 Laurent Coustet, auteur et mainteneur du projet.
 
-Philippe Pepiot, contributeur (sï¿½paration de privilï¿½ges, bugfixes, ...)
+Philippe Pepiot, contributeur (séparation de privilèges, bugfixes, ...)
 
-Ghislain Lï¿½vï¿½que, contributeur
+Ghislain Lévèque, contributeur
 
 Fabien Dupont, bugfix!
 
@@ -129,10 +127,10 @@ Voir le fichier LICENCE.
 
 BUGS
 ====
-Le systï¿½me de dï¿½capsulation des paquets n'est pas fonctionnel sur la plateforme i386.
+Le système de décapsulation des paquets n'est pas fonctionnel sur la plateforme i386.
 
 Documentation
 =============
-La documentation est ï¿½crite au format restructuredtext.
-La page de manuel est aussi ï¿½crite en markdown. La conversion est rï¿½alisï¿½e grace a l'outil
+La documentation est écrite au format restructuredtext.
+La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
 ronn (http://rtomayko.github.com/ronn/).
