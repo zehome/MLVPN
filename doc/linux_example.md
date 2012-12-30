@@ -228,5 +228,219 @@ PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
 ```
 Hey that's working fine !
 
+Scripting for startup ?
+-----------------------
+On Debian GNU/Linux that's pretty easy, just copy this script to
+/usr/local/sbin/source_routing:
 
-TODO: the rest! (just as reminder: MLVPN source 192.168.1.1 for adsl1 192.168.2.1 for adsl2)
+```shell
+#!/bin/sh
+
+# Inserting routes in the adsl1 table
+/sbin/ip route add 192.168.1.0/24 dev eth0 scope link table adsl1
+/sbin/ip route add default via 192.168.1.1 dev eth0 table adsl1
+
+# Inserting routes in the adsl2 table
+/sbin/ip route add 192.168.2.0/24 dev eth0 scope link table adsl2
+/sbin/ip route add default via 192.168.1.1 dev eth0 table adsl1
+
+# ip rule is the source routing magic. This will redirect
+# packets coming from source "X" to table "adsl1", "adsl2" or "default".
+/sbin/ip rule add from 192.168.1.0/24 table adsl1
+/sbin/ip rule add from 192.168.2.0/24 table adsl2
+```
+Verify permissions: **chmod +x /usr/local/sbin/source_routing**
+You can use post-up scripts of /etc/network/interfaces to run this script.
+
+/etc/network/interfaces
+```
+auto eth0
+iface eth0 inet static
+    address 192.168.0.1
+    netmask 255.255.255.0
+    post-up /usr/local/sbin/source_routing
+
+auto eth0:adsl1
+iface eth0:adsl1 inet static
+    address 192.168.1.2
+    netmask 255.255.255.0
+    gateway 192.168.1.1
+
+auto eth0:adsl2
+iface eth0:adsl2 inet static
+    address 192.168.2.2
+    netmask 255.255.255.0
+```
+Don't forget to execute the script once by hand or thru **service networking restart**.
+
+Configuring MLVPN
+=================
+MLVPN have two configuration files on each side.
+
+Client side
+-----------
+
+/etc/mlvpn/mlvpn0.conf
+~~~~~~~~~~~~~~~~~~~~~~
+I've made the configuration file as small as possible to have a good overview.
+
+Take a look at example config files for more details. (**man mlvpn.conf** can be usefull)
+
+```
+[general]
+statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
+tuntap = "tun"
+loglevel = 4
+mode = "client"
+protocol = "udp"
+interface_name = "mlvpn0"
+timeout = 30
+
+[adsl1]
+bindhost = "192.168.1.2"
+remotehost = "128.128.128.128"
+remoteport = 5080
+bandwidth_upload = 61440
+bandwidth_download = 512000
+latency_increase = 10
+
+[adsl2]
+bindhost = "192.168.2.2"
+remotehost = "128.128.128.128"
+remoteport = 5081
+bandwidth_upload = 61440
+bandwidth_download = 512000
+```
+
+Little note, we are adding 10 ms of latency on adsl1 to match the latency of adsl2.
+This is a little trick to help mlvpn aggregation. (Latency must be matched)
+
+/etc/mlvpn/mlvpn0_updown.sh
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This file *MUST* be chmod 700 (rwx------) owned by *root*.
+    
+    chmod 700 /etc/mlvpn/mlvpn0_updown.sh; chown root:root /etc/mlvpn/mlvpn0_updown.sh
+
+
+Again I stripped the script to the minimum.
+```shell
+#!/bin/bash
+
+error=0; trap "error=$((error|1))" ERR
+
+tuntap_intf="$1"
+newstatus="$2"
+rtun="$3"
+
+[ -z "$newstatus" ] && exit 1
+
+(
+if [ "$newstatus" = "tuntap_up" ]; then
+    echo "$tuntap_intf setup"
+    /sbin/ifconfig $tuntap_intf 10.42.42.2 netmask 255.255.255.252 mtu 1400 up
+    route add proof.ovh.net gw 10.42.42.2
+elif [ "$newstatus" = "tuntap_down" ]; then
+    echo "$tuntap_intf shutdown"
+    route del proof.ovh.net gw 10.42.42.2
+    /sbin/ifconfig $tuntap_intf down
+elif [ "$newstatus" = "rtun_up" ]; then
+    echo "rtun [${rtun}] is up"
+elif [ "$newstatus" = "rtun_down" ]; then
+    echo "rtun [${rtun}] is down"
+fi
+) >> /var/log/mlvpn_commands.log 2>&1
+
+exit $errors
+```
+Again ensure permissions are correct or mlvpn will *NOT* execute the script.
+
+
+Server side
+-----------
+
+/etc/mlvpn/mlvpn0.conf
+~~~~~~~~~~~~~~~~~~~~~~
+```
+[general]
+statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
+tuntap = "tun"
+loglevel = 4
+mode = "server"
+protocol = "udp"
+interface_name = "mlvpn0"
+timeout = 30
+
+[adsl1]
+bindport = 5080
+bandwidth_upload = 61440
+bandwidth_download = 512000
+latency_increase = 10
+
+[adsl2]
+bindport = 5081
+bandwidth_upload = 61440
+bandwidth_download = 512000
+```
+
+/etc/mlvpn/mlvpn0_updown.sh
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+```shell
+#!/bin/bash
+
+error=0; trap "error=$((error|1))" ERR
+tuntap_intf="$1"
+newstatus="$2"
+rtun="$3"
+[ -z "$newstatus" ] && exit 1
+(
+if [ "$newstatus" = "tuntap_up" ]; then
+    echo "$tuntap_intf setup"
+    /sbin/ifconfig $tuntap_intf 10.42.42.1 netmask 255.255.255.252 mtu 1400 up
+    # NAT thru our server (eth0 is our output interface on the server)
+    # mlvpn0 link
+    /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
+    # LAN 192.168.0.0/24 from "client"
+    /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
+    /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
+elif [ "$newstatus" = "tuntap_down" ]; then
+    /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
+    /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
+    /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
+fi
+) >> /var/log/mlvpn_commands.log 2>&1
+exit $errors
+```
+
+Testing
+=======
+Double check permissions of /etc/mlvpn/*.sh (chmod 700 owned by root)
+
+Don't forget to accept UDP 5080 and 5081 on your firewall, server side.
+
+    iptables -I INPUT -i eth0 -p udp --dport 5080 -s [ADSL1_PUBLICIP] -j ACCEPT
+    iptables -I INPUT -i eth0 -p udp --dport 5081 -s [ADSL2_PUBLICIP] -j ACCEPT
+
+Start mlvpn on server side manually
+
+    root@server:~ # mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf
+
+Start mlvpn on client side manually
+
+    root@client:~ # mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf
+
+Check logfiles on client
+    root@client:~ # cat /var/log/mlvpn_commands.log
+    mlvpn0 setup
+    rtun [adsl1] is up
+    rtun [adsl2] is up
+
+Seems good. Some test ping
+    # Testing connectivity to the server (tunnel address space)
+    root@client:~ # ping -n -c2 -I10.42.42.2 10.42.42.1
+    # Testing connectivity to the server (LAN address space)
+    root@client:~ # ping -n -c1 -I192.168.0.1 10.42.42.1
+    # Testing connectivity to the internet
+    root@client:~ # ping -n -c1 -I192.168.0.1 proof.ovh.net
+    # Download speed testing
+    root@client:~ # wget -O/dev/null http://proof.ovh.net/files/10Gio.dat
+
