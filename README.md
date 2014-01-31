@@ -21,6 +21,7 @@ Quick install
 Build from source
 -----------------
 ```sh
+$ sudo apt-get install build-essential make autoconf
 $ ./autogen.sh
 $ ./configure
 $ make
@@ -30,6 +31,7 @@ $ make install
 Build debian package
 --------------------
 ```sh
+$ sudo apt-get install build-essential make autoconf
 $ dpkg-buildpackage -us -uc -rfakeroot
 OR
 # dpkg-buildpackage -us -uc

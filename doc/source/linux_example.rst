@@ -201,7 +201,7 @@ We must add some routes to each table to activate them.
     
     # Inserting routes in the adsl2 table
     ip route add 192.168.2.0/24 dev eth0 scope link table adsl2
-    ip route add default via 192.168.1.1 dev eth0 table adsl1
+    ip route add default via 192.168.2.1 dev eth0 table adsl2
     
     # ip rule is the source routing magic. This will redirect
     # packets coming from source "X" to table "adsl1", "adsl2" or "default".
