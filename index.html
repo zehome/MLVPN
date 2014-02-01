@@ -1,42 +1,54 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <meta charset='utf-8'>
+    <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
-
     <title>MLVPN - MultiLink Virtual Public Network by zehome</title>
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
   </head>
-
   <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/zehome/MLVPN">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/zehome/MLVPN/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/zehome/MLVPN/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
 
-    <header>
-      <div class="container">
-        <h1>MLVPN - MultiLink Virtual Public Network</h1>
-        <h2>Multi-link VPN (ADSL/SDSL/xDSL/Network aggregator)</h2>
+    <div class="wrapper">
 
-        <section id="downloads">
-          <a href="https://github.com/zehome/MLVPN/zipball/master" class="btn">Download as .zip</a>
-          <a href="https://github.com/zehome/MLVPN/tarball/master" class="btn">Download as .tar.gz</a>
-          <a href="https://github.com/zehome/MLVPN" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
-        </section>
-      </div>
-    </header>
+      <section>
+        <div id="title">
+          <h1>MLVPN - MultiLink Virtual Public Network</h1>
+          <p>Multi-link VPN (ADSL/SDSL/xDSL/Network aggregator)</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/zehome">zehome</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
+        </div>
 
-    <div class="container">
-      <section id="main_content">
         <h1></h1>
 
-<h1>MLVPN - Multi-Link Virtual Public Network</h1>
+<h1>
+<a name="mlvpn---multi-link-virtual-public-network" class="anchor" href="#mlvpn---multi-link-virtual-public-network"><span class="octicon octicon-link"></span></a>MLVPN - Multi-Link Virtual Public Network</h1>
 
 <p>author: Laurent Coustet </p>
 
 <p>Take a look at the official documentation on readthedocs.org: <a href="http://mlvpn.readthedocs.org/en/latest/">http://mlvpn.readthedocs.org/en/latest/</a></p>
 
-<h1>Introduction</h1>
+<h1>
+<a name="introduction" class="anchor" href="#introduction"><span class="octicon octicon-link"></span></a>Introduction</h1>
 
 <p>MLVPN a pour but de fournir un tunnel entre 2 routeurs,
 en utilisant plusieurs liens, dans le but de fournir:</p>
@@ -45,24 +57,28 @@ en utilisant plusieurs liens, dans le but de fournir:</p>
 <li>Aggrégation du débit montant/descendant</li>
 <li>Maintenir une latence faible</li>
 <li>Redondance importante</li>
-</ul><h1>Quick install</h1>
+</ul><h1>
+<a name="quick-install" class="anchor" href="#quick-install"><span class="octicon octicon-link"></span></a>Quick install</h1>
 
-<h2>Build from source</h2>
+<h2>
+<a name="build-from-source" class="anchor" href="#build-from-source"><span class="octicon octicon-link"></span></a>Build from source</h2>
 
-<div class="highlight"><pre><span class="nv">$ </span>./autogen.sh
+<div class="highlight highlight-sh"><pre><span class="nv">$ </span>./autogen.sh
 <span class="nv">$ </span>./configure
 <span class="nv">$ </span>make
 <span class="nv">$ </span>make install
 </pre></div>
 
-<h2>Build debian package</h2>
+<h2>
+<a name="build-debian-package" class="anchor" href="#build-debian-package"><span class="octicon octicon-link"></span></a>Build debian package</h2>
 
-<div class="highlight"><pre><span class="nv">$ </span>dpkg-buildpackage -us -uc -rfakeroot
+<div class="highlight highlight-sh"><pre><span class="nv">$ </span>dpkg-buildpackage -us -uc -rfakeroot
 OR
 <span class="c"># dpkg-buildpackage -us -uc</span>
 </pre></div>
 
-<h1>Fonctionnalités</h1>
+<h1>
+<a name="fonctionnalit%C3%A9s" class="anchor" href="#fonctionnalit%C3%A9s"><span class="octicon octicon-link"></span></a>Fonctionnalités</h1>
 
 <ul>
 <li>Aggératation de lien</li>
@@ -71,7 +87,8 @@ OR
 <li>Haute-Disponibilité (supporte la perte de liens)</li>
 <li>Sécurité par séparation des privilèges</li>
 <li>Authentification du client</li>
-</ul><h1>Fonctions non supportées</h1>
+</ul><h1>
+<a name="fonctions-non-support%C3%A9es" class="anchor" href="#fonctions-non-support%C3%A9es"><span class="octicon octicon-link"></span></a>Fonctions non supportées</h1>
 
 <p>MLVPN ne cherche pas a faire de la sécurité au niveau des paquets qu'il traite.</p>
 
@@ -82,7 +99,8 @@ ni de vérification des paquets qu'il relaye.</p>
 en mettant en place les protections indispensables au niveau du noyau
 des machines hôtes. (iptables, pf, ...)</p>
 
-<h1>Principe de fonctionnement</h1>
+<h1>
+<a name="principe-de-fonctionnement" class="anchor" href="#principe-de-fonctionnement"><span class="octicon octicon-link"></span></a>Principe de fonctionnement</h1>
 
 <p>MLVPN commence par créer deux processus, un disposant de droits root,
 et l'autre des droits d'un simple utilisateur.</p>
@@ -93,12 +111,14 @@ et l'espace utilisateur.</p>
 <p>Ensuite, des sockets établissent la connexion entre
 le routeur A et le routeur B.</p>
 
-<h2>Aggrégation du débit</h2>
+<h2>
+<a name="aggr%C3%A9gation-du-d%C3%A9bit" class="anchor" href="#aggr%C3%A9gation-du-d%C3%A9bit"><span class="octicon octicon-link"></span></a>Aggrégation du débit</h2>
 
 <p>Une fois les sockets connectées, tout parquet reçu sur l'interface tuntap
 est relayée en Round-Robin sur chacune des sockets.</p>
 
-<h2>Qualité de service</h2>
+<h2>
+<a name="qualit%C3%A9-de-service" class="anchor" href="#qualit%C3%A9-de-service"><span class="octicon octicon-link"></span></a>Qualité de service</h2>
 
 <p>Si un paquet IP dipose du champ TOS positioné sur 0x10, ou qu'il sagit d'un
 paquet ICMP, alors MLVPN utilise une queue particulière sur chaque socket
@@ -108,7 +128,8 @@ pour une émission immédiate sans limitation de débit.</p>
 de l'opérateur reste vide ou très peu chargée.
 Il conviens donc d'ajuster correctement la limitation du débit.</p>
 
-<h2>Limitation de débit</h2>
+<h2>
+<a name="limitation-de-d%C3%A9bit" class="anchor" href="#limitation-de-d%C3%A9bit"><span class="octicon octicon-link"></span></a>Limitation de débit</h2>
 
 <p>La limitation de débit est contrôlé par le fichier de configuration de MLVPN.
 La limitation se fait en ajustant le temps nécessaire entre l'envoi de deux
@@ -117,7 +138,8 @@ paquets, via un calcul savant.</p>
 <p>Ainsi on évite la file d'attente au niveau de l'opérateur, ce qui permet de
 garantir une latence faible.</p>
 
-<h2>Authentification</h2>
+<h2>
+<a name="authentification" class="anchor" href="#authentification"><span class="octicon octicon-link"></span></a>Authentification</h2>
 
 <p>Ce système permet de gérer correctement les timeout. Il n'a pas pour but
 d'améliorer la sécurité du système.</p>
@@ -134,13 +156,15 @@ authentifié via ce mot de passe.</p>
 <li>serveur reçoit le challenge, y contatene le mot de passe</li>
 <li>serveur renvoie un hash sha1 du motdepasse+challenge</li>
 <li>client vérifie que le hash correspond a ce qu'il a lui même calculé</li>
-</ul><h1>Compatiblité</h1>
+</ul><h1>
+<a name="compatiblit%C3%A9" class="anchor" href="#compatiblit%C3%A9"><span class="octicon octicon-link"></span></a>Compatiblité</h1>
 
 <p>Linux, OpenBSD, FreeBSD (untested)</p>
 
 <p><em>NO</em> windows support.</p>
 
-<h1>Contributeurs au projet</h1>
+<h1>
+<a name="contributeurs-au-projet" class="anchor" href="#contributeurs-au-projet"><span class="octicon octicon-link"></span></a>Contributeurs au projet</h1>
 
 <p>Laurent Coustet, auteur et mainteneur du projet.</p>
 
@@ -150,22 +174,26 @@ authentifié via ce mot de passe.</p>
 
 <p>Fabien Dupont, bugfix!</p>
 
-<h1>LICENCE</h1>
+<h1>
+<a name="licence" class="anchor" href="#licence"><span class="octicon octicon-link"></span></a>LICENCE</h1>
 
 <p>Voir le fichier LICENCE.</p>
 
-<h1>BUGS</h1>
+<h1>
+<a name="bugs" class="anchor" href="#bugs"><span class="octicon octicon-link"></span></a>BUGS</h1>
 
 <p>Le système de décapsulation des paquets n'est pas fonctionnel sur la plateforme i386.</p>
 
-<h1>Documentation</h1>
+<h1>
+<a name="documentation" class="anchor" href="#documentation"><span class="octicon octicon-link"></span></a>Documentation</h1>
 
 <p>La documentation est écrite au format restructuredtext.
 La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
 ronn (<a href="http://rtomayko.github.com/ronn/">http://rtomayko.github.com/ronn/</a>).</p>
       </section>
-    </div>
 
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
     
   </body>
 </html>
