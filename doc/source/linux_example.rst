@@ -12,7 +12,7 @@ to the other using multiple links in order to aggregate them.
 
 Example case
 ============
-.. code-block:: ascii
+.. code-block:: none
 
                                                             128.128.128.128
                                                            +---------------+
@@ -82,7 +82,7 @@ You can test it using standard routing.
 
 Before we do anything: (Note: you may require installing iproute2)
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ip route show
     default via 192.168.1.1 dev eth0 
@@ -93,7 +93,7 @@ Before we do anything: (Note: you may require installing iproute2)
 This routing table means every packet to the internet will go thru 192.168.1.1.
 We can test it:
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ping -n -c2 -I192.168.1.2 ping.ovh.net
     PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
@@ -110,7 +110,7 @@ Now, we know our ADSL1 link is working properly.
 
 Testing the second link will need us to modify the routing table.
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ip route add 213.186.33.13 via 192.168.2.1
     root@mlvpnclient:~# ip route show
@@ -125,7 +125,7 @@ Notice the new 213.186.33.13 (ping.ovh.net) added to the routing table.
 
 Again, we can test the link:
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ping -n -c2 -I192.168.2.2 ping.ovh.net
     PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
@@ -136,7 +136,7 @@ Noticed we changed the source address, and the latency is higher on ADSL2 by ~ 2
 
 Everything is fine, let's cleanup the routing table:
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ip route del 213.186.33.13
 
@@ -163,7 +163,7 @@ First, you need to create multiple routing tables in the kernel.
 
 That's better to name them, so yo do it by modifing **/etc/iproute2/rt_tables**.
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# echo 101 adsl1 >> /etc/iproute2/rt_tables
     root@mlvpnclient:~# echo 102 adsl2 >> /etc/iproute2/rt_tables
@@ -171,7 +171,7 @@ That's better to name them, so yo do it by modifing **/etc/iproute2/rt_tables**.
 
 Your configuration file should now look like this
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# cat /etc/iproute2/rt_tables
     #
@@ -218,7 +218,7 @@ displaying ip rules. (Which routing table will be used when ?)
 
 (Please note rules are applied in order from 0 to 32767)
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ip rule list
       0:      from all lookup local
@@ -230,7 +230,7 @@ displaying ip rules. (Which routing table will be used when ?)
 
 Then the routing tables:
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ip route show table adsl1
       192.168.1.0/24 dev eth0  scope link
@@ -248,7 +248,7 @@ Then the routing tables:
 
 Ping test
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@mlvpnclient:~# ping -c2 -n -I192.168.1.1 ping.ovh.net
     PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
@@ -291,7 +291,7 @@ You can use post-up scripts of /etc/network/interfaces to run this script.
 
 /etc/network/interfaces
 
-.. code-block:: interfaces
+.. code-block:: none
 
     auto eth0
     iface eth0 inet static
@@ -463,30 +463,30 @@ mlvpn0_updown.sh
 
 Testing
 =======
-Double check permissions of /etc/mlvpn/*.sh (chmod 700 owned by root)
+Double check permissions of /etc/mlvpn/\*.sh (chmod 700 owned by root)
 
 Don't forget to accept UDP 5080 and 5081 on your firewall, server side.
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@server:~ # iptables -I INPUT -i eth0 -p udp --dport 5080 -s [ADSL1_PUBLICIP] -j ACCEPT
     root@server:~ # iptables -I INPUT -i eth0 -p udp --dport 5081 -s [ADSL2_PUBLICIP] -j ACCEPT
 
 Start mlvpn on server side manually
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@server:~ # mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf
 
 Start mlvpn on client side manually
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@client:~ # mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf
 
 Check logfiles on client
 
-.. code-block:: cmd
+.. code-block:: sh
 
     root@client:~ # cat /var/log/mlvpn_commands.log
     mlvpn0 setup
@@ -495,7 +495,7 @@ Check logfiles on client
 
 Seems good. Some test ping
 
-.. code-block:: cmd
+.. code-block:: sh
 
     # Testing connectivity to the server (tunnel address space)
     root@client:~ # ping -n -c2 -I10.42.42.2 10.42.42.1
