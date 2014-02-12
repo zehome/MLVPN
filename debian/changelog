@@ -1,4 +1,4 @@
-mlvpn (1.3.2) UNRELEASED; urgency=low
+mlvpn (1.3.2) mlvpn-unstable; urgency=low
   * Improve debian wheezy support. (Uses /run instead of /var/run)
   * closes #31
 
