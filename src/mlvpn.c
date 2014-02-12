@@ -95,7 +95,7 @@ usage(char **argv)
         " --natural-title       do not change process title\n"
         " -n, --name            change process-title and include 'name'\n"
         " -h, --help            this help\n"
-        " -p, --pidfile [path]  path to pidfile (ex. /var/run/mlvpn.pid)\n"
+        " -p, --pidfile [path]  path to pidfile (ex. /run/mlvpn.pid)\n"
         " -u, --user [username] drop privileges to user 'username'\n"
         " -v, --verbose         more debug messages on stdout\n"
         " --yes-run-as-root     ! please do not use !\n"

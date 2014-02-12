@@ -3,7 +3,8 @@ Maintainer: Laurent Coustet <ed@zehome.com>
 Section: net
 Priority: optional
 Standards-Version: 3.9.3
-Build-Depends: debhelper (>= 8)
+Build-Depends: debhelper (>= 8), autoconf, automake1.9
+Build-Conflicts: autoconf2.13, automake1.4
 Vcs-Git: git://git@github.com/zehome/MLVPN.git
 Vcs-browser: https://github.com/zehome/MLVPN.git
 Homepage: http://www.mlvpn.fr/
