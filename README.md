@@ -17,6 +17,14 @@ en utilisant plusieurs liens, dans le but de fournir:
 Quick install
 =============
 
+Install debian package
+----------------------
+```sh
+echo "deb http://debian.mlvpn.fr mlvpn-unstable/" >/etc/apt/sources.list.d/mlvpn.list
+sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
+sudo apt-get update
+sudo apt-get install mlvpn
+```
 
 Build from source
 -----------------
