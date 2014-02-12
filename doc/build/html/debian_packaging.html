@@ -52,21 +52,20 @@
             
   <div class="section" id="building-debian-packages-for-mlvpn">
 <h1>Building debian packages for mlvpn<a class="headerlink" href="#building-debian-packages-for-mlvpn" title="Permalink to this headline">¶</a></h1>
-</div>
 <div class="section" id="requirements">
-<h1>Requirements<a class="headerlink" href="#requirements" title="Permalink to this headline">¶</a></h1>
+<h2>Requirements<a class="headerlink" href="#requirements" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-sh"><div class="highlight"><pre>sudo apt-get install pbuilder cowbuilder git-buildpackage
 </pre></div>
 </div>
 </div>
 <div class="section" id="prepare-build-environments">
-<h1>Prepare build environments<a class="headerlink" href="#prepare-build-environments" title="Permalink to this headline">¶</a></h1>
+<h2>Prepare build environments<a class="headerlink" href="#prepare-build-environments" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-sh"><div class="highlight"><pre>sudo cowbuilder --create --distribution wheezy --architecture i386 --basepath /var/cache/pbuilder/base-wheezy_i386.cow
 sudo cowbuilder --create --distribution wheezy --architecture amd64 --basepath /var/cache/pbuilder/base-wheezy_amd64.cow
 </pre></div>
 </div>
 <div class="section" id="configure-pbuilder">
-<h2>Configure pbuilder<a class="headerlink" href="#configure-pbuilder" title="Permalink to this headline">¶</a></h2>
+<h3>Configure pbuilder<a class="headerlink" href="#configure-pbuilder" title="Permalink to this headline">¶</a></h3>
 <p>.pbuilderrc:</p>
 <div class="highlight-sh"><div class="highlight"><pre><span class="c"># Template loosely taken from http://www.kirya.net/articles/build-i386-packages-on-amd64/</span>
 <span class="c"># do not specify variables when running cowbuilder --create or --update</span>
@@ -88,13 +87,14 @@ sudo cowbuilder --create --distribution wheezy --architecture amd64 --basepath /
 </div>
 </div>
 <div class="section" id="build-packages">
-<h1>Build packages<a class="headerlink" href="#build-packages" title="Permalink to this headline">¶</a></h1>
+<h2>Build packages<a class="headerlink" href="#build-packages" title="Permalink to this headline">¶</a></h2>
 <div class="highlight-sh"><div class="highlight"><pre>git clone git@github.com:zehome/MLVPN.git mlvpn
 <span class="nb">cd </span>mlvpn
 git checkout debian-unstable
 <span class="nv">DIST</span><span class="o">=</span>wheezy <span class="nv">ARCH</span><span class="o">=</span>i386 git-buildpackage --git-builder<span class="o">=</span><span class="s2">&quot;pdebuild --debbuildopts -b&quot;</span>
 <span class="nv">DIST</span><span class="o">=</span>wheezy <span class="nv">ARCH</span><span class="o">=</span>amd64 git-buildpackage --git-builder<span class="o">=</span><span class="s2">&quot;pdebuild --debbuildopts -b&quot;</span>
 </pre></div>
+</div>
 </div>
 </div>
 
@@ -106,13 +106,15 @@ git checkout debian-unstable
         <div class="sphinxsidebarwrapper">
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Building debian packages for mlvpn</a></li>
+<li><a class="reference internal" href="#">Building debian packages for mlvpn</a><ul>
 <li><a class="reference internal" href="#requirements">Requirements</a></li>
 <li><a class="reference internal" href="#prepare-build-environments">Prepare build environments</a><ul>
 <li><a class="reference internal" href="#configure-pbuilder">Configure pbuilder</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#build-packages">Build packages</a></li>
+</ul>
+</li>
 </ul>
 
   <h4>Previous topic</h4>
