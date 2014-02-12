@@ -15,6 +15,7 @@ Contents:
    :maxdepth: 2
 
    linux_example
+   debian_packaging
    copyright
 
 .. _`BSD License`: http://www.opensource.org/licenses/BSD-3-Clause
