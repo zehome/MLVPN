@@ -61,9 +61,19 @@ en utilisant plusieurs liens, dans le but de fournir:</p>
 <a name="quick-install" class="anchor" href="#quick-install"><span class="octicon octicon-link"></span></a>Quick install</h1>
 
 <h2>
+<a name="install-debian-package" class="anchor" href="#install-debian-package"><span class="octicon octicon-link"></span></a>Install debian package</h2>
+
+<div class="highlight highlight-sh"><pre><span class="nb">echo</span> <span class="s2">"deb http://debian.mlvpn.fr mlvpn-unstable/"</span> &gt;/etc/apt/sources.list.d/mlvpn.list
+sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
+sudo apt-get update
+sudo apt-get install mlvpn
+</pre></div>
+
+<h2>
 <a name="build-from-source" class="anchor" href="#build-from-source"><span class="octicon octicon-link"></span></a>Build from source</h2>
 
-<div class="highlight highlight-sh"><pre><span class="nv">$ </span>./autogen.sh
+<div class="highlight highlight-sh"><pre><span class="nv">$ </span>sudo apt-get install build-essential make autoconf
+<span class="nv">$ </span>./autogen.sh
 <span class="nv">$ </span>./configure
 <span class="nv">$ </span>make
 <span class="nv">$ </span>make install
@@ -72,7 +82,8 @@ en utilisant plusieurs liens, dans le but de fournir:</p>
 <h2>
 <a name="build-debian-package" class="anchor" href="#build-debian-package"><span class="octicon octicon-link"></span></a>Build debian package</h2>
 
-<div class="highlight highlight-sh"><pre><span class="nv">$ </span>dpkg-buildpackage -us -uc -rfakeroot
+<div class="highlight highlight-sh"><pre><span class="nv">$ </span>sudo apt-get install build-essential make autoconf
+<span class="nv">$ </span>dpkg-buildpackage -us -uc -rfakeroot
 OR
 <span class="c"># dpkg-buildpackage -us -uc</span>
 </pre></div>
@@ -86,7 +97,6 @@ OR
 <li>File d'émission "haute performance" sans limitation de débit (QoS)</li>
 <li>Haute-Disponibilité (supporte la perte de liens)</li>
 <li>Sécurité par séparation des privilèges</li>
-<li>Authentification du client</li>
 </ul><h1>
 <a name="fonctions-non-support%C3%A9es" class="anchor" href="#fonctions-non-support%C3%A9es"><span class="octicon octicon-link"></span></a>Fonctions non supportées</h1>
 
@@ -144,19 +154,7 @@ garantir une latence faible.</p>
 <p>Ce système permet de gérer correctement les timeout. Il n'a pas pour but
 d'améliorer la sécurité du système.</p>
 
-<p>Un mot de passe partagé entre les 2 parties est stocké dans le fichier de configuration.</p>
-
-<p>Le client ne relaye les paquets qu'il reçoit que si la communication a été
-authentifié via ce mot de passe.</p>
-
-<p>Le principe est (trop) simple:</p>
-
-<ul>
-<li>client envoie un challenge aléatoire</li>
-<li>serveur reçoit le challenge, y contatene le mot de passe</li>
-<li>serveur renvoie un hash sha1 du motdepasse+challenge</li>
-<li>client vérifie que le hash correspond a ce qu'il a lui même calculé</li>
-</ul><h1>
+<h1>
 <a name="compatiblit%C3%A9" class="anchor" href="#compatiblit%C3%A9"><span class="octicon octicon-link"></span></a>Compatiblité</h1>
 
 <p>Linux, OpenBSD, FreeBSD (untested)</p>
