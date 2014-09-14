@@ -432,7 +432,7 @@ This is a little trick to help mlvpn aggregation. (Latency must be matched)</p>
     /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
     /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
 <span class="k">elif</span> <span class="o">[</span> <span class="s2">&quot;$newstatus&quot;</span> <span class="o">=</span> <span class="s2">&quot;tuntap_down&quot;</span> <span class="o">]</span>; <span class="k">then</span>
-    /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
+    /sbin/route del -net 192.168.0.0/24 gw 10.42.42.2
     /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
     /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
 <span class="k">fi</span>
@@ -562,7 +562,7 @@ root@client:~ <span class="c"># wget -O/dev/null http://proof.ovh.net/files/10Gi
     </div>
     <div class="footer">
         &copy; <a href="copyright.html">Copyright</a> 2012-2014, Laurent COUSTET.
-      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.1.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
     </div>
   </body>
 </html>

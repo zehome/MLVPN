@@ -453,7 +453,7 @@ mlvpn0_updown.sh
         /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
         /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
     elif [ "$newstatus" = "tuntap_down" ]; then
-        /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
+        /sbin/route del -net 192.168.0.0/24 gw 10.42.42.2
         /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
         /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
     fi
