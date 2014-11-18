@@ -92,7 +92,6 @@ mlvpn_control_io_event(struct ev_loop *loop, ev_io *w, int revents)
 static void
 mlvpn_control_timeout_event(struct ev_loop *loop, ev_timer *w, int revents)
 {
-    _DEBUG("Check control timeout\n");
     mlvpn_control_timeout(w->data);
     ev_timer_again(EV_DEFAULT_UC, w);
 }

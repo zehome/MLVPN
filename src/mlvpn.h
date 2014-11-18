@@ -117,7 +117,7 @@ int mlvpn_sock_set_nonblocking(int fd);
 void mlvpn_rtun_status_up(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 void mlvpn_rtun_tick(mlvpn_tunnel_t *t);
-void mlvpn_rtun_tick_connect();
+void mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t);
 void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t);
 void mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents);
 void mlvpn_rtun_recalc_weight();
