@@ -71,6 +71,9 @@ mlvpn_control_client_io_event(struct ev_loop *loop, ev_io *w, int revents)
     if (revents & EV_READ) {
         mlvpn_control_read(w->data);
     }
+    if (revents & EV_WRITE) {
+        mlvpn_control_send(w->data);
+    }
 }
 
 static void
@@ -89,6 +92,7 @@ mlvpn_control_io_event(struct ev_loop *loop, ev_io *w, int revents)
 static void
 mlvpn_control_timeout_event(struct ev_loop *loop, ev_timer *w, int revents)
 {
+    _DEBUG("Check control timeout\n");
     mlvpn_control_timeout(w->data);
     ev_timer_again(EV_DEFAULT_UC, w);
 }
@@ -96,7 +100,8 @@ mlvpn_control_timeout_event(struct ev_loop *loop, ev_timer *w, int revents)
 void
 mlvpn_control_close_client(struct mlvpn_control *ctrl)
 {
-    ev_io_stop(EV_DEFAULT_UC, &ctrl->client_watcher);
+    ev_io_stop(EV_DEFAULT_UC, &ctrl->client_io_read);
+    ev_io_stop(EV_DEFAULT_UC, &ctrl->client_io_write);
     if (ctrl->clientfd >= 0)
         close(ctrl->clientfd);
     ctrl->clientfd = -1;
@@ -125,11 +130,14 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
 
     ev_init(&ctrl->fifo_watcher, mlvpn_control_io_event);
     ev_init(&ctrl->sock_watcher, mlvpn_control_io_event);
-    ev_init(&ctrl->client_watcher, mlvpn_control_client_io_event);
-    ev_timer_init(&ctrl->timeout_watcher, mlvpn_control_timeout_event, 1., 0.);
+    ev_init(&ctrl->client_io_read, mlvpn_control_client_io_event);
+    ev_init(&ctrl->client_io_write, mlvpn_control_client_io_event);
+    ev_init(&ctrl->timeout_watcher, mlvpn_control_timeout_event);
+    ctrl->timeout_watcher.repeat = 1.;
     ctrl->fifo_watcher.data = ctrl;
     ctrl->sock_watcher.data = ctrl;
-    ctrl->client_watcher.data = ctrl;
+    ctrl->client_io_read.data = ctrl;
+    ctrl->client_io_write.data = ctrl;
     ctrl->timeout_watcher.data = ctrl;
 
     /* UNIX domain socket */
@@ -244,7 +252,6 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
         ev_io_start(EV_DEFAULT_UC, &ctrl->fifo_watcher);
     }
     ev_timer_start(EV_DEFAULT_UC, &ctrl->timeout_watcher);
-
     return;
 }
 
@@ -286,8 +293,9 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
         ctrl->rbufpos = 0;
         ctrl->wbufpos = 0;
         ctrl->last_activity = time((time_t *) NULL);
-        ev_io_set(&ctrl->client_watcher, ctrl->clientfd, EV_READ|EV_WRITE);
-        ev_io_start(EV_DEFAULT_UC, &ctrl->client_watcher);
+        ev_io_set(&ctrl->client_io_read, ctrl->clientfd, EV_READ);
+        ev_io_set(&ctrl->client_io_write, ctrl->clientfd, EV_WRITE);
+        ev_io_start(EV_DEFAULT_UC, &ctrl->client_io_read);
     }
     return accepted;
 }
@@ -495,6 +503,7 @@ mlvpn_control_write(struct mlvpn_control *ctrl, void *buf, size_t len)
 
     memcpy(ctrl->wbuf+ctrl->wbufpos, buf, len);
     ctrl->wbufpos += len;
+    ev_io_start(EV_DEFAULT_UC, &ctrl->client_io_write);
     return len;
 }
 
@@ -523,6 +532,10 @@ mlvpn_control_send(struct mlvpn_control *ctrl)
 
     if (ctrl->close_after_write && ctrl->wbufpos <= 0)
         mlvpn_control_close_client(ctrl);
+
+    if (ctrl->wbufpos <= 0) {
+        ev_io_stop(EV_DEFAULT_UC, &ctrl->client_io_write);
+    }
 
     return len;
 }

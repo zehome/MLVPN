@@ -31,7 +31,8 @@ struct mlvpn_control
     int close_after_write;
     ev_io fifo_watcher;
     ev_io sock_watcher;
-    ev_io client_watcher;
+    ev_io client_io_read;
+    ev_io client_io_write;
     ev_timer timeout_watcher;
 };
 

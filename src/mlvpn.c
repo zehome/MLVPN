@@ -234,7 +234,8 @@ mlvpn_rtun_new(const char *name,
     new->io_timeout.data = new;
     ev_init(&new->io_read, mlvpn_rtun_read);
     ev_init(&new->io_write, mlvpn_rtun_write);
-    ev_timer_init(&new->io_timeout, mlvpn_rtun_check_timeout, 1., 0.);
+    ev_init(&new->io_timeout, mlvpn_rtun_check_timeout);
+    new->io_timeout.repeat = 1.;
     return new;
 }
 
