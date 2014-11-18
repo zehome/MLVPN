@@ -1,6 +1,8 @@
 #ifndef MLVPN_CONTROL_H
 #define MLVPN_CONTROL_H
 
+#include <ev.h>
+
 #define MLVPN_CTRL_EOF 0x04
 #define MLVPN_CTRL_TERMINATOR '\n'
 /* Control socket (mkfifo and/or AF_INET6?) */
@@ -27,6 +29,10 @@ struct mlvpn_control
     int wbufpos;
     int http; /* HTTP mode ? 1 for inet socket */
     int close_after_write;
+    ev_io fifo_watcher;
+    ev_io sock_watcher;
+    ev_io client_watcher;
+    ev_timer timeout_watcher;
 };
 
 enum {

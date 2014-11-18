@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <ev.h>
 
 #ifdef HAVE_OPENBSD
  #include <netinet/in.h>
@@ -67,8 +68,7 @@ struct mlvpn_options
 };
 
 enum encap_proto {
-    ENCAP_PROTO_UDP,
-    ENCAP_PROTO_TCP
+    ENCAP_PROTO_UDP
 };
 
 enum chap_status {
@@ -85,7 +85,6 @@ typedef struct mlvpn_tunnel_s
     char *destaddr;       /* remote server ip (can be hostname) */
     char *destport;       /* remote server port */
     int fd;               /* socket file descriptor */
-    int server_fd;        /* server socket (used to accept) */
     int server_mode;      /* server or client */
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
@@ -106,6 +105,9 @@ typedef struct mlvpn_tunnel_s
     time_t last_packet_time; /* Used to timeout the link */
     time_t timeout;
     time_t next_keepalive; /* when to send the "next" keepalive packet */
+    ev_io io_read;
+    ev_io io_write;
+    ev_timer io_timeout;
 } mlvpn_tunnel_t;
 
 int mlvpn_config(int config_file_fd, int first_time);
@@ -117,13 +119,13 @@ void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 void mlvpn_rtun_tick(mlvpn_tunnel_t *t);
 void mlvpn_rtun_tick_connect();
 void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t);
-void mlvpn_rtun_check_timeout();
+void mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents);
 void mlvpn_rtun_recalc_weight();
 int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
 int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun);
-int mlvpn_rtun_read(mlvpn_tunnel_t *tun);
-int mlvpn_rtun_write(mlvpn_tunnel_t *tun);
+int mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents);
+int mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents);
 int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
 int mlvpn_rtun_timer_write(mlvpn_tunnel_t *t);
 mlvpn_tunnel_t *mlvpn_rtun_last();

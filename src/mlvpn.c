@@ -27,6 +27,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
+#include <ev.h>
 
 #include "debug.h"
 #include "mlvpn.h"
@@ -54,7 +55,6 @@ struct tuntap_s tuntap;
 mlvpn_tunnel_t *rtun_start = NULL;
 char *progname;
 logfile_t *logger = NULL;
-int reload_config_needed = 0;
 
 /* "private" */
 static char *status_command = NULL;
@@ -176,7 +176,6 @@ mlvpn_rtun_new(const char *name,
     new->name = strdup(name);
     new->fd = -1;
     new->server_mode = server_mode;
-    new->server_fd = -1;
     new->weight = 1;
     new->status = MLVPN_CHAP_DISCONNECTED;
     new->encap_prot = ENCAP_PROTO_UDP;
@@ -229,6 +228,13 @@ mlvpn_rtun_new(const char *name,
         /* First element */
         rtun_start = new;
     }
+
+    new->io_read.data = new;
+    new->io_write.data = new;
+    new->io_timeout.data = new;
+    ev_init(&new->io_read, mlvpn_rtun_read);
+    ev_init(&new->io_write, mlvpn_rtun_write);
+    ev_timer_init(&new->io_timeout, mlvpn_rtun_check_timeout, 1., 0.);
     return new;
 }
 
@@ -291,14 +297,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
     hints.ai_flags    = AI_PASSIVE;
     hints.ai_family   = AF_INET; /* TODO IPV6 */
     fd = t->fd;
-    if (t->encap_prot == ENCAP_PROTO_TCP)
-    {
-        hints.ai_socktype = SOCK_STREAM;
-        if (t->server_mode)
-            fd = t->server_fd;
-    } else {
-        hints.ai_socktype = SOCK_DGRAM;
-    }
+    hints.ai_socktype = SOCK_DGRAM;
 
     bindaddr = t->bindaddr;
     bindport = t->bindport;
@@ -328,7 +327,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 }
 
 int
-mlvpn_rtun_connect(mlvpn_tunnel_t *t)
+mlvpn_rtun_start(mlvpn_tunnel_t *t)
 {
     int ret, fd = -1;
     char *addr, *port;
@@ -337,8 +336,6 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     fd = t->fd;
     if (t->server_mode)
     {
-        if (t->encap_prot == ENCAP_PROTO_TCP)
-            fd = t->server_fd;
         addr = t->bindaddr;
         port = t->bindport;
     } else {
@@ -349,10 +346,7 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     /* Initialize hints */
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET; /* TODO IPv6 */
-    if (t->encap_prot == ENCAP_PROTO_TCP)
-        hints.ai_socktype = SOCK_STREAM;
-    else
-        hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_socktype = SOCK_DGRAM;
 
     ret = priv_getaddrinfo(addr, port, &t->addrinfo, &hints);
     if (ret < 0 || !t->addrinfo)
@@ -373,10 +367,7 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
             _ERROR("[rtun %s] Socket creation error: %s\n",
                     t->name, strerror(fd));
         } else {
-            if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
-                t->server_fd = fd;
-            else
-                t->fd = fd;
+            t->fd = fd;
             break;
         }
         res = res->ai_next;
@@ -392,8 +383,6 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
     /* setup non blocking sockets */
     socklen_t val = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(socklen_t));
-    if (t->encap_prot == ENCAP_PROTO_TCP)
-        setsockopt(t->fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(socklen_t));
     if (t->bindaddr)
     {
         if (mlvpn_rtun_bind(t) < 0)
@@ -404,40 +393,12 @@ mlvpn_rtun_connect(mlvpn_tunnel_t *t)
         }
     }
 
-    if (t->encap_prot == ENCAP_PROTO_TCP)
-    {
-        if (t->server_mode)
-        {
-            /* listen, only allow 1 socket in accept() queue */
-            if ((ret = listen(fd, 1)) < 0)
-            {
-                _ERROR("[rtun %s] unable to listen on socket %d.\n",
-                        t->name, fd);
-                return -3;
-            }
-        } else {
-            /* client mode */
-            _INFO("[rtun %s] connecting to [%s]:%s\n",
-                   t->name, addr, port);
-            /* connect(2) */
-            if (connect(fd, t->addrinfo->ai_addr, t->addrinfo->ai_addrlen) == 0)
-            {
-                _INFO("[rtun %s] successfully connected to [%s]:%s.\n",
-                       t->name, addr, port);
-            } else {
-                _ERROR("[rtun %s] connection to [%s]:%s failed: %s\n",
-                        t->name, addr, port, strerror(errno));
-                t->fd = -1;
-                t->status = 0;
-                return -4;
-            }
-        }
-    }
-
     /* set non blocking after connect... May lockup the entiere process */
     mlvpn_sock_set_nonblocking(fd);
-
     mlvpn_rtun_tick(t);
+    ev_io_set(&t->io_read, fd, EV_READ);
+    ev_io_start(EV_DEFAULT_UC, &t->io_read);
+    ev_timer_start(EV_DEFAULT_UC, &t->io_timeout);
     return 0;
 }
 
@@ -462,9 +423,6 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     if (t->fd > 0)
         close(t->fd);
     t->fd = -1;
-    if (t->server_fd > 0)
-        close(t->server_fd);
-    t->server_fd = -1;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->rbuf.len = 0;
     mlvpn_pktbuffer_reset(t->sbuf);
@@ -485,6 +443,9 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
     mlvpn_tunnel_t *tmp = rtun_start;
     mlvpn_tunnel_t *prev = NULL;
     mlvpn_rtun_status_down(t);
+    ev_io_stop(EV_DEFAULT_UC, &t->io_read);
+    ev_io_stop(EV_DEFAULT_UC, &t->io_write);
+    ev_timer_stop(EV_DEFAULT_UC, &t->io_timeout);
 
     while (tmp)
     {
@@ -615,17 +576,14 @@ mlvpn_rtun_tick_connect()
 
     while (t)
     {
-        if (t->server_mode && t->encap_prot == ENCAP_PROTO_TCP)
-            fd = t->server_fd;
-        else
-            fd = t->fd;
+        fd = t->fd;
         if (fd < 0)
         {
             now = time((time_t *)NULL);
             if (t->next_attempt <= 0 || now >= t->next_attempt)
             {
                 t->conn_attempts += 1;
-                ret = mlvpn_rtun_connect(t);
+                ret = mlvpn_rtun_start(t);
                 if (ret < 0)
                 {
                     t->next_attempt = now + t->conn_attempts * 10;
@@ -644,57 +602,6 @@ mlvpn_rtun_tick_connect()
 
         t = t->next;
     }
-}
-
-int mlvpn_server_accept()
-{
-    int fd;
-    char clienthost[NI_MAXHOST];
-    char clientservice[NI_MAXSERV];
-    struct sockaddr_storage clientaddr;
-
-    int accepted = 0;
-    mlvpn_tunnel_t *t = rtun_start;
-
-    socklen_t addrlen = sizeof(clientaddr);
-
-    while (t)
-    {
-        if (t->server_fd > 0 && t->encap_prot == ENCAP_PROTO_TCP)
-        {
-            fd = accept(t->server_fd, (struct sockaddr *)&clientaddr, &addrlen);
-            if (fd < 0)
-            {
-                if (errno != EAGAIN && errno != EWOULDBLOCK)
-                {
-                    /* TODO: Disable server_fd ! */
-                    _ERROR("Error during accept: %s\n", strerror(errno));
-                }
-            } else {
-                accepted++;
-
-                memset(clienthost, 0, NI_MAXHOST);
-                memset(clientservice, 0, NI_MAXSERV);
-
-                getnameinfo((struct sockaddr *)&clientaddr, addrlen,
-                            clienthost, NI_MAXHOST,
-                            clientservice, NI_MAXSERV,
-                            NI_NUMERICHOST|NI_NUMERICSERV);
-                _INFO("Connection attempt from [%s]:%s.\n",
-                    clienthost, clientservice);
-                if (t->fd >= 0)
-                {
-                    _ERROR("Overwritting already existing connection.\n");
-                    mlvpn_rtun_status_down(t);
-                }
-                t->fd = fd;
-
-                mlvpn_sock_set_nonblocking(t->fd);
-            }
-        }
-        t = t->next;
-    }
-    return accepted;
 }
 
 mlvpn_tunnel_t *
@@ -721,39 +628,41 @@ mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
 }
 
 void
-mlvpn_rtun_check_timeout()
+mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents)
 {
-    mlvpn_tunnel_t *t = rtun_start;
+    mlvpn_tunnel_t *t = w->data;
+    _DEBUG("check timeout tun %s\n", t->name);
     time_t now = time((time_t *)NULL);
 
-    while (t)
+    if (t->fd > 0 && t->status >= MLVPN_CHAP_AUTHSENT && t->timeout > 0)
     {
-        if (t->fd > 0 && t->status >= MLVPN_CHAP_AUTHSENT && t->timeout > 0)
+        if ((t->last_packet_time != 0) &&
+            (t->last_packet_time + t->timeout) < now)
         {
-            if ((t->last_packet_time != 0) &&
-                (t->last_packet_time + t->timeout) < now)
+            /* Timeout */
+            _INFO("Link %d timeout.\n", t->fd);
+            mlvpn_rtun_status_down(t);
+        } else if (t->status == MLVPN_CHAP_AUTHOK) {
+            if ((t->next_keepalive == 0) ||
+                (t->next_keepalive < now))
             {
-                /* Timeout */
-                _INFO("Link %d timeout.\n", t->fd);
-                mlvpn_rtun_status_down(t);
-            } else if (t->status == MLVPN_CHAP_AUTHOK) {
-                if ((t->next_keepalive == 0) ||
-                    (t->next_keepalive < now))
-                {
-                    /* Send a keepalive packet */
-                    _DEBUG("Sending keepalive packet %d (next_keepalive = %d)\n",
-                        t->fd, t->next_keepalive);
-                    mlvpn_rtun_keepalive(now, t);
-                }
+                /* Send a keepalive packet */
+                _DEBUG("Sending keepalive packet %d (next_keepalive = %d)\n",
+                    t->fd, t->next_keepalive);
+                mlvpn_rtun_keepalive(now, t);
             }
         }
-        t = t->next;
     }
+    if (! mlvpn_cb_is_empty(t->hpsbuf)) {
+        _DEBUG("io write start tun %s\n", t->name);
+        ev_io_start(EV_DEFAULT_UC, &t->io_write);
+    }
+    ev_timer_again(EV_DEFAULT_UC, w);
 }
 
 
 /* Pass thru the mlvpn_rbuf to find packets received
- * from the TCP/UDP channel and prepare packets for TUN/TAP device. */
+ * from the UDP channel and prepare packets for TUN/TAP device. */
 int
 mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
 {
@@ -762,7 +671,11 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
     int pkts = 0;
     int last_shift = -1;
     mlvpn_pkt_t *pkt;
-
+    if (tun->rbuf.len < PKTHDRSIZ(pktdata)) {
+        _ERROR("[rtun %s] Invalid packet of len %d.\n",
+            tun->name, tun->rbuf.len);
+        return pkts;
+    }
     for (i = 0; i <= tun->rbuf.len - (PKTHDRSIZ(pktdata)) ; i++)
     {
         void *rbuf = tun->rbuf.data + i;
@@ -828,13 +741,21 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
         tun->rbuf.len -= last_shift;
     }
 
+    /* Send the packet back into the LAN */
+    if (! mlvpn_cb_is_empty(tuntap.sbuf)) {
+        _DEBUG("io write start tuntap\n");
+        ev_io_start(EV_DEFAULT_UC, &tuntap.io_write);
+    }
+
     return pkts;
 }
 
 /* read from the rtunnel => write directly to the tap send buffer */
 int
-mlvpn_rtun_read(mlvpn_tunnel_t *tun)
+mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
 {
+    mlvpn_tunnel_t *tun = w->data;
+    _DEBUG("mlvpn_rtun_read tun %s\n", tun->name);
     ssize_t len;
     size_t rlen;
     struct sockaddr_storage clientaddr;
@@ -848,50 +769,40 @@ mlvpn_rtun_read(mlvpn_tunnel_t *tun)
         tun->rbuf.len = 0;
     }
 
-    if (tun->encap_prot == ENCAP_PROTO_TCP)
-    {
-        len = read(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen);
-    } else {
-        len = recvfrom(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen,
-            MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
-    }
+    len = recvfrom(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen,
+        MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
     if (len > 0)
     {
         tun->recvbytes += len;
         tun->recvpackets += 1;
 
-        if (tun->encap_prot == ENCAP_PROTO_TCP)
+        if (! tun->addrinfo)
         {
-            _DEBUG("< rtun %d read %u bytes.\n", tun->fd, (uint32_t)len);
-        } else {
-            if (! tun->addrinfo)
-            {
-                _FATAL("tun->addrinfo is NULL!\n");
-                _exit(32);
-            }
+            _FATAL("tun->addrinfo is NULL!\n");
+            _exit(32);
+        }
 
-            if ((tun->addrinfo->ai_addrlen != addrlen) ||
-                (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
+        if ((tun->addrinfo->ai_addrlen != addrlen) ||
+            (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
+        {
+            char clienthost[NI_MAXHOST];
+            char clientport[NI_MAXSERV];
+            int ret;
+            if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
+                             clienthost, sizeof(clienthost),
+                             clientport, sizeof(clientport),
+                             NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
             {
-                char clienthost[NI_MAXHOST];
-                char clientport[NI_MAXSERV];
-                int ret;
-                if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
-                                 clienthost, sizeof(clienthost),
-                                 clientport, sizeof(clientport),
-                                 NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
-                {
-                    _ERROR("[rtun %s] Error in getnameinfo: %d: %s\n", 
-                            tun->name, ret, strerror(errno));
-                } else {
-                    _DEBUG("[rtun %s] new UDP connection -> %s\n",
-                            tun->name, clienthost);
-                    memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
-                    tun->status = MLVPN_CHAP_DISCONNECTED;
-                }
-                _DEBUG("< rtun %d read %d bytes from %s:%s.\n", tun->fd, len,
-                            clienthost, clientport);
+                _ERROR("[rtun %s] Error in getnameinfo: %d: %s\n", 
+                        tun->name, ret, strerror(errno));
+            } else {
+                _DEBUG("[rtun %s] new UDP connection -> %s\n",
+                        tun->name, clienthost);
+                memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
+                tun->status = MLVPN_CHAP_DISCONNECTED;
             }
+            _DEBUG("< rtun %d read %d bytes from %s:%s.\n", tun->fd, len,
+                        clienthost, clientport);
         }
         tun->rbuf.len += len;
         mlvpn_rtun_tick_rbuf(tun);
@@ -902,6 +813,11 @@ mlvpn_rtun_read(mlvpn_tunnel_t *tun)
     } else {
         _INFO("[rtun %s] peer closed the connection %d.\n", tun->name, tun->fd);
         mlvpn_rtun_status_down(tun);
+    }
+
+    if (mlvpn_cb_is_empty(tun->sbuf) && mlvpn_cb_is_empty(tun->hpsbuf)) {
+        _DEBUG("io write stop tun %s\n", tun->name);
+        ev_io_stop(EV_DEFAULT_UC, &tun->io_write);
     }
     return len;
 }
@@ -917,13 +833,8 @@ mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
     pkt->pktdata.len = htons(pkt->pktdata.len);
 
-    if (tun->encap_prot == ENCAP_PROTO_TCP)
-    {
-        len = write(tun->fd, &pkt->pktdata, wlen);
-    } else {
-        len = sendto(tun->fd, &pkt->pktdata, wlen, MSG_DONTWAIT,
-            tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
-    }
+    len = sendto(tun->fd, &pkt->pktdata, wlen, MSG_DONTWAIT,
+        tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     if (len < 0)
     {
         _ERROR("[rtun %s] write error: %s\n", tun->name, strerror(errno));
@@ -939,12 +850,18 @@ mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
                 tun->fd, len);
         }
     }
+
+    if (! mlvpn_cb_is_empty(pktbuf)) {
+        _DEBUG("io write start tun %s\n", tun->name);
+        ev_io_start(EV_DEFAULT_UC, &tun->io_write);
+    }
     return len;
 }
 
 int
-mlvpn_rtun_write(mlvpn_tunnel_t *tun)
+mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents)
 {
+    mlvpn_tunnel_t *tun = w->data;
     int bytes = 0;
     if (! mlvpn_cb_is_empty(tun->hpsbuf))
         bytes += mlvpn_rtun_write_pkt(tun, tun->hpsbuf);
@@ -953,42 +870,6 @@ mlvpn_rtun_write(mlvpn_tunnel_t *tun)
         bytes += mlvpn_rtun_write_pkt(tun, tun->sbuf);
 
     return bytes;
-}
-
-int
-mlvpn_rtun_timer_write(mlvpn_tunnel_t *t)
-{
-    int bytesent = -1;
-    uint64_t now;
-    mlvpn_pkt_t *pkt;
-
-    /* Send high priority buffer as soon as possible */
-    if (! mlvpn_cb_is_empty(t->hpsbuf))
-        bytesent = mlvpn_rtun_write_pkt(t, t->hpsbuf);
-
-    if (mlvpn_cb_is_empty(t->sbuf))
-        return bytesent;
-
-    pkt = mlvpn_pktbuffer_read_norelease(t->sbuf);
-    now = mlvpn_millis();
-    if (now >= pkt->next_packet_send || pkt->next_packet_send == 0)
-    {
-        bytesent += mlvpn_rtun_write_pkt(t, t->sbuf);
-        if (! mlvpn_cb_is_empty(t->sbuf))
-        {
-            pkt = mlvpn_pktbuffer_read_norelease(t->sbuf);
-            if (mlvpn_pktbuffer_bandwidth(t->sbuf) > 0 && pkt->pktdata.len > 0)
-            {
-                pkt->next_packet_send = mlvpn_millis() +
-                    (1000 / (mlvpn_pktbuffer_bandwidth(t->sbuf) /
-                                pkt->pktdata.len));
-            }
-        }
-    } else {
-        /* need some sleep to avoid 100% cpu */
-        usleep(500);
-    }
-    return bytesent;
 }
 
 /* Config file reading / re-read.
@@ -1061,7 +942,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (mystr_eq(tmp, "udp")) {
                     default_protocol = ENCAP_PROTO_UDP;
                 } else if (mystr_eq(tmp, "tcp")) {
-                    default_protocol = ENCAP_PROTO_TCP;
+                    _ERROR("TCP is nto supported.\n");
                 } else {
                     _ERROR("Unknown protocol %s.\n", tmp);
                 }
@@ -1124,7 +1005,7 @@ mlvpn_config(int config_file_fd, int first_time)
                     if (mystr_eq(tmp, "udp")) {
                         protocol = ENCAP_PROTO_UDP;
                     } else if (mystr_eq(tmp, "tcp")) {
-                        protocol = ENCAP_PROTO_TCP;
+                        _ERROR("TCP is not supported.\n");
                     } else {
                         _ERROR("Unknown protocol %s.\n", tmp);
                     }
@@ -1194,11 +1075,9 @@ mlvpn_config(int config_file_fd, int first_time)
                         dstaddr, dstport, default_server_mode);
                 }
                 tmptun->encap_prot = protocol;
-
                 tmptun->timeout = timeout;
                 if (bwlimit > 0)
                     mlvpn_pktbuffer_bandwidth(tmptun->sbuf) = bwlimit;
-
                 tmptun->latency_increase = latency_increase;
             }
         } else if (lastSection == NULL)
@@ -1256,11 +1135,6 @@ void signal_handler(int sig)
     global_exit = 1;
 }
 
-void signal_hup(int sig)
-{
-    reload_config_needed = 1;
-}
-
 void signal_setup()
 {
     int i;
@@ -1280,18 +1154,33 @@ void signal_setup()
 
     sa.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sa, NULL);
-
-    sa.sa_handler = signal_hup;
-    sigaction(SIGHUP, &sa, NULL);
 }
 
-void mlvpn_tuntap_init()
+static void
+tuntap_io_event(struct ev_loop *loop, ev_io *w, int revents)
+{
+    if (revents & EV_READ) {
+        mlvpn_tuntap_read(&tuntap);
+    } else if (revents & EV_WRITE) {
+        mlvpn_tuntap_write(&tuntap);
+        /* Nothing else to read */
+        if (mlvpn_cb_is_empty(tuntap.sbuf)) {
+            _DEBUG("io write stop tuntap\n");
+            ev_io_stop(EV_DEFAULT_UC, &tuntap.io_write);
+        }
+    }
+}
+
+void
+mlvpn_tuntap_init()
 {
     memset(&tuntap, 0, sizeof(tuntap));
     snprintf(tuntap.devname, MLVPN_IFNAMSIZ-1, "%s", "mlvpn0");
     tuntap.mtu = 1500;
     tuntap.type = MLVPN_TUNTAPMODE_TUN;
     tuntap.sbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
+    ev_init(&tuntap.io_read, tuntap_io_event);
+    ev_init(&tuntap.io_write, tuntap_io_event);
 }
 
 int
@@ -1299,8 +1188,7 @@ main(int argc, char **argv)
 {
     char **save_argv;
     int ret;
-    struct timeval timeout;
-    int maxfd = 0;
+    struct ev_loop *loop = EV_DEFAULT;
 #ifdef HAVE_MLVPN_CONTROL
     struct mlvpn_control control;
 #endif
@@ -1464,6 +1352,9 @@ main(int argc, char **argv)
     } else {
         _INFO("Created tap interface %s\n", tuntap.devname);
     }
+    ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
+    ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
+    ev_io_start(loop, &tuntap.io_read);
 
     priv_set_running_state();
 
@@ -1487,176 +1378,17 @@ main(int argc, char **argv)
         _exit(2);
     }
 
-    while (1)
-    {
-        if (reload_config_needed)
-        {
-            _INFO("Received SIGHUP, reload configuration.\n");
-            if (mlvpn_config(priv_open_config(mlvpn_options.config), 0) != 0)
-                _ERROR("Configuration reload failed.\n");
-            else
-                mlvpn_rtun_recalc_weight();
-            reload_config_needed = 0;
-        }
-#ifdef HAVE_MLVPN_CONTROL
-        /* TODO: Optimize */
-        mlvpn_control_timeout(&control);
-#endif
-        /* Connect rtun if not connected. tick if connected */
-        mlvpn_rtun_tick_connect();
-        mlvpn_rtun_check_timeout();
 
-        fd_set rfds, wfds;
-
-        FD_ZERO(&rfds);
-        FD_ZERO(&wfds);
-
-#ifdef HAVE_MLVPN_CONTROL
-        if (control.fifofd >= 0)
-        {
-            FD_SET(control.fifofd, &rfds);
-            if (control.fifofd > maxfd)
-                maxfd = control.fifofd;
-        }
-        if (control.sockfd >= 0)
-        {
-            FD_SET(control.sockfd, &rfds);
-            if (control.sockfd > maxfd)
-                maxfd = control.sockfd;
-        }
-#endif
-
-        FD_SET(tuntap.fd, &rfds);
-        if (tuntap.fd > maxfd)
-            maxfd = tuntap.fd;
-
-        if (! mlvpn_cb_is_empty(tuntap.sbuf))
-            FD_SET(tuntap.fd, &wfds);
-
-        /* set rfds/wfds for rtunnels */
-        tmptun = rtun_start;
-        while (tmptun)
-        {
-            if (tmptun->server_fd > 0 && tmptun->encap_prot == ENCAP_PROTO_TCP)
-            {
-                FD_SET(tmptun->server_fd, &rfds);
-                if (tmptun->server_fd > maxfd)
-                    maxfd = tmptun->server_fd;
-            }
-
-            if (tmptun->fd > 0)
-            {
-                if (! mlvpn_cb_is_empty(tmptun->sbuf) ||
-                    ! mlvpn_cb_is_empty(tmptun->hpsbuf))
-                {
-                    FD_SET(tmptun->fd, &wfds);
-                }
-
-                FD_SET(tmptun->fd, &rfds);
-                if (tmptun->fd > maxfd)
-                    maxfd = tmptun->fd;
-            }
-            tmptun = tmptun->next;
-        }
-
-#ifdef HAVE_MLVPN_CONTROL
-        /* Control system */
-        if (control.fifofd >= 0)
-        {
-            FD_SET(control.fifofd, &rfds);
-            if (control.fifofd > maxfd)
-                maxfd = control.fifofd;
-        }
-        if (control.sockfd >= 0)
-        {
-            FD_SET(control.sockfd, &rfds);
-            if (control.sockfd > maxfd)
-                maxfd = control.sockfd;
-        }
-        if (control.clientfd >= 0)
-        {
-            if (control.wbufpos > 0)
-            {
-                FD_SET(control.clientfd, &wfds);
-                if (control.clientfd > maxfd)
-                    maxfd = control.clientfd;
-            }
-            FD_SET(control.clientfd, &rfds);
-            if (control.clientfd > maxfd)
-                maxfd = control.clientfd;
-        }
-#endif
-
-        timeout.tv_sec = 1;
-        timeout.tv_usec = 1000;
-
-        ret = select(maxfd+1, &rfds, &wfds, NULL, &timeout);
-        if (ret > 0)
-        {
-            if (FD_ISSET(tuntap.fd, &rfds))
-                mlvpn_tuntap_read(&tuntap);
-            if (FD_ISSET(tuntap.fd, &wfds))
-                mlvpn_tuntap_write(&tuntap);
-            tmptun = rtun_start;
-            while (tmptun)
-            {
-                if (tmptun->fd > 0)
-                    if (FD_ISSET(tmptun->fd, &rfds))
-                        mlvpn_rtun_read(tmptun);
-
-                /* YES another check as mlvpn_rtun_read can close the socket */
-                if (tmptun->fd > 0)
-                    if (FD_ISSET(tmptun->fd, &wfds))
-                        mlvpn_rtun_timer_write(tmptun);
-
-                if (tmptun->server_fd > 0 && tmptun->encap_prot == ENCAP_PROTO_TCP)
-                    if (FD_ISSET(tmptun->server_fd, &rfds))
-                        mlvpn_server_accept();
-
-                tmptun = tmptun->next;
-            }
-#ifdef HAVE_MLVPN_CONTROL
-            if (control.clientfd >= 0)
-                if(FD_ISSET(control.clientfd, &rfds))
-                    mlvpn_control_read(&control);
-
-            /* YES another check as mlvpn_control_read can close the socket */
-            if (control.clientfd >= 0)
-                if(FD_ISSET(control.clientfd, &wfds))
-                    mlvpn_control_send(&control);
-
-            if (control.fifofd >= 0 && FD_ISSET(control.fifofd, &rfds))
-                mlvpn_control_accept(&control, control.fifofd);
-            if (control.sockfd >= 0 && FD_ISSET(control.sockfd, &rfds))
-                mlvpn_control_accept(&control, control.sockfd);
-#endif
-        } else if (ret == 0) {
-            /* timeout, check for "normalize sending" */
-
-        } else if (ret < 0) {
-            /* Error */
-            _ERROR("Select error: %s\n", strerror(errno));
-        }
-
-        if (global_exit > 0)
-        {
-            _INFO("Exit by signal %d.\n", global_exit);
-            tmptun = rtun_start;
-            while (tmptun)
-            {
-                if (tmptun->fd > 0)
-                    close(tmptun->fd);
-                if (tmptun->server_mode && tmptun->server_fd > 0)
-                    close(tmptun->server_fd);
-                tmptun = tmptun->next;
-            }
-            break;
-        }
+    tmptun = rtun_start;
+    while(tmptun) {
+        mlvpn_rtun_start(tmptun);
+        tmptun = tmptun->next;
     }
-    {
-        char *cmdargs[3] = {tuntap.devname, "tuntap_down", NULL};
-        mlvpn_hook(MLVPN_HOOK_TUNTAP, 2, cmdargs);
-    }
+
+    ev_run(loop, 0);
+
+    char *cmdargs[3] = {tuntap.devname, "tuntap_down", NULL};
+    mlvpn_hook(MLVPN_HOOK_TUNTAP, 2, cmdargs);
 
     return 0;
 }
@@ -1665,3 +1397,5 @@ int mlvpn_hook(enum mlvpn_hook hook, int argc, char **argv)
 {
     return priv_run_script(argc, argv);
 }
+
+

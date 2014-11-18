@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <ev.h>
 
 #include "buffer.h"
 #include "privsep.h"
@@ -28,6 +29,8 @@ struct tuntap_s
     char devname[MLVPN_IFNAMSIZ];
     enum tuntap_type type;
     circular_buffer_t *sbuf;
+    ev_io io_read;
+    ev_io io_write;
 };
 
 int mlvpn_tuntap_alloc(struct tuntap_s *tuntap);

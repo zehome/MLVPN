@@ -37,6 +37,14 @@ esac
 AM_CONDITIONAL([LINUX], [test x$linux = xtrue])
 AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
 
+dnl Checks for libev
+# lib ev
+AC_CHECK_HEADERS([ev.h], [], [AC_MSG_ERROR("ev.h not found")])
+AC_CHECK_LIB([ev], [ev_time], [
+LIBS="-lev ${LIBS}"
+AC_DEFINE([HAVE_LIBEV], [1], [ev_time in -lev])
+], [AC_MSG_ERROR("libev not found")])
+
 ### Command lines options ###
 
 ### --enable-control (MLVPN simple http/CLI control system)
