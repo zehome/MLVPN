@@ -273,7 +273,7 @@ priv_init(char *argv[], char *username)
                     _exit(0);
 
             must_read(socks[0], &len, sizeof(len));
-            if (len < 0 || len > MLVPN_IFNAMSIZ)
+            if (len > MLVPN_IFNAMSIZ)
                 _exit(0);
             else if (len > 0) {
                 must_read(socks[0], &tuntapname, len);
