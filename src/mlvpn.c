@@ -35,6 +35,7 @@
 #include "configlib.h"
 #include "ps_status.h"
 #include "config.h"
+#include "crypto.h"
 #ifdef HAVE_MLVPN_CONTROL
 #include "control.h"
 #endif
@@ -83,6 +84,12 @@ static struct mlvpn_options mlvpn_options;
 
 static char mlvpn_priv_process_name[2048] = {0};
 static char mlvpn_process_name[2048] = {0};
+
+static void mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun);
+static void mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents);
+static void mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents);
+static int mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
+static void mlvpn_rtun_auth(mlvpn_tunnel_t *t);
 
 static void
 usage(char **argv)
@@ -148,24 +155,22 @@ static void
 mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
 {
     mlvpn_tunnel_t *tun = w->data;
-    _DEBUG("mlvpn_rtun_read tun %s\n", tun->name);
     ssize_t len;
-    size_t rlen;
     struct sockaddr_storage clientaddr;
     socklen_t addrlen = sizeof(clientaddr);
+    mlvpn_pkt_t *pkt;
 
-    /* how much data we can handle right now ? */
-    rlen = BUFSIZE - tun->rbuf.len;
-    if (rlen <= 0)
-    {
-        _WARNING("[rtun %s] receive buffer overrun.\n", tun->name);
-        tun->rbuf.len = 0;
+    if (mlvpn_cb_is_full(tun->rbuf)) {
+        _WARNING("[rtun %s] receive buffer overflow.\n", tun->name);
+        mlvpn_cb_reset(tun->rbuf);
     }
-
-    len = recvfrom(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen,
-        MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
+    pkt = mlvpn_pktbuffer_write(tun->rbuf);
+    len = recvfrom(tun->fd, pkt->pktdata.data,
+                   sizeof(pkt->pktdata.data),
+                   MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
     if (len > 0)
     {
+        pkt->pktdata.len = len;
         tun->recvbytes += len;
         tun->recvpackets += 1;
 
@@ -192,20 +197,61 @@ mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
                 _DEBUG("[rtun %s] new UDP connection -> %s\n",
                         tun->name, clienthost);
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
-                tun->status = MLVPN_CHAP_DISCONNECTED;
+                //tun->status = MLVPN_CHAP_DISCONNECTED;
             }
-            _DEBUG("< rtun %s read %d bytes from %s:%s.\n", tun->name, len,
-                        clienthost, clientport);
         }
-        tun->rbuf.len += len;
-        mlvpn_rtun_tick_rbuf(tun);
+    	_DEBUG("< rtun %s read %d bytes.\n", tun->name, len);
+        mlvpn_rtun_read_dispatch(tun);
     } else if (len < 0) {
-        _ERROR("[rtun %s] read error on %d: %s\n",
-                tun->name, tun->fd, strerror(errno));
-        mlvpn_rtun_status_down(tun);
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            _ERROR("[rtun %s] read error on %d: %s\n",
+                    tun->name, tun->fd, strerror(errno));
+            mlvpn_rtun_status_down(tun);
+        }
     } else {
         _INFO("[rtun %s] peer closed the connection %d.\n", tun->name, tun->fd);
         mlvpn_rtun_status_down(tun);
+    }
+}
+
+/* Pass thru the mlvpn_rbuf to find packets received
+ * from the UDP channel and prepare packets for TUN/TAP device. */
+static void
+mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
+{
+    mlvpn_pkt_t *rawpkt = mlvpn_pktbuffer_read(tun->rbuf);
+    if (rawpkt->pktdata.len < PKTHDRSIZ(rawpkt->pktdata)) {
+        _ERROR("[rtun %s] Invalid packet of len %d.\n",
+            tun->name, rawpkt->pktdata.len);
+        return;
+    }
+    /* Decapsulate the packet */
+    struct mlvpn_pktdata decap_pkt;
+    memset(&decap_pkt, 0, sizeof(decap_pkt));
+    memcpy(&decap_pkt, &rawpkt->pktdata.data, rawpkt->pktdata.len);
+
+    decap_pkt.len = ntohs(decap_pkt.len);
+    _DEBUG("[rtun %s] Encapsulated len: %d real %d type: %d tun status: %d\n",
+        tun->name, rawpkt->pktdata.len, decap_pkt.len, decap_pkt.type, tun->status);
+
+    if (decap_pkt.type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
+        mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
+        tuntap_pkt->pktdata.len = decap_pkt.len;
+        memcpy(tuntap_pkt->pktdata.data, decap_pkt.data, tuntap_pkt->pktdata.len);
+        /* Send the packet back into the LAN */
+        _DEBUG("should write packet to tuntap.\n");
+        if (!ev_is_active(&tuntap.io_write)) {
+            _DEBUG("io write start tuntap\n");
+            ev_io_start(EV_DEFAULT_UC, &tuntap.io_write);
+        }
+    } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
+        // if (tun->server_mode) {
+        //     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_write(tun->hpsbuf);
+        //     pkt->pktdata.len = 0;
+        //     pkt->pktdata.type = MLVPN_PKT_KEEPALIVE;
+        // }
+    } else {
+        mlvpn_rtun_auth(tun);
     }
 }
 
@@ -214,13 +260,52 @@ mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents)
 {
     mlvpn_tunnel_t *tun = w->data;
     if (! mlvpn_cb_is_empty(tun->hpsbuf)) {
-        mlvpn_rtun_write_pkt(tun, tun->hpsbuf);
+        mlvpn_rtun_send(tun, tun->hpsbuf);
     }
 
     if (! mlvpn_cb_is_empty(tun->sbuf)) {
-        mlvpn_rtun_write_pkt(tun, tun->sbuf);
+        mlvpn_rtun_send(tun, tun->sbuf);
     }
 }
+
+static int
+mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
+{
+    ssize_t ret;
+    size_t wlen;
+
+    mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
+
+    wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
+    pkt->pktdata.len = htons(pkt->pktdata.len);
+
+    ret = sendto(tun->fd, &pkt->pktdata, wlen, MSG_DONTWAIT,
+        tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
+    if (ret < 0)
+    {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            _ERROR("[rtun %s] write error: %s\n", tun->name, strerror(errno));
+            mlvpn_rtun_status_down(tun);
+        }
+    } else {
+        tun->sentbytes += ret;
+        if (wlen != ret)
+        {
+            _ERROR("[rtun %s] write error: written %u over %u.n",
+                tun->name, ret, wlen);
+        } else {
+            _DEBUG("> rtun %s written %u bytes.\n",
+                tun->name, ret);
+        }
+    }
+
+    if (ev_is_active(&tun->io_write) && ! mlvpn_cb_is_empty(pktbuf)) {
+        _DEBUG("io write stop tun %s\n", tun->name);
+        ev_io_stop(EV_DEFAULT_UC, &tun->io_write);
+    }
+    return ret;
+}
+
 
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
@@ -287,9 +372,7 @@ mlvpn_rtun_new(const char *name,
 
     new->sbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
     new->hpsbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
-
-    memset(new->rbuf.data, 0, BUFSIZE);
-    new->rbuf.len = 0;
+    new->rbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
 
     mlvpn_rtun_tick(new);
 
@@ -499,7 +582,7 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
 {
     enum chap_status old_status = t->status;
     t->status = MLVPN_CHAP_DISCONNECTED;
-    t->rbuf.len = 0;
+    mlvpn_pktbuffer_reset(t->rbuf);
     mlvpn_pktbuffer_reset(t->sbuf);
     mlvpn_pktbuffer_reset(t->hpsbuf);
     mlvpn_rtun_tick(t);
@@ -568,6 +651,7 @@ mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
     pkt->pktdata.data[0] = 'A';
     pkt->pktdata.data[1] = 'U';
     pkt->pktdata.len = 2;
+    pkt->pktdata.type = MLVPN_PKT_AUTH;
 
     t->status = MLVPN_CHAP_AUTHSENT;
     _DEBUG("[rtun %s] mlvpn_rtun_challenge_send\n", t->name);
@@ -588,8 +672,8 @@ mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
 /* This function is called when a valid MLVPN packet is received
  * but tun->status != MLVPN_CHAP_AUTHOK
  */
-void
-mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
+static void
+mlvpn_rtun_auth(mlvpn_tunnel_t *t)
 {
     mlvpn_pkt_t *pkt;
     if (t->server_mode)
@@ -598,17 +682,6 @@ mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
         _DEBUG("chap_dispatch(tunnel=%s status=%d\n", t->name, t->status);
         if (t->status == MLVPN_CHAP_DISCONNECTED)
         {
-            if (len != 2)
-            {
-                _WARNING("Invalid query len from client.\n");
-                return;
-            }
-            if (buffer[0] != 'A' || buffer[1] != 'U')
-            {
-                _WARNING("Invalid query from client.\n");
-                return;
-            }
-
             if (mlvpn_cb_is_full(t->hpsbuf))
                 _WARNING("[rtun %s] buffer overflow.\n", t->name);
 
@@ -616,6 +689,7 @@ mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
             pkt->pktdata.data[0] = 'O';
             pkt->pktdata.data[1] = 'K';
             pkt->pktdata.len = 2;
+            pkt->pktdata.type = MLVPN_PKT_AUTH_OK;
 
             t->status = MLVPN_CHAP_AUTHSENT;
             _DEBUG("Sending 'OK' packet to client.\n");
@@ -627,18 +701,7 @@ mlvpn_rtun_chap_dispatch(mlvpn_tunnel_t *t, char *buffer, int len)
         /* client side */
         if (t->status == MLVPN_CHAP_AUTHSENT)
         {
-            if (len != 2)
-            {
-                _WARNING("Invalid answer from server (len=%d != 2).\n", len);
-                return;
-            }
-            if (buffer[0] == 'O' && buffer[1] == 'K')
-            {
-                 mlvpn_rtun_status_up(t);
-            } else {
-                _WARNING("Not OK answer from server.\n");
-                mlvpn_rtun_status_down(t);
-            }
+            mlvpn_rtun_status_up(t);
         }
     }
 }
@@ -693,6 +756,7 @@ mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
     else {
         pkt = mlvpn_pktbuffer_write(t->hpsbuf);
         pkt->pktdata.len = 0;
+        pkt->pktdata.type = MLVPN_PKT_KEEPALIVE;
     }
     t->next_keepalive = now + t->timeout/2;
 }
@@ -732,133 +796,6 @@ mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents)
     ev_timer_again(EV_DEFAULT_UC, w);
 }
 
-
-/* Pass thru the mlvpn_rbuf to find packets received
- * from the UDP channel and prepare packets for TUN/TAP device. */
-int
-mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
-{
-    struct mlvpn_pktdata pktdata;
-    size_t i;
-    int pkts = 0;
-    int last_shift = -1;
-    mlvpn_pkt_t *pkt;
-    if (tun->rbuf.len < PKTHDRSIZ(pktdata)) {
-        _ERROR("[rtun %s] Invalid packet of len %d.\n",
-            tun->name, tun->rbuf.len);
-        return pkts;
-    }
-    for (i = 0; i <= tun->rbuf.len - (PKTHDRSIZ(pktdata)) ; i++)
-    {
-        void *rbuf = tun->rbuf.data + i;
-        /* Finding the magic and re-assemble valid pkt */
-        memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata));
-        pktdata.len = ntohs(pktdata.len);
-        if (pktdata.magic == MLVPN_MAGIC)
-        {
-            mlvpn_rtun_tick(tun);
-            if (tun->rbuf.len - i >= pktdata.len+PKTHDRSIZ(pktdata))
-            {
-                /* Valid packet, copy the rest */
-                memcpy(&pktdata, rbuf, PKTHDRSIZ(pktdata)+pktdata.len);
-                pktdata.len = ntohs(pktdata.len);
-
-                /* This is a keepalive packet. Just send it back */
-                if (pktdata.len == 0 && tun->status == MLVPN_CHAP_AUTHOK)
-                {
-                    /* We don't want to send back the packet if we
-                     * are client side, as we would create a send/recv loop */
-                    if (tun->server_mode)
-                    {
-                        if (mlvpn_cb_is_full(tun->hpsbuf))
-                            _WARNING("[rtun %s] buffer overflow.\n", tun->name);
-                        pkt = mlvpn_pktbuffer_write(tun->hpsbuf);
-                        pkt->pktdata.len = 0;
-                    }
-                } else {
-                    if (tun->status == MLVPN_CHAP_AUTHOK)
-                    {
-                        /* Directly send data to the network */
-                        if (mlvpn_cb_is_full(tuntap.sbuf))
-                            _WARNING("TUN/TAP buffer overflow.\n");
-
-                        pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
-                        pkt->pktdata.len = pktdata.len;
-                        memcpy(pkt->pktdata.data, pktdata.data, pktdata.len);
-                    } else {
-                        mlvpn_rtun_chap_dispatch(tun, pktdata.data, pktdata.len);
-                    }
-                }
-
-                /* shift read buffer to the right */
-                /* -1 because of i++ in the loop */
-                i += (PKTHDRSIZ(pktdata) + pktdata.len - 1);
-                last_shift = i+1;
-                pkts++;
-            } else {
-                _DEBUG("Found pkt but not enough data. Len=%d available=%d\n",
-                    (int)pktdata.len, (int)(tun->rbuf.len - i));
-            }
-        }
-    }
-    if (last_shift > 0)
-    {
-        int rest_len = tun->rbuf.len - last_shift;
-        if (rest_len > 0)
-        {
-            memmove(tun->rbuf.data,
-                tun->rbuf.data + last_shift,
-                rest_len);
-        }
-        tun->rbuf.len -= last_shift;
-    }
-
-    /* Send the packet back into the LAN */
-    if (! mlvpn_cb_is_empty(tuntap.sbuf)) {
-        _DEBUG("io write start tuntap\n");
-        ev_io_start(EV_DEFAULT_UC, &tuntap.io_write);
-    }
-
-    return pkts;
-}
-
-
-
-int
-mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
-{
-    ssize_t len;
-    size_t wlen;
-
-    mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
-
-    wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
-    pkt->pktdata.len = htons(pkt->pktdata.len);
-
-    len = sendto(tun->fd, &pkt->pktdata, wlen, MSG_DONTWAIT,
-        tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
-    if (len < 0)
-    {
-        _ERROR("[rtun %s] write error: %s\n", tun->name, strerror(errno));
-        mlvpn_rtun_status_down(tun);
-    } else {
-        tun->sentbytes += len;
-        if (wlen != len)
-        {
-            _ERROR("[rtun %s] write error: written %u over %u.n",
-                tun->name, len, wlen);
-        } else {
-            _DEBUG("> rtun %s written %u bytes.\n",
-                tun->name, len);
-        }
-    }
-
-    if (ev_is_active(&tun->io_write) && ! mlvpn_cb_is_empty(pktbuf)) {
-        _DEBUG("io write stop tun %s\n", tun->name);
-        ev_io_stop(EV_DEFAULT_UC, &tun->io_write);
-    }
-    return len;
-}
 
 /* Config file reading / re-read.
  * config_file_fd: fd opened in priv_open_config
@@ -1275,7 +1212,6 @@ main(int argc, char **argv)
     }
 
     /* Some common checks */
-
     if (getuid() == 0)
     {
         void *pw = getpwnam(mlvpn_options.unpriv_user);
@@ -1304,7 +1240,10 @@ main(int argc, char **argv)
         _exit(1);
     }
 #endif
-
+    if (crypto_init() == -1) {
+        fprintf(stderr, "libsodium initialization failed.\n");
+        _exit(1);
+    }
     priv_init(argv, mlvpn_options.unpriv_user);
     set_ps_display(mlvpn_process_name);
 
@@ -1324,6 +1263,8 @@ main(int argc, char **argv)
             mlvpn_options.config);
         _exit(1);
     }
+
+    crypto_set_password("mlvpn", 5);
 
     /* tun/tap initialization */
     mlvpn_tuntap_init();

@@ -127,8 +127,8 @@ mlvpn_pktbuffer_write(circular_buffer_t *buf)
     mlvpn_pkt_t *pkt = (mlvpn_pkt_t *)mlvpn_cb_write(buf,
                                 (void *)pktbuffer->pkts);
     /* Initialize the new packet to send */
-    pkt->pktdata.magic = MLVPN_MAGIC;
-    pkt->next_packet_send = 0;
+    pkt->pktdata.len = 0;
+    pkt->pktdata.type = MLVPN_PKT_DATA;
     return pkt;
 }
 

@@ -23,13 +23,6 @@ typedef struct
     mlvpn_pkt_t **pkts;
 } pktbuffer_t;
 
-typedef struct
-{
-    /* This will hold the time when we last sent a data
-     * packet to handle packet loss. */
-    uint32_t last_packet_sent;
-    mlvpn_pkt_t **pkts;
-} reassembly_buffer_t;
 
 /**
  * Generic circular buffer handling

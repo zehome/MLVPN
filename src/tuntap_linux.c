@@ -52,8 +52,6 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
         exit(1);
     }
     pkt->pktdata.len = ret;
-    if (rtun->latency_increase)
-        pkt->next_packet_send = mlvpn_millis() + rtun->latency_increase;
 
     if (!ev_is_active(&rtun->io_write) && !mlvpn_cb_is_empty(rtun->sbuf)) {
         _DEBUG("io write start tun %s\n", rtun->name);

@@ -7,23 +7,25 @@
 #define DEFAULT_MTU 1500
 #define MAX_PKT_LEN 1500
 
+enum {
+	MLVPN_PKT_AUTH,
+	MLVPN_PKT_AUTH_OK,
+	MLVPN_PKT_KEEPALIVE,
+	MLVPN_PKT_DATA
+};
+
 struct mlvpn_pktdata
 {
-    uint8_t magic;
     uint16_t len;
+    char type;
     char data[DEFAULT_MTU];
-};
+} __attribute__((packed));
+
 #define PKTHDRSIZ(pktdata) (sizeof(pktdata)-sizeof(pktdata.data))
 
 typedef struct mlvpn_pkt
 {
     struct mlvpn_pktdata pktdata;
-    /* This variable permits to "sleep" some time before
-     * sending a new packet.
-     * This is used to permit trafic shaping
-     * on the "bulk" queue (sbuf not on hpsbuf)
-     */
-    uint64_t next_packet_send;
 } mlvpn_pkt_t;
 
 #endif

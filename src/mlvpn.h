@@ -26,10 +26,7 @@
 
 #define MLVPN_MAXHNAMSTR 1024
 #define MLVPN_MAXPORTSTR 5
-#define MLVPN_MAGIC 0xED
 
-/* 4 Kbytes re-assembly buffer */
-#define BUFSIZE 1024 * 4
 /* Number of packets in the queue. Each pkt is ~ 1520 */
 /* 1520 * 128 ~= 24 KBytes of data maximum per channel VMSize */
 #define PKTBUFSIZE 128
@@ -39,12 +36,6 @@
  #define IFNAMSIZ 16
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
-
-struct mlvpn_buffer
-{
-    size_t len;
-    char data[BUFSIZE];
-};
 
 struct mlvpn_options
 {
@@ -97,7 +88,7 @@ typedef struct mlvpn_tunnel_s
     uint32_t latency_increase; /* 32bit latency increase counter in ms */
     circular_buffer_t *sbuf;    /* send buffer */
     circular_buffer_t *hpsbuf;  /* high priority buffer */
-    struct mlvpn_buffer rbuf;    /* receive buffer */
+    circular_buffer_t *rbuf;    /* receive buffer */
     struct mlvpn_tunnel_s *next; /* chained list to next element */
     enum encap_proto encap_prot;
     struct addrinfo *addrinfo;
@@ -123,9 +114,6 @@ void mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents);
 void mlvpn_rtun_recalc_weight();
 int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
-int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun);
-int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
-int mlvpn_rtun_timer_write(mlvpn_tunnel_t *t);
 mlvpn_tunnel_t *mlvpn_rtun_last();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
 mlvpn_tunnel_t *

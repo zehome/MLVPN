@@ -45,6 +45,14 @@ LIBS="-lev ${LIBS}"
 AC_DEFINE([HAVE_LIBEV], [1], [ev_time in -lev])
 ], [AC_MSG_ERROR("libev not found")])
 
+dnl Checks for libsodium
+# libsodium
+AC_CHECK_HEADERS([sodium.h], [], [AC_MSG_ERROR("sodium.h not found")])
+AC_CHECK_LIB([sodium], [sodium_init], [
+LIBS="-lsodium ${LIBS}"
+AC_DEFINE([HAVE_LIBSODIUM], [1], [sodium_init in -lsodium])
+], [AC_MSG_ERROR("libsodium not found")])
+
 ### Command lines options ###
 
 ### --enable-control (MLVPN simple http/CLI control system)
