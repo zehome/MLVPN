@@ -143,6 +143,84 @@ mlvpn_rtun_tick(mlvpn_tunnel_t *t)
     t->last_packet_time = now;
 }
 
+/* read from the rtunnel => write directly to the tap send buffer */
+static void
+mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
+{
+    mlvpn_tunnel_t *tun = w->data;
+    _DEBUG("mlvpn_rtun_read tun %s\n", tun->name);
+    ssize_t len;
+    size_t rlen;
+    struct sockaddr_storage clientaddr;
+    socklen_t addrlen = sizeof(clientaddr);
+
+    /* how much data we can handle right now ? */
+    rlen = BUFSIZE - tun->rbuf.len;
+    if (rlen <= 0)
+    {
+        _WARNING("[rtun %s] receive buffer overrun.\n", tun->name);
+        tun->rbuf.len = 0;
+    }
+
+    len = recvfrom(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen,
+        MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
+    if (len > 0)
+    {
+        tun->recvbytes += len;
+        tun->recvpackets += 1;
+
+        if (! tun->addrinfo)
+        {
+            _FATAL("tun->addrinfo is NULL!\n");
+            _exit(32);
+        }
+
+        if ((tun->addrinfo->ai_addrlen != addrlen) ||
+            (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
+        {
+            char clienthost[NI_MAXHOST];
+            char clientport[NI_MAXSERV];
+            int ret;
+            if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
+                             clienthost, sizeof(clienthost),
+                             clientport, sizeof(clientport),
+                             NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
+            {
+                _ERROR("[rtun %s] Error in getnameinfo: %d: %s\n",
+                        tun->name, ret, strerror(errno));
+            } else {
+                _DEBUG("[rtun %s] new UDP connection -> %s\n",
+                        tun->name, clienthost);
+                memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
+                tun->status = MLVPN_CHAP_DISCONNECTED;
+            }
+            _DEBUG("< rtun %s read %d bytes from %s:%s.\n", tun->name, len,
+                        clienthost, clientport);
+        }
+        tun->rbuf.len += len;
+        mlvpn_rtun_tick_rbuf(tun);
+    } else if (len < 0) {
+        _ERROR("[rtun %s] read error on %d: %s\n",
+                tun->name, tun->fd, strerror(errno));
+        mlvpn_rtun_status_down(tun);
+    } else {
+        _INFO("[rtun %s] peer closed the connection %d.\n", tun->name, tun->fd);
+        mlvpn_rtun_status_down(tun);
+    }
+}
+
+static void
+mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents)
+{
+    mlvpn_tunnel_t *tun = w->data;
+    if (! mlvpn_cb_is_empty(tun->hpsbuf)) {
+        mlvpn_rtun_write_pkt(tun, tun->hpsbuf);
+    }
+
+    if (! mlvpn_cb_is_empty(tun->sbuf)) {
+        mlvpn_rtun_write_pkt(tun, tun->sbuf);
+    }
+}
 
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
@@ -744,73 +822,7 @@ mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun)
     return pkts;
 }
 
-/* read from the rtunnel => write directly to the tap send buffer */
-int
-mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
-{
-    mlvpn_tunnel_t *tun = w->data;
-    _DEBUG("mlvpn_rtun_read tun %s\n", tun->name);
-    ssize_t len;
-    size_t rlen;
-    struct sockaddr_storage clientaddr;
-    socklen_t addrlen = sizeof(clientaddr);
 
-    /* how much data we can handle right now ? */
-    rlen = BUFSIZE - tun->rbuf.len;
-    if (rlen <= 0)
-    {
-        _WARNING("[rtun %s] receive buffer overrun.\n", tun->name);
-        tun->rbuf.len = 0;
-    }
-
-    len = recvfrom(tun->fd, tun->rbuf.data + tun->rbuf.len, rlen,
-        MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
-    if (len > 0)
-    {
-        tun->recvbytes += len;
-        tun->recvpackets += 1;
-
-        if (! tun->addrinfo)
-        {
-            _FATAL("tun->addrinfo is NULL!\n");
-            _exit(32);
-        }
-
-        if ((tun->addrinfo->ai_addrlen != addrlen) ||
-            (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
-        {
-            char clienthost[NI_MAXHOST];
-            char clientport[NI_MAXSERV];
-            int ret;
-            if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
-                             clienthost, sizeof(clienthost),
-                             clientport, sizeof(clientport),
-                             NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
-            {
-                _ERROR("[rtun %s] Error in getnameinfo: %d: %s\n",
-                        tun->name, ret, strerror(errno));
-            } else {
-                _DEBUG("[rtun %s] new UDP connection -> %s\n",
-                        tun->name, clienthost);
-                memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
-                tun->status = MLVPN_CHAP_DISCONNECTED;
-            }
-            _DEBUG("< rtun %s read %d bytes from %s:%s.\n", tun->name, len,
-                        clienthost, clientport);
-        }
-        tun->rbuf.len += len;
-        mlvpn_rtun_tick_rbuf(tun);
-    } else if (len < 0) {
-        _ERROR("[rtun %s] read error on %d: %s\n",
-                tun->name, tun->fd, strerror(errno));
-        mlvpn_rtun_status_down(tun);
-    } else {
-        _INFO("[rtun %s] peer closed the connection %d.\n", tun->name, tun->fd);
-        mlvpn_rtun_status_down(tun);
-    }
-
-    return len;
-}
 
 int
 mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
@@ -846,21 +858,6 @@ mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
         ev_io_stop(EV_DEFAULT_UC, &tun->io_write);
     }
     return len;
-}
-
-int
-mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents)
-{
-    mlvpn_tunnel_t *tun = w->data;
-    int bytes = 0;
-    if (! mlvpn_cb_is_empty(tun->hpsbuf)) {
-        bytes += mlvpn_rtun_write_pkt(tun, tun->hpsbuf);
-    }
-
-    if (! mlvpn_cb_is_empty(tun->sbuf)) {
-        bytes += mlvpn_rtun_write_pkt(tun, tun->sbuf);
-    }
-    return bytes;
 }
 
 /* Config file reading / re-read.

@@ -124,8 +124,6 @@ void mlvpn_rtun_recalc_weight();
 int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
 int mlvpn_rtun_tick_rbuf(mlvpn_tunnel_t *tun);
-int mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents);
-int mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents);
 int mlvpn_rtun_write_pkt(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
 int mlvpn_rtun_timer_write(mlvpn_tunnel_t *t);
 mlvpn_tunnel_t *mlvpn_rtun_last();
