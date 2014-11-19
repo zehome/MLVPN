@@ -235,6 +235,7 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
         tun->name, rawpkt->pktdata.len, decap_pkt.len, decap_pkt.type, tun->status);
 
     if (decap_pkt.type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
+        mlvpn_rtun_tick(tun);
         mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
         tuntap_pkt->pktdata.len = decap_pkt.len;
         memcpy(tuntap_pkt->pktdata.data, decap_pkt.data, tuntap_pkt->pktdata.len);
@@ -245,6 +246,8 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
             ev_io_start(EV_DEFAULT_UC, &tuntap.io_write);
         }
     } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
+        mlvpn_rtun_tick(tun);
+
         // if (tun->server_mode) {
         //     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_write(tun->hpsbuf);
         //     pkt->pktdata.len = 0;
