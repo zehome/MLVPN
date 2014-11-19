@@ -1,4 +1,4 @@
-/*	$OpenBSD: privsep_fdpass.c,v 1.7 2008/03/24 16:11:05 deraadt Exp $	*/
+/*    $OpenBSD: privsep_fdpass.c,v 1.7 2008/03/24 16:11:05 deraadt Exp $    */
 
 /*
  * Copyright 2001 Niels Provos <provos@citi.umich.edu>
@@ -48,83 +48,83 @@
 void
 send_fd(int sock, int fd)
 {
-	struct msghdr msg;
-	union {
-		struct cmsghdr hdr;
-		char buf[CMSG_SPACE(sizeof(int))];
-	} cmsgbuf;
-	struct cmsghdr *cmsg;
-	struct iovec vec;
-	int result = 0;
-	ssize_t n;
+    struct msghdr msg;
+    union {
+        struct cmsghdr hdr;
+        char buf[CMSG_SPACE(sizeof(int))];
+    } cmsgbuf;
+    struct cmsghdr *cmsg;
+    struct iovec vec;
+    int result = 0;
+    ssize_t n;
 
-	memset(&msg, 0, sizeof(msg));
-	memset(&cmsgbuf.buf, 0, sizeof(cmsgbuf.buf));
+    memset(&msg, 0, sizeof(msg));
+    memset(&cmsgbuf.buf, 0, sizeof(cmsgbuf.buf));
 
-	if (fd >= 0) {
-		msg.msg_control = (caddr_t)&cmsgbuf.buf;
-		msg.msg_controllen = sizeof(cmsgbuf.buf);
-		cmsg = CMSG_FIRSTHDR(&msg);
-		cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-		cmsg->cmsg_level = SOL_SOCKET;
-		cmsg->cmsg_type = SCM_RIGHTS;
-		*(int *)CMSG_DATA(cmsg) = fd;
-	} else {
-		result = errno;
-	}
+    if (fd >= 0) {
+        msg.msg_control = (caddr_t)&cmsgbuf.buf;
+        msg.msg_controllen = sizeof(cmsgbuf.buf);
+        cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+        *(int *)CMSG_DATA(cmsg) = fd;
+    } else {
+        result = errno;
+    }
 
-	vec.iov_base = &result;
-	vec.iov_len = sizeof(int);
-	msg.msg_iov = &vec;
-	msg.msg_iovlen = 1;
+    vec.iov_base = &result;
+    vec.iov_len = sizeof(int);
+    msg.msg_iov = &vec;
+    msg.msg_iovlen = 1;
 
-	if ((n = sendmsg(sock, &msg, 0)) == -1)
-		warn("%s: sendmsg(%d)", "send_fd", sock);
-	if (n != sizeof(int))
-		warnx("%s: sendmsg: expected sent 1 got %ld",
-		    "send_fd", (long)n);
+    if ((n = sendmsg(sock, &msg, 0)) == -1)
+        warn("%s: sendmsg(%d)", "send_fd", sock);
+    if (n != sizeof(int))
+        warnx("%s: sendmsg: expected sent 1 got %ld",
+            "send_fd", (long)n);
 }
 
 int
 receive_fd(int sock)
 {
-	struct msghdr msg;
-	union {
-		struct cmsghdr hdr;
-		char buf[CMSG_SPACE(sizeof(int))];
-	} cmsgbuf;
-	struct cmsghdr *cmsg;
-	struct iovec vec;
-	ssize_t n;
-	int result;
-	int fd;
+    struct msghdr msg;
+    union {
+        struct cmsghdr hdr;
+        char buf[CMSG_SPACE(sizeof(int))];
+    } cmsgbuf;
+    struct cmsghdr *cmsg;
+    struct iovec vec;
+    ssize_t n;
+    int result;
+    int fd;
 
-	memset(&msg, 0, sizeof(msg));
-	vec.iov_base = &result;
-	vec.iov_len = sizeof(int);
-	msg.msg_iov = &vec;
-	msg.msg_iovlen = 1;
-	msg.msg_control = &cmsgbuf.buf;
-	msg.msg_controllen = sizeof(cmsgbuf.buf);
+    memset(&msg, 0, sizeof(msg));
+    vec.iov_base = &result;
+    vec.iov_len = sizeof(int);
+    msg.msg_iov = &vec;
+    msg.msg_iovlen = 1;
+    msg.msg_control = &cmsgbuf.buf;
+    msg.msg_controllen = sizeof(cmsgbuf.buf);
 
-	if ((n = recvmsg(sock, &msg, 0)) == -1)
-		warn("%s: recvmsg", "receive_fd");
-	if (n != sizeof(int))
-		warnx("%s: recvmsg: expected received 1 got %ld",
-		    "receive_fd", (long)n);
-	if (result == 0) {
-		cmsg = CMSG_FIRSTHDR(&msg);
-		if (cmsg == NULL) {
-			warnx("%s: no message header", "receive_fd");
-			return (-1);
-		}
-		if (cmsg->cmsg_type != SCM_RIGHTS)
-			warnx("%s: expected type %d got %d", "receive_fd",
-			    SCM_RIGHTS, cmsg->cmsg_type);
-		fd = (*(int *)CMSG_DATA(cmsg));
-		return fd;
-	} else {
-		errno = result;
-		return -1;
-	}
+    if ((n = recvmsg(sock, &msg, 0)) == -1)
+        warn("%s: recvmsg", "receive_fd");
+    if (n != sizeof(int))
+        warnx("%s: recvmsg: expected received 1 got %ld",
+            "receive_fd", (long)n);
+    if (result == 0) {
+        cmsg = CMSG_FIRSTHDR(&msg);
+        if (cmsg == NULL) {
+            warnx("%s: no message header", "receive_fd");
+            return (-1);
+        }
+        if (cmsg->cmsg_type != SCM_RIGHTS)
+            warnx("%s: expected type %d got %d", "receive_fd",
+                SCM_RIGHTS, cmsg->cmsg_type);
+        fd = (*(int *)CMSG_DATA(cmsg));
+        return fd;
+    } else {
+        errno = result;
+        return -1;
+    }
 }
