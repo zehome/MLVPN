@@ -125,4 +125,16 @@ enum mlvpn_hook {
 
 int mlvpn_hook(enum mlvpn_hook, int argc, char **argv);
 
+/* log.c */
+void log_init(int);
+void log_verbose(int);
+void log_warn(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
+void log_warnx(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
+void log_info(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
+void log_debug(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
+void logit(int, const char *, ...) __attribute__((__format__ (printf, 2, 3)));
+void vlog(int, const char *, va_list) __attribute__((__format__ (printf, 2, 0)));
+__attribute__((noreturn)) void fatal(const char *);
+__attribute__((noreturn)) void fatalx(const char *);
+
 #endif

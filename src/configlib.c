@@ -15,7 +15,6 @@
 
 #include "tool.h"
 #include "configlib.h"
-#include "debug.h"
 #include "mlvpn.h"
 
 #define MAXLINE 1024
@@ -39,8 +38,8 @@ _conf_parseConfig(int config_fd)
     configFile = fdopen(config_fd, "r");
     if (! configFile)
     {
-        _ERROR("Unable to open config file fd: %d: %s\n",
-               config_fd, strerror(errno));
+        log_warn("Unable to open config file fd: %d",
+            config_fd);
         return NULL;
     }
     config = (config_t *)malloc(sizeof(config_t));
@@ -59,7 +58,7 @@ _conf_parseConfig(int config_fd)
                 break;
             else
             {
-                _ERROR("Error reading config file.\n");
+                log_warn("Error reading config file");
                 if (section != NULL)
                     free(section);
                 free(config);
@@ -96,8 +95,8 @@ _conf_parseConfig(int config_fd)
                 {
                     if (section == NULL)
                     {
-                        _ERROR("Parse error near line %d: variables should "
-                               "always been defined in a section!\n", linenum);
+                        log_warnx("Parse error near line %d: variables should "
+                                  "always been defined in a section!", linenum);
                     } else if (_conf_setValue(config, confObj, section) == NULL) {
                         /* Error there, cleanup memory */
                         if (confObj->var)
@@ -200,7 +199,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
         case '[':
             if (section)
             {
-                errorMsg = "Parse error near line %d: '[' followed by another '['\n";
+                errorMsg = "Parse error near line %d: '[' followed by another '['.";
                 goto error;
             }
             section = (char *)malloc(linelen+1-i);
@@ -208,7 +207,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
         case ']':
             if (! section)
             {
-                errorMsg = "Parse error near line %d: ']' found, without '['.\n";
+                errorMsg = "Parse error near line %d: ']' found, without '['.";
                 goto error;
             }
             found_terminator = 1;
@@ -223,7 +222,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
 
     if (section && ! found_terminator)
     {
-        errorMsg = "Parse error near line %d: Terminator ']' not found.\n";
+        errorMsg = "Parse error near line %d: Terminator ']' not found.";
         goto error;
     }
 
@@ -232,7 +231,7 @@ error:
     if (section)
         free(section);
     if (errorMsg)
-        _ERROR(errorMsg, linenum);
+        log_warnx(errorMsg, linenum);
     return NULL;
 }
 
@@ -274,8 +273,8 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
         case '=':
             if (j == 0)
             {
-                _ERROR("Parse error near line %d: line should not start with '='.\n",
-                       linenum);
+                log_warnx("Parse error near line %d: line should not start with '='.",
+                    linenum);
                 free(confObj);
                 free(buf);
                 return NULL;
@@ -283,7 +282,7 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
             if (confObj->var != NULL)
             {
-                _ERROR("Parse error near line %d: two '=' detected.\n", linenum);
+                log_warnx("Parse error near line %d: two '=' detected.", linenum);
                 free(confObj->var);
                 free(confObj);
                 free(buf);
@@ -314,9 +313,9 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
             if (! isascii(c))
             {
-                _ERROR("Parse error near line %d: "
-                       "variable/value must be *ASCII ONLY*\n",
-                       linenum);
+                log_warnx("Parse error near line %d: "
+                          "variable/value must be *ASCII ONLY*",
+                          linenum);
                 free(buf);
                 if (confObj->var)
                     free(confObj->var);
@@ -350,7 +349,7 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
     if (! *buf)
     {
-        _ERROR("Parse error near line %d: Value not found.\n", linenum);
+        log_warnx("Parse error near line %d: Value not found.", linenum);
         free(ptr);
         free(confObj->var);
         free(confObj);
@@ -376,13 +375,13 @@ _conf_setValue(config_t *start,
 
     if (start == NULL)
     {
-        _ERROR("Error in setValue: config start is NULL.\n");
+        log_warnx("Error in setValue: config start is NULL.");
         return NULL;
     }
 
     if (section == NULL)
     {
-        _ERROR("Error in setValue: section is NULL.\n");
+        log_warnx("Error in setValue: section is NULL.");
         return NULL;
     }
 
@@ -418,7 +417,7 @@ conf_setValue( config_t **start,
 
     if ((var == NULL) || (val == NULL))
     {
-        _WARNING("var = NULL or val = NULL\n");
+        log_warnx("var = NULL or val = NULL");
         return;
     }
 

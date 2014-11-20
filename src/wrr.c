@@ -1,5 +1,4 @@
 #include "mlvpn.h"
-#include "debug.h"
 
 /* Fairly big no ? */
 #define MAX_TUNNELS 128
@@ -43,10 +42,7 @@ int mlvpn_rtun_wrr_init(struct rtunhead *head)
         if (t->status >= MLVPN_CHAP_AUTHOK)
         {
             if (wrr.len >= MAX_TUNNELS)
-            {
-                _ERROR("You have too much tunnels declared! (> %d)\n", wrr.len);
-                return 1;
-            }
+                fatalx("You have too much tunnels declared");
             wrr.tunnel[wrr.len] = t;
             wrr.tunval[wrr.len] = 0.0;
             wrr.len++;
@@ -67,10 +63,7 @@ mlvpn_rtun_wrr_choose()
 
     idx = wrr_min_index();
     if (idx < 0)
-    {
-        _ERROR("Programming error: wrr_min_index < 0!\n");
-        return NULL;
-    }
+        fatalx("Programming error: wrr_min_index < 0!");
 
     for(i = 0; i < wrr.len; i++)
     {

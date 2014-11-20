@@ -14,7 +14,6 @@
 
 #include "buffer.h"
 #include "privsep.h"
-#include "debug.h"
 #include "mlvpn.h"
 
 enum tuntap_type {
