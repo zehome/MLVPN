@@ -45,7 +45,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 
     iov[0].iov_base = &type;
     iov[0].iov_len = sizeof(type);
-    iov[1].iov_base = pkt->pktdata.data;
+    iov[1].iov_base = pkt->data;
     iov[1].iov_len = DEFAULT_MTU;
 
     ret = readv(tuntap->fd, iov, 2);
@@ -61,8 +61,8 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
                 tuntap->devname);
         exit(1);
     }
-    pkt->pktdata.len = ret - sizeof(type);
-    return pkt->pktdata.len;
+    pkt->len = ret - sizeof(type);
+    return pkt->len;
 }
 
 int
@@ -88,8 +88,8 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
 
     iov[0].iov_base = &type;
     iov[0].iov_len = sizeof(type);
-    iov[1].iov_base = pkt->pktdata.data;
-    iov[1].iov_len = pkt->pktdata.len;
+    iov[1].iov_base = pkt->data;
+    iov[1].iov_len = pkt->len;
 
     len = writev(tuntap->fd, iov, 2);
     datalen = len - iov[0].iov_len;
@@ -98,10 +98,10 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
         _ERROR("[tuntap %s] write error: %s\n",
                 tuntap->devname, strerror(errno));
     } else {
-        if (datalen != pkt->pktdata.len)
+        if (datalen != pkt->len)
         {
             _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
-                    tuntap->devname, datalen, pkt->pktdata.len);
+                    tuntap->devname, datalen, pkt->len);
         } else {
             _DEBUG("[tuntap %s] >> wrote %d bytes.\n",
                     tuntap->devname, datalen);

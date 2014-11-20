@@ -2,6 +2,7 @@
 #define _MLVPN_PKT_H
 
 #include <stdint.h>
+#include "crypto.h"
 
 /* TCP overhead = 66 Bytes on the wire */
 #define DEFAULT_MTU 1500
@@ -14,18 +15,19 @@ enum {
 	MLVPN_PKT_DATA
 };
 
-struct mlvpn_pktdata
-{
+typedef struct {
     uint16_t len;
-    char type;
+    uint8_t type;
     char data[DEFAULT_MTU];
-} __attribute__((packed));
-
-#define PKTHDRSIZ(pktdata) (sizeof(pktdata)-sizeof(pktdata.data))
-
-typedef struct mlvpn_pkt
-{
-    struct mlvpn_pktdata pktdata;
 } mlvpn_pkt_t;
+
+typedef struct {
+    uint16_t len;
+	unsigned char flags;
+	unsigned char nonce[crypto_NONCEBYTES];
+	char data[DEFAULT_MTU];
+} __attribute__((packed)) mlvpn_proto_t;
+
+#define PKTHDRSIZ(pkt) (sizeof(pkt)-sizeof(pkt.data))
 
 #endif

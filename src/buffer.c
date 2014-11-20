@@ -58,14 +58,6 @@ mlvpn_cb_read(circular_buffer_t *buf, void **data)
     return ret;
 }
 
-/* Return the packet if available. (NO RELEASE)
- * See comment in cb_read for **data signification.
- */
-void *
-mlvpn_cb_read_norelease(const circular_buffer_t *buf, void **data)
-{
-    return data[buf->start];
-}
 
 /* Register & return a new packet.
  * See comment in cb_read for **data signification.
@@ -93,7 +85,6 @@ mlvpn_pktbuffer_init(int size)
     /* Actual packet buffer memory allocation */
     pktbuffer_t *pktbuf = calloc(1, sizeof(pktbuffer_t));
     pktbuf->pkts = malloc(buf->size * sizeof(mlvpn_pkt_t *));
-
     for(i = 0; i < buf->size; i++)
         pktbuf->pkts[i] = calloc(1, sizeof(mlvpn_pkt_t));
 
@@ -115,8 +106,6 @@ mlvpn_pktbuffer_free(circular_buffer_t *buf)
 void
 mlvpn_pktbuffer_reset(circular_buffer_t *buf)
 {
-    pktbuffer_t *pktbuffer = buf->data;
-    pktbuffer->bandwidth = 0;
     mlvpn_cb_reset(buf);
 }
 
@@ -127,8 +116,8 @@ mlvpn_pktbuffer_write(circular_buffer_t *buf)
     mlvpn_pkt_t *pkt = (mlvpn_pkt_t *)mlvpn_cb_write(buf,
                                 (void *)pktbuffer->pkts);
     /* Initialize the new packet to send */
-    pkt->pktdata.len = 0;
-    pkt->pktdata.type = MLVPN_PKT_DATA;
+    pkt->len = 0;
+    pkt->type = MLVPN_PKT_DATA;
     return pkt;
 }
 
@@ -137,14 +126,5 @@ mlvpn_pktbuffer_read(circular_buffer_t *buf)
 {
     pktbuffer_t *pktbuffer = buf->data;
     return (mlvpn_pkt_t *)mlvpn_cb_read(buf,
-                                (void *)pktbuffer->pkts);
-}
-
-/* Return the packet if available. (NO RELEASE) */
-mlvpn_pkt_t *
-mlvpn_pktbuffer_read_norelease(circular_buffer_t *buf)
-{
-    pktbuffer_t *pktbuffer = buf->data;
-    return (mlvpn_pkt_t *)mlvpn_cb_read_norelease(buf,
                                 (void *)pktbuffer->pkts);
 }

@@ -404,7 +404,7 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
             (long long unsigned int)t->recvpackets,
             (long long unsigned int)t->sentbytes,
             (long long unsigned int)t->recvbytes,
-            mlvpn_pktbuffer_bandwidth(t->sbuf),
+            0,
             t->disconnects,
             (uint32_t) t->last_packet_time,
             (uint32_t) t->timeout,

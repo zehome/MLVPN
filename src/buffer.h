@@ -19,10 +19,8 @@ typedef struct
 
 typedef struct
 {
-    uint32_t bandwidth;
     mlvpn_pkt_t **pkts;
 } pktbuffer_t;
-
 
 /**
  * Generic circular buffer handling
@@ -57,7 +55,7 @@ mlvpn_cb_write(circular_buffer_t *buf, void **data);
  * Application specific cirtular buffer handlers
  */
 
-#define mlvpn_pktbuffer_bandwidth(buf) ((pktbuffer_t *)buf->data)->bandwidth
+#define mlvpn_pktbuffer_bandwidth(buf) 0
 
 circular_buffer_t *
 mlvpn_pktbuffer_init(int size);

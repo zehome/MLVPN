@@ -165,12 +165,12 @@ mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
         mlvpn_cb_reset(tun->rbuf);
     }
     pkt = mlvpn_pktbuffer_write(tun->rbuf);
-    len = recvfrom(tun->fd, pkt->pktdata.data,
-                   sizeof(pkt->pktdata.data),
+    len = recvfrom(tun->fd, pkt->data,
+                   sizeof(pkt->data),
                    MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
     if (len > 0)
     {
-        pkt->pktdata.len = len;
+        pkt->len = len;
         tun->recvbytes += len;
         tun->recvpackets += 1;
 
@@ -214,74 +214,81 @@ mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
     }
 }
 
+// void print_proto(mlvpn_proto_t *p)
+// {
+//     int i;
+//     printf("len: %d flags: %d nonce: ", ntohs(p->len), p->flags);
+//     for(i=0;i<sizeof(p->nonce);i++) {
+//         printf("%02x ", p->nonce[i]);
+//     }
+//     printf("DATA: ");
+//     for(i=0;i<ntohs(p->len);i++) {
+//         printf("%02x ", (unsigned char)p->data[i]);
+//     }
+//     printf("\n");
+// }
+
 /* Pass thru the mlvpn_rbuf to find packets received
  * from the UDP channel and prepare packets for TUN/TAP device. */
 static void
 mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
 {
+    uint16_t rlen;
     mlvpn_pkt_t *rawpkt = mlvpn_pktbuffer_read(tun->rbuf);
-    if (rawpkt->pktdata.len < PKTHDRSIZ(rawpkt->pktdata)) {
-        _ERROR("[rtun %s] Invalid packet of len %d.\n",
-            tun->name, rawpkt->pktdata.len);
+    // if (rawpkt->len < PKTHDRSIZ(*rawpkt)) {
+    //     _ERROR("[rtun %s] Invalid packet of len %d.\n",
+    //         tun->name, rawpkt->len);
+    //     return;
+    // }
+    /* Decapsulate the packet */
+    mlvpn_pkt_t decap_pkt;
+    mlvpn_proto_t proto;
+    memset(&proto, 0, sizeof(proto));
+    memset(&decap_pkt, 0, sizeof(decap_pkt));
+
+    if (rawpkt->len > sizeof(proto)) {
+        _ERROR("Invalid packet size received: %d.\n", rawpkt->len);
         return;
     }
-    /* Decapsulate the packet */
-    struct mlvpn_pktdata *final_pkt;
-    struct mlvpn_pktdata decap_pkt;
-
+    memcpy(&proto, rawpkt->data, rawpkt->len);
+    rlen = ntohs(proto.len);
 #ifdef ENABLE_CRYPTO
     int ret;
-    struct mlvpn_pktdata unciphered_pkt;
-    if ((ret = crypto_decrypt((unsigned char *)&decap_pkt,
-            (const unsigned char *)&rawpkt->pktdata.data, rawpkt->pktdata.len)) != 0) {
-        _ERROR("crypto_decrypt failed: %d.\n", ret);
+    if ((ret = crypto_decrypt((unsigned char *)&decap_pkt.data,
+            (const unsigned char *)&proto.data, rlen,
+            (const unsigned char *)&proto.nonce)) != 0) {
+        _ERROR("crypto_decrypt failed: %d len=%d.\n", ret, rlen);
         return;
     }
-    decap_pkt.len = ntohs(decap_pkt.len);
-    final_pkt = &decap_pkt;
 #else
-    memset(&decap_pkt, 0, sizeof(decap_pkt));
-    memcpy(&decap_pkt, &rawpkt->pktdata.data, rawpkt->pktdata.len);
-    decap_pkt.len = ntohs(decap_pkt.len);
-    final_pkt = &decap_pkt;
+    memcpy(&decap_pkt.data, &proto.data, rlen);
 #endif
-    _DEBUG("[rtun %s] Encapsulated len: %d real %d type: %d tun status: %d\n",
-        tun->name, rawpkt->pktdata.len, final_pkt->len, final_pkt->type, tun->status);
+    decap_pkt.len = rlen;
+    decap_pkt.type = proto.flags;
 
-    if (final_pkt->type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
+    _DEBUG("[rtun %s] Encapsulated len: %d real %d type: %d tun status: %d\n",
+        tun->name, rawpkt->len, decap_pkt.len, decap_pkt.type, tun->status);
+
+    if (decap_pkt.type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
         mlvpn_rtun_tick(tun);
         mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
-        tuntap_pkt->pktdata.len = final_pkt->len;
-        memcpy(tuntap_pkt->pktdata.data, final_pkt->data, tuntap_pkt->pktdata.len);
+        tuntap_pkt->len = decap_pkt.len;
+        memcpy(tuntap_pkt->data, decap_pkt.data, tuntap_pkt->len);
         /* Send the packet back into the LAN */
         _DEBUG("should write packet to tuntap.\n");
         if (!ev_is_active(&tuntap.io_write)) {
-            _DEBUG("io write start tuntap\n");
             ev_io_start(EV_DEFAULT_UC, &tuntap.io_write);
         }
-    } else if (final_pkt->type == MLVPN_PKT_KEEPALIVE) {
+    } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
         mlvpn_rtun_tick(tun);
 
         // if (tun->server_mode) {
         //     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_write(tun->hpsbuf);
-        //     pkt->pktdata.len = 0;
-        //     pkt->pktdata.type = MLVPN_PKT_KEEPALIVE;
+        //     pkt->len = 0;
+        //     pkt->type = MLVPN_PKT_KEEPALIVE;
         // }
     } else {
         mlvpn_rtun_auth(tun);
-    }
-}
-
-static void
-mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents)
-{
-    mlvpn_tunnel_t *tun = w->data;
-    if (! mlvpn_cb_is_empty(tun->hpsbuf)) {
-        mlvpn_rtun_send(tun, tun->hpsbuf);
-    }
-
-    if (! mlvpn_cb_is_empty(tun->sbuf)) {
-        mlvpn_rtun_send(tun, tun->sbuf);
     }
 }
 
@@ -290,30 +297,34 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 {
     ssize_t ret;
     size_t wlen;
-    void *sendptr;
-    mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
-    wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
-    pkt->pktdata.len = htons(pkt->pktdata.len);
+    mlvpn_proto_t proto;
+    memset(&proto, 0, sizeof(proto));
 
+    mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
+    wlen = PKTHDRSIZ(proto) + pkt->len;
+
+    proto.len = pkt->len;
+    proto.flags = pkt->type;
 #ifdef ENABLE_CRYPTO
-    struct mlvpn_pktdata encap_pkt;
-    if ((sizeof(encap_pkt) - crypto_PADSIZE) < wlen) {
+    crypto_nonce_random((unsigned char *)&proto.nonce, sizeof(proto.nonce));
+    if (wlen + crypto_PADSIZE > sizeof(proto.data)) {
         _ERROR("Can't encrypt packet too long. Received: %d Max: %d\n",
-            wlen, sizeof(encap_pkt) - crypto_PADSIZE);
+            wlen, sizeof(proto.data) + crypto_PADSIZE);
         return -1;
     }
-    if ((ret = crypto_encrypt((unsigned char *)&encap_pkt,
-            (const unsigned char *)&pkt->pktdata, wlen)) != 0) {
+    if ((ret = crypto_encrypt((unsigned char *)&proto.data,
+            (const unsigned char *)&pkt->data, pkt->len,
+            (const unsigned char *)&proto.nonce)) != 0) {
         _ERROR("crypto_encrypt failed: %d\n", ret);
         return -1;
     }
+    proto.len += crypto_PADSIZE;
     wlen += crypto_PADSIZE;
-    sendptr = &encap_pkt;
 #else
-    sendptr = &pkt->pktdata;
+    memcpy(&proto.data, &pkt->data, wlen);
 #endif
-
-    ret = sendto(tun->fd, sendptr, wlen, MSG_DONTWAIT,
+    proto.len = htons(proto.len);
+    ret = sendto(tun->fd, &proto, wlen, MSG_DONTWAIT,
         tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     if (ret < 0)
     {
@@ -334,12 +345,24 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     }
 
     if (ev_is_active(&tun->io_write) && ! mlvpn_cb_is_empty(pktbuf)) {
-        _DEBUG("io write stop tun %s\n", tun->name);
         ev_io_stop(EV_DEFAULT_UC, &tun->io_write);
     }
     return ret;
 }
 
+
+static void
+mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents)
+{
+    mlvpn_tunnel_t *tun = w->data;
+    if (! mlvpn_cb_is_empty(tun->hpsbuf)) {
+        mlvpn_rtun_send(tun, tun->hpsbuf);
+    }
+
+    if (! mlvpn_cb_is_empty(tun->sbuf)) {
+        mlvpn_rtun_send(tun, tun->sbuf);
+    }
+}
 
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
@@ -682,10 +705,10 @@ mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
         _WARNING("[rtun %s] buffer overflow.\n", t->name);
 
     pkt = mlvpn_pktbuffer_write(t->hpsbuf);
-    pkt->pktdata.data[0] = 'A';
-    pkt->pktdata.data[1] = 'U';
-    pkt->pktdata.len = 2;
-    pkt->pktdata.type = MLVPN_PKT_AUTH;
+    pkt->data[0] = 'A';
+    pkt->data[1] = 'U';
+    pkt->len = 2;
+    pkt->type = MLVPN_PKT_AUTH;
 
     t->status = MLVPN_CHAP_AUTHSENT;
     _DEBUG("[rtun %s] mlvpn_rtun_challenge_send\n", t->name);
@@ -720,10 +743,10 @@ mlvpn_rtun_auth(mlvpn_tunnel_t *t)
                 _WARNING("[rtun %s] buffer overflow.\n", t->name);
 
             pkt = mlvpn_pktbuffer_write(t->hpsbuf);
-            pkt->pktdata.data[0] = 'O';
-            pkt->pktdata.data[1] = 'K';
-            pkt->pktdata.len = 2;
-            pkt->pktdata.type = MLVPN_PKT_AUTH_OK;
+            pkt->data[0] = 'O';
+            pkt->data[1] = 'K';
+            pkt->len = 2;
+            pkt->type = MLVPN_PKT_AUTH_OK;
 
             t->status = MLVPN_CHAP_AUTHSENT;
             _DEBUG("Sending 'OK' packet to client.\n");
@@ -789,8 +812,8 @@ mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t)
         _ERROR("[rtun %s] buffer overflow.\n", t->name);
     else {
         pkt = mlvpn_pktbuffer_write(t->hpsbuf);
-        pkt->pktdata.len = 0;
-        pkt->pktdata.type = MLVPN_PKT_KEEPALIVE;
+        pkt->len = 0;
+        pkt->type = MLVPN_PKT_KEEPALIVE;
     }
     t->next_keepalive = now + t->timeout/2;
 }
@@ -824,7 +847,6 @@ mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents)
         mlvpn_rtun_tick_connect(t);
     }
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
-        _DEBUG("io write start tun %s\n", t->name);
         ev_io_start(EV_DEFAULT_UC, &t->io_write);
     }
     ev_timer_again(EV_DEFAULT_UC, w);
@@ -1035,8 +1057,9 @@ mlvpn_config(int config_file_fd, int first_time)
                 }
                 tmptun->encap_prot = protocol;
                 tmptun->timeout = timeout;
-                if (bwlimit > 0)
-                    mlvpn_pktbuffer_bandwidth(tmptun->sbuf) = bwlimit;
+                // TOOD: To remove
+                // if (bwlimit > 0)
+                //     mlvpn_pktbuffer_bandwidth(tmptun->sbuf) = bwlimit;
                 tmptun->latency_increase = latency_increase;
                 mlvpn_rtun_tick_connect(tmptun);
             }
@@ -1125,7 +1148,6 @@ tuntap_io_event(struct ev_loop *loop, ev_io *w, int revents)
         mlvpn_tuntap_write(&tuntap);
         /* Nothing else to read */
         if (mlvpn_cb_is_empty(tuntap.sbuf)) {
-            _DEBUG("io write stop tuntap\n");
             ev_io_stop(EV_DEFAULT_UC, &tuntap.io_write);
         }
     }

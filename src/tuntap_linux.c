@@ -38,7 +38,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 
     /* Ask for a free buffer */
     pkt = mlvpn_pktbuffer_write(sbuf);
-    ret = read(tuntap->fd, pkt->pktdata.data, DEFAULT_MTU);
+    ret = read(tuntap->fd, pkt->data, DEFAULT_MTU);
     if (ret < 0)
     {
         /* read error on tuntap is not recoverable. We must die. */
@@ -51,14 +51,13 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
                 tuntap->devname);
         exit(1);
     }
-    pkt->pktdata.len = ret;
+    pkt->len = ret;
 
     if (!ev_is_active(&rtun->io_write) && !mlvpn_cb_is_empty(rtun->sbuf)) {
-        _DEBUG("io write start tun %s\n", rtun->name);
         ev_io_start(EV_DEFAULT_UC, &rtun->io_write);
     }
 
-    return pkt->pktdata.len;
+    return pkt->len;
 }
 
 int
@@ -77,16 +76,16 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
     }
 
     pkt = mlvpn_pktbuffer_read(buf);
-    len = write(tuntap->fd, pkt->pktdata.data, pkt->pktdata.len);
+    len = write(tuntap->fd, pkt->data, pkt->len);
     if (len < 0)
     {
         _ERROR("[tuntap %s] write error: %s\n",
                 tuntap->devname, strerror(errno));
     } else {
-        if (len != pkt->pktdata.len)
+        if (len != pkt->len)
         {
             _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
-                    tuntap->devname, len, pkt->pktdata.len);
+                    tuntap->devname, len, pkt->len);
         } else {
             _DEBUG("[tuntap %s] >> wrote %d bytes.\n",
                     tuntap->devname, len);
