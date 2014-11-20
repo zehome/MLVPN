@@ -1024,7 +1024,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (create_tunnel)
                 {
                     _INFO("Adding tunnel %s.\n", lastSection);
-                    tmptun = mlvpn_rtun_new(
+                    mlvpn_rtun_new(
                         lastSection, bindaddr, bindport, dstaddr, dstport,
                         default_server_mode, timeout);
                 }

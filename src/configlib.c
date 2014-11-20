@@ -60,6 +60,8 @@ _conf_parseConfig(int config_fd)
             else
             {
                 _ERROR("Error reading config file.\n");
+                if (section != NULL)
+                    free(section);
                 free(config);
                 free(buf);
                 return NULL;
@@ -432,6 +434,11 @@ conf_setValue( config_t **start,
     obj->val = strdup(val);
 
     (*start) = _conf_setValue( *start, obj, section );
+    if (*start == NULL) {
+        free(obj->var);
+        free(obj->val);
+        free(obj);
+    }
 }
 
 /*

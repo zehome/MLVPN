@@ -592,7 +592,7 @@ int priv_open_tun(int tuntapmode, char *devname)
         must_write(priv_fd, devname, len);
 
     must_read(priv_fd, &len, sizeof(len));
-    if (len > 0 && len < MLVPN_IFNAMSIZ)
+    if (len > 0 && len < MLVPN_IFNAMSIZ && devname != NULL)
     {
         must_read(priv_fd, devname, len);
         devname[len-1] = '\0';
