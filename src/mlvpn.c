@@ -226,26 +226,40 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
         return;
     }
     /* Decapsulate the packet */
+    struct mlvpn_pktdata *final_pkt;
     struct mlvpn_pktdata decap_pkt;
+
+#ifdef ENABLE_CRYPTO
+    int ret;
+    struct mlvpn_pktdata unciphered_pkt;
+    if ((ret = crypto_decrypt((unsigned char *)&decap_pkt,
+            (const unsigned char *)&rawpkt->pktdata.data, rawpkt->pktdata.len)) != 0) {
+        _ERROR("crypto_decrypt failed: %d.\n", ret);
+        return;
+    }
+    decap_pkt.len = ntohs(decap_pkt.len);
+    final_pkt = &decap_pkt;
+#else
     memset(&decap_pkt, 0, sizeof(decap_pkt));
     memcpy(&decap_pkt, &rawpkt->pktdata.data, rawpkt->pktdata.len);
-
     decap_pkt.len = ntohs(decap_pkt.len);
+    final_pkt = &decap_pkt;
+#endif
     _DEBUG("[rtun %s] Encapsulated len: %d real %d type: %d tun status: %d\n",
-        tun->name, rawpkt->pktdata.len, decap_pkt.len, decap_pkt.type, tun->status);
+        tun->name, rawpkt->pktdata.len, final_pkt->len, final_pkt->type, tun->status);
 
-    if (decap_pkt.type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
+    if (final_pkt->type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
         mlvpn_rtun_tick(tun);
         mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
-        tuntap_pkt->pktdata.len = decap_pkt.len;
-        memcpy(tuntap_pkt->pktdata.data, decap_pkt.data, tuntap_pkt->pktdata.len);
+        tuntap_pkt->pktdata.len = final_pkt->len;
+        memcpy(tuntap_pkt->pktdata.data, final_pkt->data, tuntap_pkt->pktdata.len);
         /* Send the packet back into the LAN */
         _DEBUG("should write packet to tuntap.\n");
         if (!ev_is_active(&tuntap.io_write)) {
             _DEBUG("io write start tuntap\n");
             ev_io_start(EV_DEFAULT_UC, &tuntap.io_write);
         }
-    } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
+    } else if (final_pkt->type == MLVPN_PKT_KEEPALIVE) {
         mlvpn_rtun_tick(tun);
 
         // if (tun->server_mode) {
@@ -276,13 +290,30 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 {
     ssize_t ret;
     size_t wlen;
-
+    void *sendptr;
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
-
     wlen = PKTHDRSIZ(pkt->pktdata) + pkt->pktdata.len;
     pkt->pktdata.len = htons(pkt->pktdata.len);
 
-    ret = sendto(tun->fd, &pkt->pktdata, wlen, MSG_DONTWAIT,
+#ifdef ENABLE_CRYPTO
+    struct mlvpn_pktdata encap_pkt;
+    if ((sizeof(encap_pkt) - crypto_PADSIZE) < wlen) {
+        _ERROR("Can't encrypt packet too long. Received: %d Max: %d\n",
+            wlen, sizeof(encap_pkt) - crypto_PADSIZE);
+        return -1;
+    }
+    if ((ret = crypto_encrypt((unsigned char *)&encap_pkt,
+            (const unsigned char *)&pkt->pktdata, wlen)) != 0) {
+        _ERROR("crypto_encrypt failed: %d\n", ret);
+        return -1;
+    }
+    wlen += crypto_PADSIZE;
+    sendptr = &encap_pkt;
+#else
+    sendptr = &pkt->pktdata;
+#endif
+
+    ret = sendto(tun->fd, sendptr, wlen, MSG_DONTWAIT,
         tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     if (ret < 0)
     {
