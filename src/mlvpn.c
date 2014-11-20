@@ -344,7 +344,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
         }
     }
 
-    if (ev_is_active(&tun->io_write) && ! mlvpn_cb_is_empty(pktbuf)) {
+    if (ev_is_active(&tun->io_write) && mlvpn_cb_is_empty(pktbuf)) {
         ev_io_stop(EV_DEFAULT_UC, &tun->io_write);
     }
     return ret;
