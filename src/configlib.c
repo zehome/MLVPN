@@ -40,7 +40,7 @@ _conf_parseConfig(int config_fd)
     if (! configFile)
     {
         _ERROR("Unable to open config file fd: %d: %s\n",
-            config_fd, strerror(errno));
+               config_fd, strerror(errno));
         return NULL;
     }
     config = (config_t *)malloc(sizeof(config_t));
@@ -76,43 +76,44 @@ _conf_parseConfig(int config_fd)
 
         switch (c)
         {
-            case '\r': break; /* Do nothing */
-            case '\n':
-               linenum++;
-               buf[i] = 0;
-               newline = _conf_strip_comment(buf, i);
+        case '\r':
+            break; /* Do nothing */
+        case '\n':
+            linenum++;
+            buf[i] = 0;
+            newline = _conf_strip_comment(buf, i);
 
-               if (newline)
-               {
-                   if ( (tmp = _conf_get_section(newline, i, linenum)) != NULL)
-                   {
-                       if (section != NULL)
-                           free(section);
+            if (newline)
+            {
+                if ( (tmp = _conf_get_section(newline, i, linenum)) != NULL)
+                {
+                    if (section != NULL)
+                        free(section);
 
-                       section = tmp;
-                   } else if ( (confObj = _conf_parseLine(newline,
-                                   strlen(newline), linenum)) != NULL)
-                   {
-                       if (section == NULL)
-                       {
-                           _ERROR("Parse error near line %d: variables should "
-                                   "always been defined in a section!\n", linenum);
-                       } else if (_conf_setValue(config, confObj, section) == NULL) {
-                           /* Error there, cleanup memory */
-                           if (confObj->var)
-                               free(confObj->var);
-                           if (confObj->val)
-                               free(confObj->val);
-                           free(confObj);
-                       }
-                   }
-                   free(newline);
-               }
+                    section = tmp;
+                } else if ( (confObj = _conf_parseLine(newline,
+                                                       strlen(newline), linenum)) != NULL)
+                {
+                    if (section == NULL)
+                    {
+                        _ERROR("Parse error near line %d: variables should "
+                               "always been defined in a section!\n", linenum);
+                    } else if (_conf_setValue(config, confObj, section) == NULL) {
+                        /* Error there, cleanup memory */
+                        if (confObj->var)
+                            free(confObj->var);
+                        if (confObj->val)
+                            free(confObj->val);
+                        free(confObj);
+                    }
+                }
+                free(newline);
+            }
 
-               i = 0;
-               break;
-            default:
-               buf[i++] = c;
+            i = 0;
+            break;
+        default:
+            buf[i++] = c;
         }
     }
 
@@ -143,28 +144,28 @@ _conf_strip_comment(char *line, unsigned int size)
 
         switch (c)
         {
-            case '\"':
-                quote ^= 1; /* Nice :) */
-                new[j++] = '\"';
-                break;
+        case '\"':
+            quote ^= 1; /* Nice :) */
+            new[j++] = '\"';
+            break;
 
-            case '#':
-                if (quote == 1)
-                {
-                    new[j++] = c; /* Avoid counting "http://" */
-                    break;
-                }
-                else
-                {
-                    /* There is a comment there, remove it :) */
-                    goto exit;
-                }
-
+        case '#':
+            if (quote == 1)
+            {
+                new[j++] = c; /* Avoid counting "http://" */
                 break;
+            }
+            else
+            {
+                /* There is a comment there, remove it :) */
+                goto exit;
+            }
 
-            default:
-                new[j++] = c;
-                break;
+            break;
+
+        default:
+            new[j++] = c;
+            break;
         }
     }
 
@@ -196,27 +197,27 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
     {
         switch(line[i])
         {
-            case '[':
-                if (section)
-                {
-                    errorMsg = "Parse error near line %d: '[' followed by another '['\n";
-                    goto error;
-                }
-                section = (char *)malloc(linelen+1-i);
-                break;
-            case ']':
-                if (! section)
-                {
-                    errorMsg = "Parse error near line %d: ']' found, without '['.\n";
-                    goto error;
-                }
-                found_terminator = 1;
-                section[j] = 0;
-                break;
-            default:
-                if (section)
-                    section[j++] = line[i];
-                break;
+        case '[':
+            if (section)
+            {
+                errorMsg = "Parse error near line %d: '[' followed by another '['\n";
+                goto error;
+            }
+            section = (char *)malloc(linelen+1-i);
+            break;
+        case ']':
+            if (! section)
+            {
+                errorMsg = "Parse error near line %d: ']' found, without '['.\n";
+                goto error;
+            }
+            found_terminator = 1;
+            section[j] = 0;
+            break;
+        default:
+            if (section)
+                section[j++] = line[i];
+            break;
         }
     }
 
@@ -266,63 +267,63 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
         switch (c)
         {
-            case '\"':
-                quote ^= 1;
-                break;
+        case '\"':
+            quote ^= 1;
+            break;
 
-            case '=':
-                if (j == 0)
-                {
-                    _ERROR("Parse error near line %d: line should not start with '='.\n",
-                        linenum);
-                    free(confObj);
-                    free(buf);
-                    return NULL;
-                }
+        case '=':
+            if (j == 0)
+            {
+                _ERROR("Parse error near line %d: line should not start with '='.\n",
+                       linenum);
+                free(confObj);
+                free(buf);
+                return NULL;
+            }
 
-                if (confObj->var != NULL)
-                {
-                    _ERROR("Parse error near line %d: two '=' detected.\n", linenum);
+            if (confObj->var != NULL)
+            {
+                _ERROR("Parse error near line %d: two '=' detected.\n", linenum);
+                free(confObj->var);
+                free(confObj);
+                free(buf);
+                return NULL;
+            }
+
+            buf[j] = 0;
+            len = j;
+            j = 0;
+
+            /* Strip ending spaces */
+            for (k = len-1; (k > 0) && (buf[k] == ' '); k--);
+            buf[k+1] = 0;
+
+            confObj->var = strdup(buf);
+            break;
+
+        default:
+            if ((c == ' ') && (space == 0))
+                space = 1;
+            else if (c != ' ')
+                space = 0;
+
+            if ((space == 1) && (quote == 0))
+                break; /* Discards */
+            if ((space == 1) && (j == 0))
+                break; /* Discards */
+
+            if (! isascii(c))
+            {
+                _ERROR("Parse error near line %d: "
+                       "variable/value must be *ASCII ONLY*\n",
+                       linenum);
+                free(buf);
+                if (confObj->var)
                     free(confObj->var);
-                    free(confObj);
-                    free(buf);
-                    return NULL;
-                }
-
-                buf[j] = 0;
-                len = j;
-                j = 0;
-
-                /* Strip ending spaces */
-                for (k = len-1; (k > 0) && (buf[k] == ' '); k--);
-                buf[k+1] = 0;
-
-                confObj->var = strdup(buf);
-                break;
-
-            default:
-                if ((c == ' ') && (space == 0))
-                    space = 1;
-                else if (c != ' ')
-                    space = 0;
-
-                if ((space == 1) && (quote == 0))
-                    break; /* Discards */
-                if ((space == 1) && (j == 0))
-                    break; /* Discards */
-
-                if (! isascii(c))
-                {
-                    _ERROR("Parse error near line %d: "
-                        "variable/value must be *ASCII ONLY*\n",
-                        linenum);
-                    free(buf);
-                    if (confObj->var)
-                        free(confObj->var);
-                    free(confObj);
-                    return NULL;
-                }
-                buf[j++] = c;
+                free(confObj);
+                return NULL;
+            }
+            buf[j++] = c;
         }
     }
 
@@ -367,8 +368,8 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 /* Private stuff */
 config_t *
 _conf_setValue(config_t *start,
-    confObj_t *confObj,
-    const char *section)
+               confObj_t *confObj,
+               const char *section)
 {
     config_t *work;
     config_t *last;
@@ -409,9 +410,9 @@ _conf_setValue(config_t *start,
 /* Public stuff :) */
 void
 conf_setValue( config_t **start,
-    const char *var,
-    const char *val,
-    const char *section )
+               const char *var,
+               const char *val,
+               const char *section )
 {
     confObj_t *obj;
 
@@ -447,9 +448,9 @@ conf_setValue( config_t **start,
  */
 config_t *
 _conf_getValue(config_t *start,
-    const char *section,
-    const char *var,
-    char **dest )
+               const char *section,
+               const char *var,
+               char **dest )
 {
     while (start != NULL)
     {
@@ -479,7 +480,7 @@ _conf_printConfig(config_t *start)
     {
         if (tmp->conf)
             printf("section: %s, var: `%s' val: `%s'\n",
-                tmp->section, tmp->conf->var, tmp->conf->val);
+                   tmp->section, tmp->conf->var, tmp->conf->val);
         tmp = tmp->next;
     }
 }
@@ -512,12 +513,12 @@ _conf_freeConfig(config_t *start)
 
 void
 _conf_set_str_from_conf(config_t *config,
-    const char *section,
-    const char *type,
-    char **value,
-    const char *def,
-    const char *errMsg,
-    int exit_n)
+                        const char *section,
+                        const char *type,
+                        char **value,
+                        const char *def,
+                        const char *errMsg,
+                        int exit_n)
 {
     _conf_getValue(config, section, type, value);
 
@@ -537,12 +538,12 @@ _conf_set_str_from_conf(config_t *config,
 
 void
 _conf_set_int_from_conf(config_t *config,
-    const char *section,
-    const char *type,
-    int *value,
-    int def,
-    const char *errMsg,
-    int exit_n)
+                        const char *section,
+                        const char *type,
+                        int *value,
+                        int def,
+                        const char *errMsg,
+                        int exit_n)
 {
     char *tmp;
     _conf_getValue(config, section, type, &tmp);
@@ -565,12 +566,12 @@ _conf_set_int_from_conf(config_t *config,
 
 void
 _conf_set_bool_from_conf(config_t *config,
-    const char *section,
-    const char *type,
-    int *value,
-    int def,
-    const char *errMsg,
-    int exit_n)
+                         const char *section,
+                         const char *type,
+                         int *value,
+                         int def,
+                         const char *errMsg,
+                         int exit_n)
 {
     char *tmp;
     _conf_getValue(config, section, type, &tmp);

@@ -11,16 +11,16 @@
 
 typedef struct
 {
-  char *var;
-  char *val;
+    char *var;
+    char *val;
 } confObj_t;
 
 /* Base of the chained list */
 typedef struct config_t
 {
-  confObj_t       *conf;
-  char            *section;
-  struct config_t *next;
+    confObj_t       *conf;
+    char            *section;
+    struct config_t *next;
 } config_t;
 
 config_t *
@@ -40,15 +40,15 @@ _conf_setValue(config_t *start, confObj_t *confObj, const char *section);
 
 void
 conf_setValue(config_t **start,
-    const char *var,
-    const char *val,
-    const char *section);
+              const char *var,
+              const char *val,
+              const char *section);
 
 config_t *
 _conf_getValue(config_t *start,
-    const char *section,
-    const char *var,
-    char **dest);
+               const char *section,
+               const char *var,
+               char **dest);
 
 void
 _conf_printConfig(config_t *start);

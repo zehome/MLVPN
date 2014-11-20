@@ -14,7 +14,7 @@ int crypto_set_password(const char *password,
                         unsigned long long password_len)
 {
     return crypto_generichash(
-        key, sizeof(key), (unsigned char *)password, password_len, NULL, 0);
+               key, sizeof(key), (unsigned char *)password, password_len, NULL, 0);
 }
 
 int crypto_encrypt(unsigned char *c, const unsigned char *m,

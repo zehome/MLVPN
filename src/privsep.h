@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #ifdef HAVE_OPENBSD
- #include <netinet/in.h>
+#include <netinet/in.h>
 #endif
 #include <arpa/inet.h>
 
@@ -20,7 +20,7 @@ int priv_run_script(int argc, char **argv);
 void priv_set_running_state(void);
 int
 priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
-    struct addrinfo *hints);
+                 struct addrinfo *hints);
 
 void send_fd(int sock, int fd);
 int receive_fd(int sock);

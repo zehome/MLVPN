@@ -82,7 +82,7 @@ send_fd(int sock, int fd)
         warn("%s: sendmsg(%d)", "send_fd", sock);
     if (n != sizeof(int))
         warnx("%s: sendmsg: expected sent 1 got %ld",
-            "send_fd", (long)n);
+              "send_fd", (long)n);
 }
 
 int
@@ -111,7 +111,7 @@ receive_fd(int sock)
         warn("%s: recvmsg", "receive_fd");
     if (n != sizeof(int))
         warnx("%s: recvmsg: expected received 1 got %ld",
-            "receive_fd", (long)n);
+              "receive_fd", (long)n);
     if (result == 0) {
         cmsg = CMSG_FIRSTHDR(&msg);
         if (cmsg == NULL) {
@@ -120,7 +120,7 @@ receive_fd(int sock)
         }
         if (cmsg->cmsg_type != SCM_RIGHTS)
             warnx("%s: expected type %d got %d", "receive_fd",
-                SCM_RIGHTS, cmsg->cmsg_type);
+                  SCM_RIGHTS, cmsg->cmsg_type);
         fd = (*(int *)CMSG_DATA(cmsg));
         return fd;
     } else {

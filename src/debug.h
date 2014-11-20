@@ -36,7 +36,7 @@ typedef struct logfile_s
 #define _INFO(...)    DEBUG(LOG_LEVEL_INFO,   __VA_ARGS__)
 #define _DEBUG(...)   DEBUG(LOG_LEVEL_DEBUG,  __VA_ARGS__)
 
-void __DEBUG(int _debug_line, const char *_debug_filename, 
+void __DEBUG(int _debug_line, const char *_debug_filename,
              int _debug_priority, const char *_debug_message, ...);
 
 int logger_init(logfile_t *logfile);

@@ -43,12 +43,12 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     {
         /* read error on tuntap is not recoverable. We must die. */
         _FATAL("[tuntap %s] unrecoverable read error: %s\n",
-                tuntap->devname, strerror(errno));
+               tuntap->devname, strerror(errno));
         exit(1);
     } else if (ret == 0) {
         /* End of file */
         _FATAL("[tuntap %s] unrecoverable error (reached EOF on tuntap!)\n",
-                tuntap->devname);
+               tuntap->devname);
         exit(1);
     }
     pkt->len = ret;
@@ -71,7 +71,7 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
     if (mlvpn_cb_is_empty(buf))
     {
         _FATAL("[tuntap %s] tuntap_write called with empty buffer!\n",
-                tuntap->devname);
+               tuntap->devname);
         return -1;
     }
 
@@ -80,15 +80,15 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
     if (len < 0)
     {
         _ERROR("[tuntap %s] write error: %s\n",
-                tuntap->devname, strerror(errno));
+               tuntap->devname, strerror(errno));
     } else {
         if (len != pkt->len)
         {
             _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
-                    tuntap->devname, len, pkt->len);
+                   tuntap->devname, len, pkt->len);
         } else {
             _DEBUG("[tuntap %s] >> wrote %d bytes.\n",
-                    tuntap->devname, len);
+                   tuntap->devname, len);
         }
     }
 
@@ -104,7 +104,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     {
         _FATAL("[tuntap %s] unable to open /dev/net/tun read/write. "
                "Check permissions.\n",
-            tuntap->devname);
+               tuntap->devname);
         return fd;
     }
     tuntap->fd = fd;
@@ -154,7 +154,7 @@ root_tuntap_open(int tuntapmode, char *devname)
         /* The kernel is the only one able to "name" the if.
          * so we reread it to get the real name set by the kernel. */
         strlcpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ-1);
-   }
-   return fd;
+    }
+    return fd;
 }
 

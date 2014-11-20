@@ -9,10 +9,10 @@
 #define MAX_PKT_LEN 1500
 
 enum {
-	MLVPN_PKT_AUTH,
-	MLVPN_PKT_AUTH_OK,
-	MLVPN_PKT_KEEPALIVE,
-	MLVPN_PKT_DATA
+    MLVPN_PKT_AUTH,
+    MLVPN_PKT_AUTH_OK,
+    MLVPN_PKT_KEEPALIVE,
+    MLVPN_PKT_DATA
 };
 
 typedef struct {
@@ -23,9 +23,9 @@ typedef struct {
 
 typedef struct {
     uint16_t len;
-	unsigned char flags;
-	unsigned char nonce[crypto_NONCEBYTES];
-	char data[DEFAULT_MTU];
+    unsigned char flags;
+    unsigned char nonce[crypto_NONCEBYTES];
+    char data[DEFAULT_MTU];
 } __attribute__((packed)) mlvpn_proto_t;
 
 #define PKTHDRSIZ(pkt) (sizeof(pkt)-sizeof(pkt.data))

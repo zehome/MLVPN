@@ -13,43 +13,43 @@
 
 int mystr_eq(const char *s1, const char *s2)
 {
-  if ((s1 == NULL) || (s2 == NULL)) 
+    if ((s1 == NULL) || (s2 == NULL))
+        return 0;
+
+    if (strcmp(s1, s2) == 0)
+        return 1;
+
     return 0;
-
-  if (strcmp(s1, s2) == 0)
-    return 1;
-
-  return 0;
 }
 
 void stripBadChar(const char *from, char *to)
 {
-  if (from == NULL)
-    return;
+    if (from == NULL)
+        return;
 
-  while (*from != '\0')
-  {
-    switch (*from)
+    while (*from != '\0')
     {
-      case '|':
-        *to++ = 'l';
-        break;
-      case '`':
-        *to++ = '\'';
-        break;
-      case '/':
-      case '\\':
-        break;
+        switch (*from)
+        {
+        case '|':
+            *to++ = 'l';
+            break;
+        case '`':
+            *to++ = '\'';
+            break;
+        case '/':
+        case '\\':
+            break;
 
-      default:
-        if (isascii(*from))
-          *to++ = *from;
-        break;
+        default:
+            if (isascii(*from))
+                *to++ = *from;
+            break;
+        }
+        from++;
     }
-    from++;
-  }
 
-  *to = '\0';
+    *to = '\0';
 }
 
 char *
@@ -58,7 +58,7 @@ tool_get_bytes(unsigned long long bytes)
     char *str;
     char *conv_unit = NULL;
     int conv_div = 1;
-    
+
     if (bytes < 1024)
     {
         conv_unit = "B";

@@ -114,7 +114,7 @@ mlvpn_pktbuffer_write(circular_buffer_t *buf)
 {
     pktbuffer_t *pktbuffer = buf->data;
     mlvpn_pkt_t *pkt = (mlvpn_pkt_t *)mlvpn_cb_write(buf,
-                                (void *)pktbuffer->pkts);
+                       (void *)pktbuffer->pkts);
     /* Initialize the new packet to send */
     pkt->len = 0;
     pkt->type = MLVPN_PKT_DATA;
@@ -126,5 +126,5 @@ mlvpn_pktbuffer_read(circular_buffer_t *buf)
 {
     pktbuffer_t *pktbuffer = buf->data;
     return (mlvpn_pkt_t *)mlvpn_cb_read(buf,
-                                (void *)pktbuffer->pkts);
+                                        (void *)pktbuffer->pkts);
 }

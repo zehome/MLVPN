@@ -39,10 +39,10 @@
 #include <grp.h>
 
 #if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
- #include <signal.h>
+#include <signal.h>
 #endif
 #ifdef HAVE_FREEBSD
- #define _NSIG _SIG_MAXSIG
+#define _NSIG _SIG_MAXSIG
 #endif
 
 #include "privsep.h"
@@ -269,8 +269,8 @@ priv_init(char *argv[], char *username)
 
             must_read(socks[0], &tuntapmode, sizeof(tuntapmode));
             if (tuntapmode != MLVPN_TUNTAPMODE_TUN &&
-                tuntapmode != MLVPN_TUNTAPMODE_TAP)
-                    _exit(0);
+                    tuntapmode != MLVPN_TUNTAPMODE_TAP)
+                _exit(0);
 
             must_read(socks[0], &len, sizeof(len));
             if (len > MLVPN_IFNAMSIZ)
@@ -320,15 +320,15 @@ priv_init(char *argv[], char *username)
             if (stat(path, &st) < 0)
             {
                 snprintf(errormessage, ERRMSGSIZ, "Unable to open file %s:%s",
-                    path, strerror(errno));
+                         path, strerror(errno));
             } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
                 snprintf(errormessage, ERRMSGSIZ,
-                    "%s is group/other accessible. Fix permissions!",
-                    path);
+                         "%s is group/other accessible. Fix permissions!",
+                         path);
             } else if (!(st.st_mode & S_IXUSR)) {
                 snprintf(errormessage, ERRMSGSIZ,
-                    "%s is not executable. Fix permissions!",
-                    path);
+                         "%s is not executable. Fix permissions!",
+                         path);
             } else {
                 strlcpy(script_path, path, len);
             }
@@ -466,8 +466,8 @@ root_launch_script(char *setup_script, int argc, char **argv)
         for (i = 0; i < open_max; i++)
         {
             if (i != STDIN_FILENO &&
-                i != STDOUT_FILENO &&
-                i != STDERR_FILENO) {
+                    i != STDOUT_FILENO &&
+                    i != STDERR_FILENO) {
                 close(i);
             }
         }
@@ -492,11 +492,11 @@ root_launch_script(char *setup_script, int argc, char **argv)
             return status;
         } else {
             fprintf(stderr, "network script exit status %d != 0!\n",
-                status);
+                    status);
         }
     } else
         fprintf(stderr, "%s: could not launch network script:  %s\n",
-            setup_script, strerror(errno));
+                setup_script, strerror(errno));
     return status;
 }
 
@@ -602,7 +602,7 @@ int priv_open_tun(int tuntapmode, char *devname)
     } else {
         /* Too big ! */
         errx(1, "priv_open_tun: device name returned by privileged "
-                "service is too long.");
+             "service is too long.");
     }
     return fd;
 }
@@ -612,7 +612,7 @@ int priv_open_tun(int tuntapmode, char *devname)
  * the length is returned (zero on error) */
 int
 priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
-    struct addrinfo *hints)
+                 struct addrinfo *hints)
 {
     char hostcpy[MLVPN_MAXHNAMSTR], servcpy[MLVPN_MAXHNAMSTR];
     int cmd, i;
@@ -675,7 +675,7 @@ priv_init_script(char *path)
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion",
-                "priv_init_script");
+             "priv_init_script");
 
     cmd = PRIV_INIT_SCRIPT;
     must_write(priv_fd, &cmd, sizeof(cmd));
@@ -684,7 +684,7 @@ priv_init_script(char *path)
     must_write(priv_fd, path, len);
 
     must_read(priv_fd, &len, sizeof(len));
-    
+
     if (len <= 0)
     {
         errx(1, "priv_init_script: invalid answer from server.");
@@ -713,7 +713,7 @@ priv_run_script(int argc, char **argv)
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion",
-                "priv_run_script");
+             "priv_run_script");
 
     cmd = PRIV_RUN_SCRIPT;
     must_write(priv_fd, &cmd, sizeof(cmd));
@@ -739,7 +739,7 @@ priv_set_running_state(void)
 
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion",
-            "priv_config_parse_done");
+             "priv_config_parse_done");
 
     cmd = PRIV_SET_RUNNING_STATE;
     must_write(priv_fd, &cmd, sizeof(cmd));

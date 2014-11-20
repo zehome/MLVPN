@@ -44,11 +44,11 @@
 
 /* Linux specific things */
 #ifdef HAVE_LINUX
- #include <sys/prctl.h>
+#include <sys/prctl.h>
 #endif
 
 #ifdef HAVE_FREEBSD
- #define _NSIG _SIG_MAXSIG
+#define _NSIG _SIG_MAXSIG
 #endif
 
 /* GLOBALS */
@@ -99,30 +99,30 @@ static void mlvpn_rtun_recalc_weight();
 static int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 static mlvpn_tunnel_t *mlvpn_rtun_last();
 static mlvpn_tunnel_t *
-    mlvpn_rtun_new(const char *name,
-                   const char *bindaddr, const char *bindport,
-                   const char *destaddr, const char *destport,
-                   int server_mode, uint32_t timeout);
+mlvpn_rtun_new(const char *name,
+               const char *bindaddr, const char *bindport,
+               const char *destaddr, const char *destport,
+               int server_mode, uint32_t timeout);
 
 
 static void
 usage(char **argv)
 {
     fprintf(stderr,
-        "usage: %s [options]\n\n"
-        "Options:\n"
-        " -b, --background      launch as a daemon (fork)\n"
-        " -c, --config [path]   path to config file (ex. /etc/mlvpn.conf)\n"
-        " --natural-title       do not change process title\n"
-        " -n, --name            change process-title and include 'name'\n"
-        " -h, --help            this help\n"
-        " -p, --pidfile [path]  path to pidfile (ex. /run/mlvpn.pid)\n"
-        " -u, --user [username] drop privileges to user 'username'\n"
-        " -v, --verbose         more debug messages on stdout\n"
-        " --yes-run-as-root     ! please do not use !\n"
-        " -V, --version         output version information and exit\n"
-        "\n"
-        "For more details see mlvpn(1) and mlvpn.conf(5).\n", argv[0]);
+            "usage: %s [options]\n\n"
+            "Options:\n"
+            " -b, --background      launch as a daemon (fork)\n"
+            " -c, --config [path]   path to config file (ex. /etc/mlvpn.conf)\n"
+            " --natural-title       do not change process title\n"
+            " -n, --name            change process-title and include 'name'\n"
+            " -h, --help            this help\n"
+            " -p, --pidfile [path]  path to pidfile (ex. /run/mlvpn.pid)\n"
+            " -u, --user [username] drop privileges to user 'username'\n"
+            " -v, --verbose         more debug messages on stdout\n"
+            " --yes-run-as-root     ! please do not use !\n"
+            " -V, --version         output version information and exit\n"
+            "\n"
+            "For more details see mlvpn(1) and mlvpn.conf(5).\n", argv[0]);
     exit(2);
 }
 
@@ -140,7 +140,7 @@ mlvpn_sock_set_nonblocking(int fd)
         if ( (ret = fcntl(fd, F_SETFL, fl)) < 0)
         {
             _ERROR("Unable to set socket %d non blocking: %s.\n",
-                fd, strerror(errno));
+                   fd, strerror(errno));
         }
     }
     return ret;
@@ -191,30 +191,30 @@ mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
         }
 
         if ((tun->addrinfo->ai_addrlen != addrlen) ||
-            (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
+                (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
         {
             char clienthost[NI_MAXHOST];
             char clientport[NI_MAXSERV];
             int ret;
             if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
-                             clienthost, sizeof(clienthost),
-                             clientport, sizeof(clientport),
-                             NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
+                                    clienthost, sizeof(clienthost),
+                                    clientport, sizeof(clientport),
+                                    NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
             {
                 _ERROR("[rtun %s] Error in getnameinfo: %d: %s\n",
-                        tun->name, ret, strerror(errno));
+                       tun->name, ret, strerror(errno));
             } else {
                 _DEBUG("[rtun %s] new UDP connection -> %s\n",
-                        tun->name, clienthost);
+                       tun->name, clienthost);
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-    	_DEBUG("< rtun %s read %d bytes.\n", tun->name, len);
+        _DEBUG("< rtun %s read %d bytes.\n", tun->name, len);
         mlvpn_rtun_read_dispatch(tun);
     } else if (len < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             _ERROR("[rtun %s] read error on %d: %s\n",
-                    tun->name, tun->fd, strerror(errno));
+                   tun->name, tun->fd, strerror(errno));
             mlvpn_rtun_status_down(tun);
         }
     } else {
@@ -264,8 +264,8 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
 #ifdef ENABLE_CRYPTO
     int ret;
     if ((ret = crypto_decrypt((unsigned char *)&decap_pkt.data,
-            (const unsigned char *)&proto.data, rlen,
-            (const unsigned char *)&proto.nonce)) != 0) {
+                              (const unsigned char *)&proto.data, rlen,
+                              (const unsigned char *)&proto.nonce)) != 0) {
         _ERROR("crypto_decrypt failed: %d len=%d.\n", ret, rlen);
         return;
     }
@@ -276,7 +276,7 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
     decap_pkt.type = proto.flags;
 
     _DEBUG("[rtun %s] Encapsulated len: %d real %d type: %d tun status: %d\n",
-        tun->name, rawpkt->len, decap_pkt.len, decap_pkt.type, tun->status);
+           tun->name, rawpkt->len, decap_pkt.len, decap_pkt.type, tun->status);
 
     if (decap_pkt.type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
         mlvpn_rtun_tick(tun);
@@ -312,12 +312,12 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     crypto_nonce_random((unsigned char *)&proto.nonce, sizeof(proto.nonce));
     if (wlen + crypto_PADSIZE > sizeof(proto.data)) {
         _ERROR("Can't encrypt packet too long. Received: %d Max: %d\n",
-            wlen, sizeof(proto.data) + crypto_PADSIZE);
+               wlen, sizeof(proto.data) + crypto_PADSIZE);
         return -1;
     }
     if ((ret = crypto_encrypt((unsigned char *)&proto.data,
-            (const unsigned char *)&pkt->data, pkt->len,
-            (const unsigned char *)&proto.nonce)) != 0) {
+                              (const unsigned char *)&pkt->data, pkt->len,
+                              (const unsigned char *)&proto.nonce)) != 0) {
         _ERROR("crypto_encrypt failed: %d\n", ret);
         return -1;
     }
@@ -328,7 +328,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 #endif
     proto.len = htons(proto.len);
     ret = sendto(tun->fd, &proto, wlen, MSG_DONTWAIT,
-        tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
+                 tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     if (ret < 0)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -340,10 +340,10 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
         if (wlen != ret)
         {
             _ERROR("[rtun %s] write error: written %u over %u.n",
-                tun->name, ret, wlen);
+                   tun->name, ret, wlen);
         } else {
             _DEBUG("> rtun %s written %u bytes.\n",
-                tun->name, ret);
+                   tun->name, ret);
         }
     }
 
@@ -476,8 +476,8 @@ mlvpn_rtun_recalc_weight()
         if (mlvpn_pktbuffer_bandwidth(t->sbuf) == 0)
         {
             _WARNING("MLVPN can't balance correctly the traffic on"
-                " tunnels if bandwidth limit is disabled! (tun '%s')\n",
-                t->name);
+                     " tunnels if bandwidth limit is disabled! (tun '%s')\n",
+                     t->name);
             warned++;
         }
         bandwidth_total += mlvpn_pktbuffer_bandwidth(t->sbuf);
@@ -493,9 +493,9 @@ mlvpn_rtun_recalc_weight()
             if (mlvpn_pktbuffer_bandwidth(t->sbuf) > 0 && bandwidth_total > 0)
             {
                 t->weight = (((double)mlvpn_pktbuffer_bandwidth(t->sbuf) /
-                                        (double)bandwidth_total) * 100.0);
+                              (double)bandwidth_total) * 100.0);
                 _DEBUG("tun %s weight = %f (%u %u)\n", t->name, t->weight,
-                    mlvpn_pktbuffer_bandwidth(t->sbuf), bandwidth_total);
+                       mlvpn_pktbuffer_bandwidth(t->sbuf), bandwidth_total);
             }
             t = t->next;
         }
@@ -573,7 +573,7 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     if (ret < 0 || !t->addrinfo)
     {
         _ERROR("getaddrinfo(%s,%d) failed: %s\n",
-            addr, port, gai_strerror(ret));
+               addr, port, gai_strerror(ret));
         return -1;
     }
 
@@ -586,7 +586,7 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
                           t->addrinfo->ai_protocol)) < 0)
         {
             _ERROR("[rtun %s] Socket creation error: %s\n",
-                    t->name, strerror(fd));
+                   t->name, strerror(fd));
         } else {
             t->fd = fd;
             break;
@@ -597,7 +597,7 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     if (fd < 0)
     {
         _ERROR("[rtun %s] connection failed. Check DNS?\n",
-                t->name);
+               t->name);
         return 1;
     }
 
@@ -770,7 +770,7 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
     }
 
     if (! t->server_mode &&
-        (t->fd > 0 && t->status < MLVPN_CHAP_AUTHOK)) {
+            (t->fd > 0 && t->status < MLVPN_CHAP_AUTHOK)) {
         mlvpn_rtun_challenge_send(t);
     }
 }
@@ -859,7 +859,7 @@ mlvpn_config(int config_file_fd, int first_time)
     while (work)
     {
         if ((work->section != NULL) &&
-            (mystr_eq(work->section, lastSection) == 0))
+                (mystr_eq(work->section, lastSection) == 0))
         {
             lastSection = work->section;
             _DEBUG("Section %s\n", lastSection);
@@ -868,12 +868,12 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (first_time)
                 {
                     _conf_set_str_from_conf(config, lastSection,
-                        "statuscommand", &status_command, NULL, NULL, 0);
+                                            "statuscommand", &status_command, NULL, NULL, 0);
                     _conf_set_str_from_conf(config, lastSection,
-                        "interface_name", &tundevname, "mlvpn0", NULL, 0);
+                                            "interface_name", &tundevname, "mlvpn0", NULL, 0);
                     strlcpy(tuntap.devname, tundevname, MLVPN_IFNAMSIZ-1);
                     _conf_set_str_from_conf(config, lastSection,
-                        "tuntap", &tmp, "tun", NULL, 0);
+                                            "tuntap", &tmp, "tun", NULL, 0);
                     if (mystr_eq(tmp, "tun"))
                         tuntap.type = MLVPN_TUNTAPMODE_TUN;
                     else
@@ -881,17 +881,17 @@ mlvpn_config(int config_file_fd, int first_time)
                 }
 
                 _conf_set_str_from_conf(config, lastSection,
-                    "mode", &mode, NULL, "Operation mode is mandatory.", 1);
+                                        "mode", &mode, NULL, "Operation mode is mandatory.", 1);
                 if (mystr_eq(mode, "server"))
                     default_server_mode = 1;
 
                 _conf_set_str_from_conf(config, lastSection,
-                    "logfile", &(logger->filename), NULL, NULL, 0);
+                                        "logfile", &(logger->filename), NULL, NULL, 0);
                 _conf_set_int_from_conf(config, lastSection,
-                    "loglevel", &(logger->level), 4, NULL, 0);
+                                        "loglevel", &(logger->level), 4, NULL, 0);
 
                 _conf_set_str_from_conf(config, lastSection,
-                    "protocol", &tmp, "udp", NULL, 0);
+                                        "protocol", &tmp, "udp", NULL, 0);
                 if (mystr_eq(tmp, "udp")) {
                     default_protocol = ENCAP_PROTO_UDP;
                 } else if (mystr_eq(tmp, "tcp")) {
@@ -901,7 +901,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 }
 
                 _conf_set_int_from_conf(config, lastSection,
-                    "timeout", &default_timeout, 60, NULL, 0);
+                                        "timeout", &default_timeout, 60, NULL, 0);
             } else {
                 char *bindaddr;
                 char *bindport;
@@ -916,42 +916,42 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (default_server_mode)
                 {
                     _conf_set_str_from_conf(config, lastSection,
-                        "bindhost",
-                        &bindaddr, "0.0.0.0",
-                        "binding to host 0.0.0.0\n", 0);
+                                            "bindhost",
+                                            &bindaddr, "0.0.0.0",
+                                            "binding to host 0.0.0.0\n", 0);
 
                     _conf_set_str_from_conf(config, lastSection,
-                        "bindport",
-                        &bindport, NULL,
-                        "bind port is mandatory in server mode!\n", 1);
+                                            "bindport",
+                                            &bindport, NULL,
+                                            "bind port is mandatory in server mode!\n", 1);
 
                     _conf_set_str_from_conf(config, lastSection,
-                        "remotehost", &dstaddr, NULL, NULL, 0);
+                                            "remotehost", &dstaddr, NULL, NULL, 0);
 
                     _conf_set_str_from_conf(config, lastSection,
-                        "remoteport", &dstport, NULL, NULL, 0);
+                                            "remoteport", &dstport, NULL, NULL, 0);
 
                     _conf_set_int_from_conf(config, lastSection,
-                        "bandwidth_download", &bwlimit, 0, NULL, 0);
+                                            "bandwidth_download", &bwlimit, 0, NULL, 0);
                 } else {
                     _conf_set_str_from_conf(config, lastSection,
-                        "bindhost",
-                        &bindaddr, "0.0.0.0", "binding to host 0.0.0.0\n", 0);
+                                            "bindhost",
+                                            &bindaddr, "0.0.0.0", "binding to host 0.0.0.0\n", 0);
                     _conf_set_str_from_conf(config, lastSection,
-                        "bindport",
-                        &bindport, NULL, NULL, 0);
+                                            "bindport",
+                                            &bindport, NULL, NULL, 0);
                     _conf_set_str_from_conf(config, lastSection,
-                        "remotehost",
-                        &dstaddr, NULL, "No remote address specified.\n", 1);
+                                            "remotehost",
+                                            &dstaddr, NULL, "No remote address specified.\n", 1);
                     _conf_set_str_from_conf(config, lastSection,
-                        "remoteport",
-                        &dstport, NULL, "No remote port specified.\n", 1);
+                                            "remoteport",
+                                            &dstport, NULL, "No remote port specified.\n", 1);
                     _conf_set_int_from_conf(config, lastSection,
-                        "bandwidth_upload", &bwlimit, 0, NULL, 0);
+                                            "bandwidth_upload", &bwlimit, 0, NULL, 0);
                 }
 
                 _conf_set_str_from_conf(config, lastSection,
-                    "protocol", &tmp, NULL, NULL, 0);
+                                        "protocol", &tmp, NULL, NULL, 0);
 
                 if (tmp)
                 {
@@ -965,12 +965,12 @@ mlvpn_config(int config_file_fd, int first_time)
                 }
 
                 _conf_set_int_from_conf(config, lastSection,
-                    "timeout",
-                    (int *)&timeout, default_timeout, NULL, 0);
+                                        "timeout",
+                                        (int *)&timeout, default_timeout, NULL, 0);
 
                 _conf_set_int_from_conf(config, lastSection,
-                    "latency_increase",
-                    (int *)&latency_increase, 0, NULL, 0);
+                                        "latency_increase",
+                                        (int *)&latency_increase, 0, NULL, 0);
 
                 if (rtun_start)
                 {
@@ -980,12 +980,12 @@ mlvpn_config(int config_file_fd, int first_time)
                         if (mystr_eq(lastSection, tmptun->name))
                         {
                             _INFO("Updating tunnel %s during config reload.\n",
-                                tmptun->name);
+                                  tmptun->name);
                             if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
-                                (! mystr_eq(tmptun->bindport, bindport)) ||
-                                (! mystr_eq(tmptun->destaddr, dstaddr)) ||
-                                (! mystr_eq(tmptun->destport, dstport)) ||
-                                (tmptun->encap_prot != protocol))
+                                    (! mystr_eq(tmptun->bindport, bindport)) ||
+                                    (! mystr_eq(tmptun->destaddr, dstaddr)) ||
+                                    (! mystr_eq(tmptun->destport, dstport)) ||
+                                    (tmptun->encap_prot != protocol))
                             {
                                 mlvpn_rtun_status_down(tmptun);
                             }
@@ -1047,7 +1047,7 @@ mlvpn_config(int config_file_fd, int first_time)
             while (work)
             {
                 if (work->conf && work->section &&
-                    mystr_eq(work->section, tmptun->name))
+                        mystr_eq(work->section, tmptun->name))
                 {
                     found_in_config = 1;
                     break;
@@ -1176,7 +1176,7 @@ main(int argc, char **argv)
     while(1)
     {
         c = getopt_long(argc, save_argv, optstr,
-            long_options, &option_index);
+                        long_options, &option_index);
         if (c == -1)
             break;
 
@@ -1222,9 +1222,9 @@ main(int argc, char **argv)
         if (mlvpn_options.process_name)
         {
             snprintf(mlvpn_priv_process_name, 2048, "mlvpn [priv] %s",
-                mlvpn_options.process_name);
+                     mlvpn_options.process_name);
             snprintf(mlvpn_process_name, 2048, "mlvpn %s",
-                mlvpn_options.process_name);
+                     mlvpn_options.process_name);
             init_ps_display(mlvpn_priv_process_name);
         } else {
             strlcpy(mlvpn_priv_process_name, "mlvpn [priv]", 2047);
@@ -1240,7 +1240,7 @@ main(int argc, char **argv)
         if (!mlvpn_options.root_allowed && ! pw)
         {
             fprintf(stderr, "You are not allowed to run this program as root.\n"
-                "Please specify a valid user with --user option.\n");
+                    "Please specify a valid user with --user option.\n");
             _exit(1);
         }
         if (! pw)
@@ -1282,7 +1282,7 @@ main(int argc, char **argv)
     if (mlvpn_options.config_fd < 0)
     {
         _ERROR("Unable to open config file %s.\n",
-            mlvpn_options.config);
+               mlvpn_options.config);
         _exit(1);
     }
 

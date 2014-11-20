@@ -53,8 +53,8 @@ __DEBUG(int _debug_line, const char *_debug_filename,
         return;
     }
     snprintf(z_format, 1023, "[%.2d:%.2d:%.2d][%s:%d] %s",
-            curTime.tm_hour, curTime.tm_min, curTime.tm_sec,
-            _debug_filename, _debug_line, _debug_message);
+             curTime.tm_hour, curTime.tm_min, curTime.tm_sec,
+             _debug_filename, _debug_line, _debug_message);
 
     va_start(ap, _debug_message);
     vfprintf(output, z_format, ap);
@@ -81,7 +81,7 @@ int logger_init(logfile_t *logfile)
         if (! logfile->fd)
         {
             fprintf(stderr, "Unable to open logfile %s for writing. Check permissions!\n",
-                        logfile->filename);
+                    logfile->filename);
             return -1;
         }
     }

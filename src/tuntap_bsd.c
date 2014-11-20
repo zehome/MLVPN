@@ -53,12 +53,12 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     {
         /* read error on tuntap is not recoverable. We must die. */
         _FATAL("[tuntap %s] unrecoverable read error: %s\n",
-                tuntap->devname, strerror(errno));
+               tuntap->devname, strerror(errno));
         exit(1);
     } else if (ret == 0) {
         /* End of file */
         _FATAL("[tuntap %s] unrecoverable error (reached EOF on tuntap!)\n",
-                tuntap->devname);
+               tuntap->devname);
         exit(1);
     }
     pkt->len = ret - sizeof(type);
@@ -78,7 +78,7 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
     if (mlvpn_cb_is_empty(buf))
     {
         _FATAL("[tuntap %s] tuntap_write called with empty buffer!\n",
-                tuntap->devname);
+               tuntap->devname);
         return -1;
     }
 
@@ -96,15 +96,15 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
     if (len < 0)
     {
         _ERROR("[tuntap %s] write error: %s\n",
-                tuntap->devname, strerror(errno));
+               tuntap->devname, strerror(errno));
     } else {
         if (datalen != pkt->len)
         {
             _ERROR("[tuntap %s] write error: only %d/%d bytes sent.\n",
-                    tuntap->devname, datalen, pkt->len);
+                   tuntap->devname, datalen, pkt->len);
         } else {
             _DEBUG("[tuntap %s] >> wrote %d bytes.\n",
-                    tuntap->devname, datalen);
+                   tuntap->devname, datalen);
         }
     }
 
@@ -123,7 +123,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     for (i=0; i < 32; i++)
     {
         snprintf(devname, 5, "%s%d",
-            tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
+                 tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
         snprintf(tuntap->devname, 10, "/dev/%s", devname);
 
         if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) > 0 )
@@ -134,7 +134,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     {
         _FATAL("[tuntap] unable to open any /dev/%s0 to 32 read/write. "
                "Check permissions.\n",
-            tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
+               tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
         return fd;
     }
     tuntap->fd = fd;
@@ -191,7 +191,7 @@ root_tuntap_open(int tuntapmode, char *devname)
             return -1;
         }
 #endif
-   }
-   return fd;
+    }
+    return fd;
 }
 

@@ -8,12 +8,12 @@
 #include <ev.h>
 
 #ifdef HAVE_OPENBSD
- #include <netinet/in.h>
+#include <netinet/in.h>
 #endif
 
 /* Many thanks Fabien Dupont! */
 #ifdef HAVE_LINUX
- /* Absolutely essential to have it there for IFNAMSIZ */
+/* Absolutely essential to have it there for IFNAMSIZ */
 #include <sys/types.h>
 #include <netdb.h>
 #include <linux/if.h>
@@ -33,7 +33,7 @@
 
 /* tuntap interface name size */
 #ifndef IFNAMSIZ
- #define IFNAMSIZ 16
+#define IFNAMSIZ 16
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 

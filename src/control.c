@@ -153,10 +153,10 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
             /* TODO: handle proper "at_exit" removal of this socket */
             unlink(un_addr.sun_path);
             if (bind(ctrl->fifofd, (struct sockaddr *) &un_addr,
-                sizeof(un_addr)) < 0)
+                     sizeof(un_addr)) < 0)
             {
                 _ERROR("Error binding socket %s: %s\n", un_addr.sun_path,
-                    strerror(errno));
+                       strerror(errno));
                 close(ctrl->fifofd);
                 ctrl->fifofd = -1;
             }
@@ -174,29 +174,29 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
         hints.ai_socktype = SOCK_STREAM;
 
         ret = priv_getaddrinfo(ctrl->bindaddr, ctrl->bindport,
-            &res, &hints);
+                               &res, &hints);
         bak = res;
         if (ret < 0 || ! res)
         {
             _ERROR("_getaddrinfo(%s,%s) failed: %s\n",
-                ctrl->bindaddr, ctrl->bindport,
-                gai_strerror(ret));
+                   ctrl->bindaddr, ctrl->bindport,
+                   gai_strerror(ret));
         }
 
         while(res)
         {
             if ( (ctrl->sockfd = socket(res->ai_family,
-                            res->ai_socktype,
-                            res->ai_protocol)) < 0)
+                                        res->ai_socktype,
+                                        res->ai_protocol)) < 0)
             {
                 _ERROR("Socket creation error (%s:%s): %s\n",
-                    ctrl->bindaddr, ctrl->bindport, strerror(errno));
+                       ctrl->bindaddr, ctrl->bindport, strerror(errno));
             } else {
                 val = 1;
                 setsockopt(ctrl->sockfd, SOL_SOCKET, SO_REUSEADDR,
-                    &val, sizeof(int));
+                           &val, sizeof(int));
                 setsockopt(ctrl->sockfd, IPPROTO_TCP, TCP_NODELAY,
-                    &val, sizeof(int));
+                           &val, sizeof(int));
                 if (bind(ctrl->sockfd, res->ai_addr, res->ai_addrlen) < 0)
                 {
                     _ERROR("Bind error on %d: %s\n", ctrl->sockfd, strerror(errno));
@@ -275,7 +275,7 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
         if (ctrl->clientfd != -1)
         {
             _DEBUG("Remote control already connected on fd %d.\n",
-                ctrl->clientfd);
+                   ctrl->clientfd);
             send(cfd, "ERR: Already connected.\n", 24, 0);
             close(cfd);
             return 0;
@@ -284,7 +284,7 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
         if (mlvpn_sock_set_nonblocking(cfd) < 0)
         {
             _ERROR("Unable to set client control socket non blocking: %s\n",
-                strerror(errno));
+                   strerror(errno));
             ctrl->clientfd = -1;
             close(cfd);
         } else
@@ -303,10 +303,10 @@ int
 mlvpn_control_timeout(struct mlvpn_control *ctrl)
 {
     if (ctrl->mode != MLVPN_CONTROL_DISABLED &&
-        ctrl->clientfd >= 0)
+            ctrl->clientfd >= 0)
     {
         if (ctrl->last_activity + MLVPN_CTRL_TIMEOUT <=
-            time((time_t *)NULL))
+                time((time_t *)NULL))
         {
             _INFO("Control socket %d timeout.\n", ctrl->clientfd);
             mlvpn_control_close_client(ctrl);
@@ -355,7 +355,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
         mlvpn_control_close_client(ctrl);
     } else {
         mlvpn_control_write(ctrl, JSON_STATUS_ERROR_UNKNOWN_COMMAND,
-            strlen(JSON_STATUS_ERROR_UNKNOWN_COMMAND));
+                            strlen(JSON_STATUS_ERROR_UNKNOWN_COMMAND));
     }
 
     if (ctrl->http)
@@ -369,14 +369,14 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
     mlvpn_tunnel_t *t = rtun_start;
 
     ret = snprintf(buf, 1024, JSON_STATUS_BASE,
-        progname,
-        1, 1,
-        (uint32_t) start_time,
-        (uint32_t) last_reload,
-        0,
-        tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
-        tuntap.devname
-    );
+                   progname,
+                   1, 1,
+                   (uint32_t) start_time,
+                   (uint32_t) last_reload,
+                   0,
+                   tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
+                   tuntap.devname
+                  );
     mlvpn_control_write(ctrl, buf, ret);
     while (t)
     {
@@ -392,24 +392,24 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
             status = "connected";
 
         ret = snprintf(buf, 1024, JSON_STATUS_RTUN,
-            t->name,
-            mode,
-            encap,
-            t->bindaddr ? t->bindaddr : "any",
-            t->bindport ? t->bindport : "any",
-            t->destaddr ? t->destaddr : "",
-            t->destport ? t->destport : "",
-            status,
-            (long long unsigned int)t->sentpackets,
-            (long long unsigned int)t->recvpackets,
-            (long long unsigned int)t->sentbytes,
-            (long long unsigned int)t->recvbytes,
-            0,
-            t->disconnects,
-            (uint32_t) t->last_activity,
-            (uint32_t) t->timeout,
-            (t->next) ? "," : ""
-        );
+                       t->name,
+                       mode,
+                       encap,
+                       t->bindaddr ? t->bindaddr : "any",
+                       t->bindport ? t->bindport : "any",
+                       t->destaddr ? t->destaddr : "",
+                       t->destport ? t->destport : "",
+                       status,
+                       (long long unsigned int)t->sentpackets,
+                       (long long unsigned int)t->recvpackets,
+                       (long long unsigned int)t->sentbytes,
+                       (long long unsigned int)t->recvbytes,
+                       0,
+                       t->disconnects,
+                       (uint32_t) t->last_activity,
+                       (uint32_t) t->timeout,
+                       (t->next) ? "," : ""
+                      );
         mlvpn_control_write(ctrl, buf, ret);
 
         t = t->next;
@@ -440,7 +440,7 @@ mlvpn_control_read_check(struct mlvpn_control *ctrl)
             line[i] = '\0';
             /* Shift the actual buffer */
             memmove(ctrl->rbuf, ctrl->rbuf+i,
-                MLVPN_CTRL_BUFSIZ - i);
+                    MLVPN_CTRL_BUFSIZ - i);
             ctrl->rbufpos -= i+1;
             mlvpn_control_parse(ctrl, line);
             return 1;
@@ -456,7 +456,7 @@ mlvpn_control_read(struct mlvpn_control *ctrl)
     int len;
 
     len = read(ctrl->clientfd, ctrl->rbuf + ctrl->rbufpos,
-        MLVPN_CTRL_BUFSIZ - ctrl->rbufpos);
+               MLVPN_CTRL_BUFSIZ - ctrl->rbufpos);
     if (len > 0)
     {
         ctrl->last_activity = time((time_t *)NULL);
@@ -473,7 +473,7 @@ mlvpn_control_read(struct mlvpn_control *ctrl)
         while (mlvpn_control_read_check(ctrl) != 0);
     } else if (len < 0) {
         _ERROR("Read error on fd %d: %s\n", ctrl->clientfd,
-            strerror(errno));
+               strerror(errno));
         mlvpn_control_close_client(ctrl);
     } else {
         /* End of file */
@@ -521,7 +521,7 @@ mlvpn_control_send(struct mlvpn_control *ctrl)
     if (len < 0)
     {
         _ERROR("Error writing on control socket %d: %s\n",
-            ctrl->clientfd, strerror(errno));
+               ctrl->clientfd, strerror(errno));
         mlvpn_control_close_client(ctrl);
     } else {
         ctrl->wbufpos -= len;
