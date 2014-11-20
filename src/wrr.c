@@ -7,7 +7,7 @@
 struct mlvpn_wrr {
     int len;
     mlvpn_tunnel_t *tunnel[MAX_TUNNELS];
-    double tunval[MAX_TUNNELS]; 
+    double tunval[MAX_TUNNELS];
 };
 
 static struct mlvpn_wrr wrr = {
@@ -53,7 +53,7 @@ int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
         }
         t = t->next;
     }
-    
+
     return 0;
 }
 

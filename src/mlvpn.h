@@ -37,6 +37,8 @@
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 
+#define NEXT_KEEPALIVE(now, t) (now + ((t->timeout*1000) / 2))
+
 struct mlvpn_options
 {
     /* use ps_status or not ? */
@@ -79,54 +81,35 @@ typedef struct mlvpn_tunnel_s
     int server_mode;      /* server or client */
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
-    time_t next_attempt;  /* next connection attempt */
     double weight;        /* For weight round robin */
     uint64_t sentpackets; /* 64bit packets sent counter */
     uint64_t recvpackets; /* 64bit packets recv counter */
     uint64_t sentbytes;   /* 64bit bytes sent counter */
     uint64_t recvbytes;   /* 64bit bytes recv counter */
-    uint32_t latency_increase; /* 32bit latency increase counter in ms */
+    uint32_t timeout;     /* configured timeout in seconds */
     circular_buffer_t *sbuf;    /* send buffer */
     circular_buffer_t *hpsbuf;  /* high priority buffer */
     circular_buffer_t *rbuf;    /* receive buffer */
-    struct mlvpn_tunnel_s *next; /* chained list to next element */
     enum encap_proto encap_prot;
     struct addrinfo *addrinfo;
-    enum chap_status status;     /* Auth status */
-    time_t last_packet_time; /* Used to timeout the link */
-    time_t timeout;
-    time_t next_keepalive; /* when to send the "next" keepalive packet */
+    enum chap_status status;    /* Auth status */
+    ev_tstamp last_activity;
+    ev_tstamp last_connection_attempt;
+    ev_tstamp next_keepalive;
     ev_io io_read;
     ev_io io_write;
     ev_timer io_timeout;
+    struct mlvpn_tunnel_s *next; /* chained list to next element */
 } mlvpn_tunnel_t;
 
 int mlvpn_config(int config_file_fd, int first_time);
-
 int mlvpn_sock_set_nonblocking(int fd);
 
-void mlvpn_rtun_status_up(mlvpn_tunnel_t *t);
-void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
-void mlvpn_rtun_tick(mlvpn_tunnel_t *t);
-void mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t);
-void mlvpn_rtun_keepalive(time_t now, mlvpn_tunnel_t *t);
-void mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents);
-void mlvpn_rtun_recalc_weight();
-int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
-int mlvpn_rtun_connect(mlvpn_tunnel_t *t);
-mlvpn_tunnel_t *mlvpn_rtun_last();
-mlvpn_tunnel_t *mlvpn_rtun_choose();
-mlvpn_tunnel_t *
-mlvpn_rtun_new(const char *name,
-               const char *bindaddr, const char *bindport,
-               const char *destaddr, const char *destport,
-               int server_mode);
-
-int mlvpn_server_accept();
 
 /* wrr */
 int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
+mlvpn_tunnel_t *mlvpn_rtun_choose();
 
 /* privsep */
 #include "privsep.h"

@@ -406,7 +406,7 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
             (long long unsigned int)t->recvbytes,
             0,
             t->disconnects,
-            (uint32_t) t->last_packet_time,
+            (uint32_t) t->last_activity,
             (uint32_t) t->timeout,
             (t->next) ? "," : ""
         );
