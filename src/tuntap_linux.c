@@ -1,6 +1,3 @@
-
-#include "config.h"
-
 #include <err.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -8,9 +5,10 @@
 #include <linux/if_tun.h>
 #include <linux/if.h>
 
+#include "includes.h"
+
 #include "buffer.h"
 #include "tuntap_generic.h"
-#include "strlcpy.h"
 #include "tool.h"
 
 int

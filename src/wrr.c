@@ -16,7 +16,7 @@ static struct mlvpn_wrr wrr = {
     {0}
 };
 
-int wrr_min_index()
+static int wrr_min_index()
 {
     double min = 100.0;
     int min_index = 0;
@@ -34,11 +34,11 @@ int wrr_min_index()
 }
 
 /* initialize wrr system */
-int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
+int mlvpn_rtun_wrr_init(struct rtunhead *head)
 {
-    mlvpn_tunnel_t *t = start;
+    mlvpn_tunnel_t *t;
     wrr.len = 0;
-    while (t)
+    LIST_FOREACH(t, head, entries)
     {
         if (t->status >= MLVPN_CHAP_AUTHOK)
         {
@@ -51,7 +51,6 @@ int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start)
             wrr.tunval[wrr.len] = 0.0;
             wrr.len++;
         }
-        t = t->next;
     }
 
     return 0;

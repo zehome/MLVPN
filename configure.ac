@@ -8,6 +8,21 @@ AC_CONFIG_HEADERS([config.h])
 AC_GNU_SOURCE
 AC_DEFINE([__USE_BSD], 1, [Enable BSD extensions])
 
+AC_MSG_CHECKING([if compiler allows __attribute__ on return types])
+AC_COMPILE_IFELSE(
+    [AC_LANG_PROGRAM([[
+#include <stdlib.h>
+__attribute__((__unused__)) static void foo(void){return;}]],
+    [[ exit(0); ]])],
+    [ AC_MSG_RESULT([yes]) ],
+    [ AC_MSG_RESULT([no])
+      AC_DEFINE(NO_ATTRIBUTE_ON_RETURN_TYPE, 1,
+         [compiler does not accept __attribute__ on return types]) ]
+)
+if test "x$no_attrib_nonnull" != "x1" ; then
+    AC_DEFINE([HAVE_ATTRIBUTE__NONNULL__], [1], [Have attribute nonnull])
+fi
+
 dnl Check and set Operating System
 # Operating system specific tuntap
 AC_CANONICAL_HOST
@@ -29,6 +44,10 @@ case $host_os in
         AC_DEFINE(HAVE_BSD, 1, [BSD])
         bsd=true
     ;;
+    *openbsd*)
+        AC_DEFINE([HAVE_ATTRIBUTE__SENTINEL__], [1], [OpenBSD's gcc has sentinel])
+        AC_DEFINE([HAVE_ATTRIBUTE__BOUNDED__], [1], [OpenBSD's gcc has bounded])
+    ;;
     *)
         AC_MSG_ERROR("Unknown operating system.")
     ;;
@@ -36,6 +55,13 @@ esac
 
 AM_CONDITIONAL([LINUX], [test x$linux = xtrue])
 AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
+
+dnl Checks for library functions. Please keep in alphabetical order
+AC_CHECK_FUNCS([ \
+    strlcat \
+    strlcpy \
+    vsnprintf
+])
 
 dnl Checks for libev
 # lib ev

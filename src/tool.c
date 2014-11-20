@@ -1,3 +1,5 @@
+#include "includes.h"
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,7 +9,6 @@
 #include <stdint.h>
 #include <sys/time.h>
 
-#include "config.h"
 #include "tool.h"
 #include "debug.h"
 

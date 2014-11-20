@@ -29,17 +29,16 @@
 #include <netdb.h>
 #include <ev.h>
 
+#include "includes.h"
 #include "debug.h"
 #include "mlvpn.h"
 #include "tool.h"
 #include "configlib.h"
-#include "ps_status.h"
-#include "config.h"
+#include "setproctitle.h"
 #include "crypto.h"
 #ifdef HAVE_MLVPN_CONTROL
 #include "control.h"
 #endif
-#include "strlcpy.h"
 #include "tuntap_generic.h"
 
 /* Linux specific things */
@@ -53,12 +52,13 @@
 
 /* GLOBALS */
 struct tuntap_s tuntap;
-mlvpn_tunnel_t *rtun_start = NULL;
-char *progname;
+char *_progname;
 logfile_t *logger = NULL;
+static char **saved_argv;
 
 /* "private" */
 static char *status_command = NULL;
+static char *process_title;
 
 /* Statistics */
 time_t start_time;
@@ -82,9 +82,6 @@ static struct option long_options[] = {
 };
 static struct mlvpn_options mlvpn_options;
 
-static char mlvpn_priv_process_name[2048] = {0};
-static char mlvpn_process_name[2048] = {0};
-
 static void mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents);
 static void mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents);
 static void mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents);
@@ -97,13 +94,12 @@ static void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_recalc_weight();
 static int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
-static mlvpn_tunnel_t *mlvpn_rtun_last();
+static void update_process_title();
 static mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
                const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout);
-
 
 static void
 usage(char **argv)
@@ -144,17 +140,6 @@ mlvpn_sock_set_nonblocking(int fd)
         }
     }
     return ret;
-}
-
-inline mlvpn_tunnel_t *
-mlvpn_rtun_last()
-{
-    mlvpn_tunnel_t *t = rtun_start;
-    if (t == NULL)
-        return NULL;
-    while (t->next)
-        t = t->next;
-    return t;
 }
 
 static void inline mlvpn_rtun_tick(mlvpn_tunnel_t *t) {
@@ -373,7 +358,6 @@ mlvpn_rtun_new(const char *name,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout)
 {
-    mlvpn_tunnel_t *last;
     mlvpn_tunnel_t *new;
 
     /* Some basic checks */
@@ -439,14 +423,7 @@ mlvpn_rtun_new(const char *name,
     new->timeout = timeout;
     new->next_keepalive = 0;
 
-    /* insert into chained list */
-    last = mlvpn_rtun_last();
-    if (last) {
-        last->next = new;
-    } else {
-        /* First element */
-        rtun_start = new;
-    }
+    LIST_INSERT_HEAD(&rtuns, new, entries);
 
     new->io_read.data = new;
     new->io_write.data = new;
@@ -456,6 +433,7 @@ mlvpn_rtun_new(const char *name,
     ev_init(&new->io_timeout, mlvpn_rtun_check_timeout);
     new->io_timeout.repeat = 1.;
     mlvpn_rtun_tick_connect(new);
+    update_process_title();
     return new;
 }
 
@@ -465,13 +443,13 @@ mlvpn_rtun_new(const char *name,
 void
 mlvpn_rtun_recalc_weight()
 {
-    mlvpn_tunnel_t *t = rtun_start;
+    mlvpn_tunnel_t *t;
     uint32_t bandwidth_total = 0;
     int warned = 0;
 
     /* If the bandwidth limit is not set on all interfaces, then
      * it's impossible to balance correctly! */
-    while (t)
+    LIST_FOREACH(t, &rtuns, entries)
     {
         if (mlvpn_pktbuffer_bandwidth(t->sbuf) == 0)
         {
@@ -481,13 +459,11 @@ mlvpn_rtun_recalc_weight()
             warned++;
         }
         bandwidth_total += mlvpn_pktbuffer_bandwidth(t->sbuf);
-        t = t->next;
     }
 
     if (warned == 0)
     {
-        t = rtun_start;
-        while (t)
+        LIST_FOREACH(t, &rtuns, entries)
         {
             /* useless, but we want to be sure not to divide by 0 ! */
             if (mlvpn_pktbuffer_bandwidth(t->sbuf) > 0 && bandwidth_total > 0)
@@ -497,7 +473,6 @@ mlvpn_rtun_recalc_weight()
                 _DEBUG("tun %s weight = %f (%u %u)\n", t->name, t->weight,
                        mlvpn_pktbuffer_bandwidth(t->sbuf), bandwidth_total);
             }
-            t = t->next;
         }
     }
 }
@@ -632,7 +607,7 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     t->status = MLVPN_CHAP_AUTHOK;
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
     t->last_activity = now;
-    mlvpn_rtun_wrr_init(rtun_start);
+    mlvpn_rtun_wrr_init(&rtuns);
     priv_run_script(3, cmdargs);
 }
 
@@ -654,28 +629,23 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
         char *cmdargs[4] = {tuntap.devname, "rtun_down", t->name, NULL};
         priv_run_script(3, cmdargs);
         /* Re-initialize weight round robin */
-        mlvpn_rtun_wrr_init(rtun_start);
+        mlvpn_rtun_wrr_init(&rtuns);
     }
 }
 
 void
 mlvpn_rtun_drop(mlvpn_tunnel_t *t)
 {
-    mlvpn_tunnel_t *tmp = rtun_start;
-    mlvpn_tunnel_t *prev = NULL;
+    mlvpn_tunnel_t *tmp;
     mlvpn_rtun_status_down(t);
     ev_timer_stop(EV_DEFAULT_UC, &t->io_timeout);
     ev_io_stop(EV_DEFAULT_UC, &t->io_read);
 
-    while (tmp)
+    LIST_FOREACH(tmp, &rtuns, entries)
     {
         if (mystr_eq(tmp->name, t->name))
         {
-            if (prev)
-                prev->next = tmp->next;
-            else
-                rtun_start = NULL;
-
+            LIST_REMOVE(tmp, entries);
             if (tmp->name)
                 free(tmp->name);
             if (tmp->bindaddr)
@@ -693,11 +663,9 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
             /* Safety */
             tmp->name = NULL;
             break;
-        } else
-            prev = tmp;
-
-        tmp = tmp->next;
+        }
     }
+    update_process_title();
 }
 
 void
@@ -972,10 +940,9 @@ mlvpn_config(int config_file_fd, int first_time)
                                         "latency_increase",
                                         (int *)&latency_increase, 0, NULL, 0);
 
-                if (rtun_start)
+                if (! LIST_EMPTY(&rtuns))
                 {
-                    tmptun = rtun_start;
-                    while (tmptun)
+                    LIST_FOREACH(tmptun, &rtuns, entries)
                     {
                         if (mystr_eq(lastSection, tmptun->name))
                         {
@@ -1017,7 +984,6 @@ mlvpn_config(int config_file_fd, int first_time)
                             create_tunnel = 0;
                             break; /* Very important ! */
                         }
-                        tmptun = tmptun->next;
                     }
                 }
 
@@ -1038,8 +1004,7 @@ mlvpn_config(int config_file_fd, int first_time)
     /* Ok, let's delete old tunnels */
     if (! first_time)
     {
-        tmptun = rtun_start;
-        while (tmptun)
+        LIST_FOREACH(tmptun, &rtuns, entries)
         {
             int found_in_config = 0;
 
@@ -1060,7 +1025,6 @@ mlvpn_config(int config_file_fd, int first_time)
                 _INFO("Deleting tunnel %s.\n", tmptun->name);
                 mlvpn_rtun_drop(tmptun);
             }
-            tmptun = tmptun->next;
         }
     }
     _conf_printConfig(config);
@@ -1131,17 +1095,55 @@ mlvpn_tuntap_init()
     ev_init(&tuntap.io_write, tuntap_io_event);
 }
 
+void
+update_process_title()
+{
+    char title[1024];
+    char *s;
+    mlvpn_tunnel_t *t;
+    char status[32];
+    int len;
+    memset(title, 0, sizeof(title));
+    strlcat(title, process_title, sizeof(title));
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+        switch(t->status) {
+            case MLVPN_CHAP_AUTHOK:
+                s = "@";
+                break;
+            default:
+                s = "!";
+                break;
+        }
+        len = snprintf(status, sizeof(status) - 1, " %s%s", s, t->name);
+        if (len) {
+            status[len] = 0;
+            strlcat(title, status, sizeof(title));
+        }
+    }
+    setproctitle(title);
+}
+
 int
 main(int argc, char **argv)
 {
-    char **save_argv;
-    int ret;
+    int ret, i;
     struct ev_loop *loop = EV_DEFAULT;
+    extern char *__progname;
 #ifdef HAVE_MLVPN_CONTROL
     struct mlvpn_control control;
 #endif
     /* uptime statistics */
     last_reload = start_time = time((time_t *)NULL);
+
+    _progname = strdup(__progname);
+    saved_argv = calloc(argc + 1, sizeof(*saved_argv));
+    for(i = 0; i < argc; i++) {
+        saved_argv[i] = strdup(argv[i]);
+    }
+    saved_argv[i] = NULL;
+    compat_init_setproctitle(argc, argv);
+    argv = saved_argv;
 
     mlvpn_options.change_process_title = 1;
     *mlvpn_options.process_name = '\0';
@@ -1153,18 +1155,6 @@ main(int argc, char **argv)
     *mlvpn_options.unpriv_user = '\0';
     mlvpn_options.root_allowed = 0;
 
-    /* ps_status misc */
-    {
-        char *p;
-        progname = argv[0];
-        if ((p = strrchr(progname, '/')) != NULL)
-            progname = p+1;
-        save_argv = save_ps_display_args(argc, argv);
-    }
-
-    /* TODO: Usefull anymore? */
-    srand(time((time_t *)NULL));
-
     /* Parse the command line quickly for config file name.
      * This is needed for priv_init to know where the config
      * file is.
@@ -1175,7 +1165,7 @@ main(int argc, char **argv)
     int option_index = 0;
     while(1)
     {
-        c = getopt_long(argc, save_argv, optstr,
+        c = getopt_long(argc, saved_argv, optstr,
                         long_options, &option_index);
         if (c == -1)
             break;
@@ -1220,17 +1210,9 @@ main(int argc, char **argv)
     if (mlvpn_options.change_process_title)
     {
         if (mlvpn_options.process_name)
-        {
-            snprintf(mlvpn_priv_process_name, 2048, "mlvpn [priv] %s",
-                     mlvpn_options.process_name);
-            snprintf(mlvpn_process_name, 2048, "mlvpn %s",
-                     mlvpn_options.process_name);
-            init_ps_display(mlvpn_priv_process_name);
-        } else {
-            strlcpy(mlvpn_priv_process_name, "mlvpn [priv]", 2047);
-            strlcpy(mlvpn_process_name, "mlvpn", 2047);
-            init_ps_display("mlvpn");
-        }
+            setproctitle("%s [priv]", mlvpn_options.process_name);
+        else
+            setproctitle("[priv]");
     }
 
     /* Some common checks */
@@ -1267,7 +1249,15 @@ main(int argc, char **argv)
         _exit(1);
     }
     priv_init(argv, mlvpn_options.unpriv_user);
-    set_ps_display(mlvpn_process_name);
+    if (mlvpn_options.change_process_title) {
+        if (mlvpn_options.process_name)
+            process_title = mlvpn_options.process_name;
+        else
+            process_title = "";
+        update_process_title();
+    }
+
+    LIST_INIT(&rtuns);
 
     /* Handle signals properly */
     signal_setup();
@@ -1333,6 +1323,7 @@ main(int argc, char **argv)
     char *cmdargs[3] = {tuntap.devname, "tuntap_down", NULL};
     mlvpn_hook(MLVPN_HOOK_TUNTAP, 2, cmdargs);
 
+    free(_progname);
     return 0;
 }
 

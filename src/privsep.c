@@ -19,7 +19,7 @@
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 
-#include "config.h"
+#include "includes.h"
 
 #include <sys/ioctl.h>
 #include <sys/param.h>
@@ -48,8 +48,6 @@
 #include "privsep.h"
 #include "mlvpn.h"
 #include "tuntap_generic.h"
-#include "ps_status.h"
-#include "strlcpy.h"
 
 /*
  * mlvpn can only go forward in these states; each state should represent

@@ -1,3 +1,5 @@
+#include "includes.h"
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,15 +13,13 @@
 #include <errno.h>
 #include <time.h>
 
-#include "strlcpy.h"
 #include "debug.h"
 #include "control.h"
 #include "mlvpn.h"
 #include "tuntap_generic.h"
 
 extern struct tuntap_s tuntap;
-extern mlvpn_tunnel_t *rtun_start;
-extern char *progname;
+extern char *_progname;
 extern time_t start_time;
 extern time_t last_reload;
 
@@ -130,6 +130,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
     ev_init(&ctrl->fifo_watcher, mlvpn_control_io_event);
     ev_init(&ctrl->sock_watcher, mlvpn_control_io_event);
     ev_init(&ctrl->client_io_read, mlvpn_control_client_io_event);
+    ev_init(&ctrl->client_io_write, mlvpn_control_client_io_event);
     ev_init(&ctrl->client_io_write, mlvpn_control_client_io_event);
     ev_init(&ctrl->timeout_watcher, mlvpn_control_timeout_event);
     ctrl->timeout_watcher.repeat = 1.;
@@ -242,10 +243,6 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
             }
         }
     }
-    if (ctrl->sockfd >= 0) {
-        ev_io_set(&ctrl->sock_watcher, ctrl->sockfd, EV_READ);
-        ev_io_start(EV_DEFAULT_UC, &ctrl->sock_watcher);
-    }
     if (ctrl->fifofd >= 0) {
         ev_io_set(&ctrl->fifo_watcher, ctrl->fifofd, EV_READ);
         ev_io_start(EV_DEFAULT_UC, &ctrl->fifo_watcher);
@@ -275,7 +272,7 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
         if (ctrl->clientfd != -1)
         {
             _DEBUG("Remote control already connected on fd %d.\n",
-                   ctrl->clientfd);
+                ctrl->clientfd);
             send(cfd, "ERR: Already connected.\n", 24, 0);
             close(cfd);
             return 0;
@@ -284,7 +281,7 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
         if (mlvpn_sock_set_nonblocking(cfd) < 0)
         {
             _ERROR("Unable to set client control socket non blocking: %s\n",
-                   strerror(errno));
+                strerror(errno));
             ctrl->clientfd = -1;
             close(cfd);
         } else
@@ -303,10 +300,10 @@ int
 mlvpn_control_timeout(struct mlvpn_control *ctrl)
 {
     if (ctrl->mode != MLVPN_CONTROL_DISABLED &&
-            ctrl->clientfd >= 0)
+        ctrl->clientfd >= 0)
     {
         if (ctrl->last_activity + MLVPN_CTRL_TIMEOUT <=
-                time((time_t *)NULL))
+            time((time_t *)NULL))
         {
             _INFO("Control socket %d timeout.\n", ctrl->clientfd);
             mlvpn_control_close_client(ctrl);
@@ -355,7 +352,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
         mlvpn_control_close_client(ctrl);
     } else {
         mlvpn_control_write(ctrl, JSON_STATUS_ERROR_UNKNOWN_COMMAND,
-                            strlen(JSON_STATUS_ERROR_UNKNOWN_COMMAND));
+            strlen(JSON_STATUS_ERROR_UNKNOWN_COMMAND));
     }
 
     if (ctrl->http)
@@ -366,19 +363,19 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
 {
     char buf[1024];
     size_t ret;
-    mlvpn_tunnel_t *t = rtun_start;
+    mlvpn_tunnel_t *t;
 
     ret = snprintf(buf, 1024, JSON_STATUS_BASE,
-                   progname,
-                   1, 1,
-                   (uint32_t) start_time,
-                   (uint32_t) last_reload,
-                   0,
-                   tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
-                   tuntap.devname
-                  );
+        _progname,
+        1, 1, /* TODO */
+        (uint32_t) start_time,
+        (uint32_t) last_reload,
+        0,
+        tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
+        tuntap.devname
+    );
     mlvpn_control_write(ctrl, buf, ret);
-    while (t)
+    LIST_FOREACH(t, &rtuns, entries)
     {
         char *mode = t->server_mode ? "server" : "client";
         char *status;
@@ -408,11 +405,9 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
                        t->disconnects,
                        (uint32_t) t->last_activity,
                        (uint32_t) t->timeout,
-                       (t->next) ? "," : ""
+                       (LIST_NEXT(t, entries) ? "," : "")
                       );
         mlvpn_control_write(ctrl, buf, ret);
-
-        t = t->next;
     }
     mlvpn_control_write(ctrl, "]}\n", 3);
 }
@@ -499,7 +494,6 @@ mlvpn_control_write(struct mlvpn_control *ctrl, void *buf, size_t len)
         mlvpn_control_close_client(ctrl);
         return -1;
     }
-
     memcpy(ctrl->wbuf+ctrl->wbufpos, buf, len);
     ctrl->wbufpos += len;
     ev_io_start(EV_DEFAULT_UC, &ctrl->client_io_write);
@@ -521,7 +515,7 @@ mlvpn_control_send(struct mlvpn_control *ctrl)
     if (len < 0)
     {
         _ERROR("Error writing on control socket %d: %s\n",
-               ctrl->clientfd, strerror(errno));
+            ctrl->clientfd, strerror(errno));
         mlvpn_control_close_client(ctrl);
     } else {
         ctrl->wbufpos -= len;

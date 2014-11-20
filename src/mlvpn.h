@@ -1,10 +1,11 @@
 #ifndef _MLVPN_H
 #define _MLVPN_H
 
-#include "config.h"
+#include "includes.h"
 
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/queue.h>
 #include <ev.h>
 
 #ifdef HAVE_OPENBSD
@@ -70,8 +71,11 @@ enum chap_status {
     MLVPN_CHAP_AUTHOK
 };
 
+LIST_HEAD(rtunhead, mlvpn_tunnel_s) rtuns;
+
 typedef struct mlvpn_tunnel_s
 {
+    LIST_ENTRY(mlvpn_tunnel_s) entries;
     char *name;           /* tunnel name */
     char *bindaddr;       /* packets source */
     char *bindport;       /* packets port source (or NULL) */
@@ -99,7 +103,6 @@ typedef struct mlvpn_tunnel_s
     ev_io io_read;
     ev_io io_write;
     ev_timer io_timeout;
-    struct mlvpn_tunnel_s *next; /* chained list to next element */
 } mlvpn_tunnel_t;
 
 int mlvpn_config(int config_file_fd, int first_time);
@@ -107,7 +110,7 @@ int mlvpn_sock_set_nonblocking(int fd);
 
 
 /* wrr */
-int mlvpn_rtun_wrr_init(mlvpn_tunnel_t *start);
+int mlvpn_rtun_wrr_init(struct rtunhead *head);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
 

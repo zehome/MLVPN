@@ -11,11 +11,11 @@ mlvpn_SOURCES = \
     configlib.c configlib.h \
     tool.c tool.h \
     debug.c debug.h \
-    ps_status.c ps_status.h \
     privsep.c privsep_fdpass.c \
     wrr.c \
     crypto.c \
-    strlcpy.c \
+    strlcpy.c strlcat.c vis.c vis.h \
+    setproctitle.c setproctitle.h \
     mlvpn.c mlvpn.h
 
 if LINUX

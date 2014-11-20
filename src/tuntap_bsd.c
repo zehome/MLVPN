@@ -1,4 +1,4 @@
-#include "config.h"
+#include "includes.h"
 
 #include <err.h>
 #include <sys/ioctl.h>
@@ -12,7 +12,6 @@
 
 #include "buffer.h"
 #include "tuntap_generic.h"
-#include "strlcpy.h"
 #include "tool.h"
 
 int
