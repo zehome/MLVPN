@@ -51,30 +51,3 @@ void stripBadChar(const char *from, char *to)
 
     *to = '\0';
 }
-
-char *
-tool_get_bytes(unsigned long long bytes)
-{
-    char *str;
-    char *conv_unit = NULL;
-    int conv_div = 1;
-
-    if (bytes < 1024)
-    {
-        conv_unit = "B";
-        conv_div = 1;
-    } else if (bytes < 1024*1024) {
-        conv_unit = "KiB";
-        conv_div = 1024;
-    } else if (bytes < 1024*1024*1024) {
-        conv_unit = "MiB";
-        conv_div = 1024*1024;
-    } else {
-        conv_unit = "GiB";
-        conv_div = 1024*1024*1024;
-    }
-
-    str = (char *)calloc(32, 1); /* 32 chars should be enough !!! */
-    snprintf(str, 32, "%0.3f %s", (double)(bytes / (double)conv_div), conv_unit);
-    return str;
-}
