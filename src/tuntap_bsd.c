@@ -57,6 +57,11 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
         fatal("tuntap unrecoverable error (reached EOF on tuntap!)");
     }
     pkt->len = ret - sizeof(type);
+
+    if (!ev_is_active(&rtun->io_write) && !mlvpn_cb_is_empty(rtun->sbuf)) {
+        ev_io_start(EV_DEFAULT_UC, &rtun->io_write);
+    }
+
     return pkt->len;
 }
 
