@@ -13,6 +13,9 @@ config.h.in~
 **/*.plist
 *.swp
 *.swo
+mlvpn-*.tar.gz
+.version
+test/
 debian/mlvpn.debhelper.log
 debian/mlvpn.postinst.debhelper
 debian/mlvpn.postrm.debhelper

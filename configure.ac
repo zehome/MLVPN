@@ -1,4 +1,6 @@
-AC_INIT([mlvpn], [2.0], [ed@zehome.com])
+AC_INIT([mlvpn],
+    m4_esyscmd([./git-version-gen .tarball-version]),
+    [ed@zehome.com])
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
 AM_SILENT_RULES([yes])
