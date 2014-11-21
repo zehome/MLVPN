@@ -55,8 +55,6 @@ mlvpn_cb_write(circular_buffer_t *buf, void **data);
  * Application specific cirtular buffer handlers
  */
 
-#define mlvpn_pktbuffer_bandwidth(buf) 0
-
 circular_buffer_t *
 mlvpn_pktbuffer_init(int size);
 

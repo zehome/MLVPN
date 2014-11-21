@@ -9,6 +9,7 @@ mlvpn_SOURCES = \
     pkt.h \
     buffer.c buffer.h \
     configlib.c configlib.h \
+    config.c \
     tool.c tool.h \
     privsep.c privsep_fdpass.c \
     wrr.c \

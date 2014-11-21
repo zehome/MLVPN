@@ -38,7 +38,7 @@
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 
-#define NEXT_KEEPALIVE(now, t) (now + ((t->timeout*1000) / 2))
+#define NEXT_KEEPALIVE(now, t) (now + (t->timeout / 2))
 
 struct mlvpn_options
 {
@@ -91,6 +91,7 @@ typedef struct mlvpn_tunnel_s
     uint64_t sentbytes;   /* 64bit bytes sent counter */
     uint64_t recvbytes;   /* 64bit bytes recv counter */
     uint32_t timeout;     /* configured timeout in seconds */
+    uint32_t bandwidth;   /* bandwidth in bytes per second */
     circular_buffer_t *sbuf;    /* send buffer */
     circular_buffer_t *hpsbuf;  /* high priority buffer */
     circular_buffer_t *rbuf;    /* receive buffer */
@@ -113,6 +114,12 @@ int mlvpn_sock_set_nonblocking(int fd);
 int mlvpn_rtun_wrr_init(struct rtunhead *head);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
+mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
+    const char *bindaddr, const char *bindport,
+    const char *destaddr, const char *destport,
+    int server_mode, uint32_t timeout);
+void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
+void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 
 /* privsep */
 #include "privsep.h"
