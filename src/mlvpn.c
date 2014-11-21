@@ -761,7 +761,7 @@ mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents)
         if ((t->last_activity != 0) && (t->last_activity + t->timeout) < now) {
             log_info("[rtun %s] timeout.", t->name);
             mlvpn_rtun_status_down(t);
-        } else if (! t->server_mode) {
+        } else {
             if (now > t->next_keepalive)
                 mlvpn_rtun_send_keepalive(now, t);
         }
