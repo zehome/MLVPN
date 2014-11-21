@@ -15,7 +15,6 @@ int priv_init(char *argv[], char *username);
 int priv_init_script(char *);
 int priv_open_config(char *);
 int priv_open_tun(int tuntapmode, char *devname);
-FILE *priv_open_log(char *lognam);
 int priv_run_script(int argc, char **argv);
 void priv_set_running_state(void);
 int

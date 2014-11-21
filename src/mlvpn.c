@@ -985,6 +985,7 @@ main(int argc, char **argv)
         fprintf(stderr, "libsodium initialization failed.\n");
         _exit(1);
     }
+    log_init(mlvpn_options.verbose);
     priv_init(argv, mlvpn_options.unpriv_user);
     if (mlvpn_options.change_process_title) {
         if (mlvpn_options.process_name)
@@ -1014,7 +1015,6 @@ main(int argc, char **argv)
     /* tun/tap initialization */
     mlvpn_tuntap_init();
 
-    log_init(mlvpn_options.verbose);
     if (mlvpn_config(mlvpn_options.config_fd, 1) != 0)
         _exit(1);
 

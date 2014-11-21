@@ -14,10 +14,14 @@ mlvpn_SOURCES = \
     privsep.c privsep_fdpass.c \
     wrr.c \
     crypto.c \
-    strlcpy.c strlcat.c vis.c vis.h \
-    setproctitle.c setproctitle.h \
     log.c \
     mlvpn.c mlvpn.h
+mlvpn_SOURCES += \
+    closefrom.c \
+    setproctitle.c \
+    strlcat.c \
+    strlcpy.c \
+    vis.c vis.h
 
 if LINUX
 mlvpn_SOURCES += tuntap_linux.c

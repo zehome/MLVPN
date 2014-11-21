@@ -71,7 +71,6 @@ enum priv_state {
 };
 
 enum cmd_types {
-    PRIV_OPEN_LOG,      /* open logfile for appending */
     PRIV_OPEN_CONFIG,   /* open config file for reading only */
     PRIV_INIT_SCRIPT,   /* set allowed status script path */
     PRIV_OPEN_TUN,      /* open tun/tap device */
@@ -88,7 +87,6 @@ static volatile pid_t child_pid = -1;
 static volatile sig_atomic_t cur_state = STATE_INIT;
 
 /* No-change runtime file path */
-static char allowed_logfile[MAXPATHLEN] = {0};
 static char allowed_configfile[MAXPATHLEN] = {0};
 
 static int root_open_file(char *, int);
@@ -228,34 +226,7 @@ priv_init(char *argv[], char *username)
             fd = root_open_file(allowed_configfile, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
             if (fd < 0)
-                warnx("priv_open_config `%s' failed", allowed_configfile);
-            else
-                close(fd);
-            break;
-
-        case PRIV_OPEN_LOG:
-            if (cur_state != STATE_CONFIG)
-                _exit(0);
-
-            /* Expecting: length, path */
-            must_read(socks[0], &len, sizeof(len));
-            if (len == 0 || len > sizeof(path))
-                _exit(0);
-            must_read(socks[0], &path, len);
-            path[len - 1] = '\0';
-            if (cur_state == STATE_CONFIG)
-                strlcpy(allowed_logfile, path, len);
-
-            if (! *allowed_logfile)
-            {
-                send_fd(socks[0], -1);
-                break;
-            }
-
-            fd = root_open_file(allowed_logfile, O_WRONLY|O_APPEND|O_NONBLOCK|O_CREAT);
-            send_fd(socks[0], fd);
-            if (fd < 0)
-                warnx("priv_open_log `%s' failed", allowed_logfile);
+                log_warnx("priv_open_config `%s' failed", allowed_configfile);
             else
                 close(fd);
             break;
@@ -449,7 +420,7 @@ root_launch_script(char *setup_script, int argc, char **argv)
 {
     sigset_t oldmask, mask;
     int pid, status = -1;
-    int open_max, i;
+    int i;
     char **newargs;
 
     sigemptyset(&mask);
@@ -460,24 +431,13 @@ root_launch_script(char *setup_script, int argc, char **argv)
     pid = fork();
     if (pid == 0)
     {
-        open_max = sysconf(_SC_OPEN_MAX);
-        for (i = 0; i < open_max; i++)
-        {
-            if (i != STDIN_FILENO &&
-                    i != STDOUT_FILENO &&
-                    i != STDERR_FILENO) {
-                close(i);
-            }
-        }
-
+        closefrom(3);
         newargs = (char **)malloc((argc+2)*sizeof(char *));
         newargs[0] = setup_script;
         for(i = 0; i < argc; i++)
             newargs[i+1] = argv[i];
         newargs[i+1] = NULL;
-
         chdir("/");
-
         execv(setup_script, newargs);
         _exit(1);
     } else if (pid > 0) {
@@ -485,16 +445,13 @@ root_launch_script(char *setup_script, int argc, char **argv)
             /* loop */
         }
         sigprocmask(SIG_SETMASK, &oldmask, NULL);
-
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             return status;
         } else {
-            fprintf(stderr, "network script exit status %d != 0!\n",
-                    status);
+            log_warnx( "network script exit status %d", status);
         }
     } else
-        fprintf(stderr, "%s: could not launch network script:  %s\n",
-                setup_script, strerror(errno));
+        log_warn("%s: could not launch network script", setup_script);
     return status;
 }
 
@@ -507,40 +464,6 @@ increase_state(int state)
     if (state < STATE_INIT || state > STATE_QUIT)
         errx(1, "attempt to switch to invalid state");
     cur_state = state;
-}
-
-/* Open log-file */
-FILE *
-priv_open_log(char *lognam)
-{
-    char path[MAXPATHLEN];
-    int cmd, fd;
-    size_t len;
-    FILE *fp;
-
-    if (priv_fd < 0)
-        errx(1, "%s: called from privileged child", "priv_open_log");
-
-    strncpy(path, lognam, sizeof path);
-    len = strlen(path) + 1;
-
-    cmd = PRIV_OPEN_LOG;
-    must_write(priv_fd, &cmd, sizeof(cmd));
-    must_write(priv_fd, &len, sizeof(len));
-    must_write(priv_fd, path, len);
-    fd = receive_fd(priv_fd);
-
-    if (fd < 0)
-        return NULL;
-
-    fp = fdopen(fd, "a");
-    if (!fp) {
-        warn("priv_open_log: fdopen() failed");
-        close(fd);
-        return NULL;
-    }
-
-    return fp;
 }
 
 /* Open mlvpn config file for reading */
@@ -687,7 +610,7 @@ priv_init_script(char *path)
     {
         errx(1, "priv_init_script: invalid answer from server.");
     } else if (len > ERRMSGSIZ) {
-        warnx("priv_init_script: error message truncated.");
+        log_warnx("priv_init_script: error message truncated.");
         len = ERRMSGSIZ;
     }
     must_read(priv_fd, errormessage, len);
@@ -695,7 +618,7 @@ priv_init_script(char *path)
 
     if (*errormessage)
     {
-        fprintf(stderr, "Error from priv server: %s\n", errormessage);
+        log_warnx("Error from priv server: %s", errormessage);
         return -1;
     }
     return 0;

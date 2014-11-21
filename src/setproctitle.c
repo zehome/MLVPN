@@ -31,13 +31,15 @@
  * SUCH DAMAGE.
  */
 
+#include "includes.h"
+#ifndef HAVE_SETPROCTITLE
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
-#include "includes.h"
 #include "vis.h"
 
 #define SPT_PADCHAR	'\0'
@@ -46,9 +48,12 @@ static char *argv_start = NULL;
 static size_t argv_env_len = 0;
 
 
+#endif /* HAVE_SETPROCTITLE */
+
 void
 compat_init_setproctitle(int argc, char *argv[])
 {
+#ifndef HAVE_SETPROCTITLE
 	extern char **environ;
 	char *lastargv = NULL;
 	char **envp = environ;
@@ -95,8 +100,10 @@ compat_init_setproctitle(int argc, char *argv[])
 	for (i = 0; envp[i] != NULL; i++)
 		environ[i] = strdup(envp[i]);
 	environ[i] = NULL;
+#endif /* HAVE_SETPROCTITLE */
 }
 
+#ifndef HAVE_SETPROCTITLE
 void
 setproctitle(const char *fmt, ...)
 {
@@ -128,3 +135,4 @@ setproctitle(const char *fmt, ...)
 	for(; len < argv_env_len; len++)
 		argv_start[len] = SPT_PADCHAR;
 }
+#endif /* HAVE_SETPROCTITLE */

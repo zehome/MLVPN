@@ -23,6 +23,14 @@ if test "x$no_attrib_nonnull" != "x1" ; then
     AC_DEFINE([HAVE_ATTRIBUTE__NONNULL__], [1], [Have attribute nonnull])
 fi
 
+AC_CHECK_HEADERS([ \
+    dirent.h \
+    fcntl.h \
+    sys/ndir.h \
+    sys/dir.h \
+    ndir.h
+])
+
 dnl Check and set Operating System
 # Operating system specific tuntap
 AC_CANONICAL_HOST
@@ -58,8 +66,12 @@ AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
 
 dnl Checks for library functions. Please keep in alphabetical order
 AC_CHECK_FUNCS([ \
+    closefrom \
     strlcat \
     strlcpy \
+    strnvis \
+    setproctitle \
+    sysconf \
     vsnprintf
 ])
 
