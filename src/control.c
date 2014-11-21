@@ -241,6 +241,10 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
             }
         }
     }
+    if (ctrl->sockfd >= 0) {
+        ev_io_set(&ctrl->sock_watcher, ctrl->sockfd, EV_READ);
+        ev_io_start(EV_DEFAULT_UC, &ctrl->sock_watcher);
+    }
     if (ctrl->fifofd >= 0) {
         ev_io_set(&ctrl->fifo_watcher, ctrl->fifofd, EV_READ);
         ev_io_start(EV_DEFAULT_UC, &ctrl->fifo_watcher);
