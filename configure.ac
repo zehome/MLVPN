@@ -47,16 +47,14 @@ case $host_os in
     ;;
     *openbsd*)
         AC_DEFINE(HAVE_OPENBSD, 1, [OpenBSD])
+        AC_DEFINE([HAVE_ATTRIBUTE__SENTINEL__], [1], [OpenBSD's gcc has sentinel])
+        AC_DEFINE([HAVE_ATTRIBUTE__BOUNDED__], [1], [OpenBSD's gcc has bounded])
         bsd=true
     ;;
     *bsd*)
         AC_MSG_WARN("Unkown BSD system found. Might not work as expected!")
         AC_DEFINE(HAVE_BSD, 1, [BSD])
         bsd=true
-    ;;
-    *openbsd*)
-        AC_DEFINE([HAVE_ATTRIBUTE__SENTINEL__], [1], [OpenBSD's gcc has sentinel])
-        AC_DEFINE([HAVE_ATTRIBUTE__BOUNDED__], [1], [OpenBSD's gcc has bounded])
     ;;
     *)
         AC_MSG_ERROR("Unknown operating system.")
