@@ -13,6 +13,8 @@ MAINTAINERCLEANFILES = \
     $(srcdir)/config.guess $(srcdir)/config.sub \
     $(srcdir)/mlvpn.spec
 BUILT_SOURCES = $(top_srcdir)/.version
+$(top_srcdir)/.version:
+	echo $(VERSION) > $(top_srcdir)/.version
 
 SUBDIRS = src man
 dist_doc_DATA = LICENCE AUTHORS README.md examples/mlvpn.conf \
