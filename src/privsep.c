@@ -98,6 +98,7 @@ static void sig_pass_to_chld(int);
 static void must_read(int, void *, size_t);
 static void must_write(int, void *, size_t);
 static int  may_read(int, void *, size_t);
+static void reset_default_signals();
 
 int
 priv_init(char *argv[], char *username)
@@ -122,13 +123,9 @@ priv_init(char *argv[], char *username)
     /* LC: TODO: Better way to check for root ! */
     int is_root = getuid() == 0;
 
+    reset_default_signals();
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    sa.sa_handler = SIG_DFL;
-    for (i = 1; i < _NSIG; i++)
-        sigaction(i, &sa, NULL);
-
     sa.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sa, NULL);
 
@@ -176,13 +173,15 @@ priv_init(char *argv[], char *username)
     }
     /* Father */
     /* Pass TERM/HUP/INT/QUIT through to child, and accept CHLD */
+    sa.sa_flags = SA_RESTART;
     sa.sa_handler = sig_pass_to_chld;
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGHUP, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGQUIT, &sa, NULL);
+    /* mlvpn (unpriv) died */
     sa.sa_handler = sig_got_chld;
-    sa.sa_flags |= SA_NOCLDSTOP;
+    sa.sa_flags = SA_NOCLDSTOP;
     sigaction(SIGCHLD, &sa, NULL);
 
     close(socks[1]);
@@ -199,9 +198,6 @@ priv_init(char *argv[], char *username)
     if (nullfd > 2)
         close(nullfd);
 
-    /* TODO: set increate_state when
-     * config file and log file where opened only.
-     */
     increase_state(STATE_CONFIG);
 
     while (cur_state < STATE_QUIT)
@@ -219,9 +215,8 @@ priv_init(char *argv[], char *username)
 
             if (cur_state == STATE_CONFIG)
                 strlcpy(allowed_configfile, path, len);
-
             if (! *allowed_configfile)
-                _exit(0);
+                fatalx("empty configuration file path.");
 
             fd = root_open_file(allowed_configfile, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
@@ -431,6 +426,11 @@ root_launch_script(char *setup_script, int argc, char **argv)
     pid = fork();
     if (pid == 0)
     {
+        /* Reset all signals is required because after fork
+         * the child process inherits all signal dispositions
+         * of the parent
+         */
+        reset_default_signals();
         closefrom(3);
         newargs = (char **)malloc((argc+2)*sizeof(char *));
         newargs[0] = setup_script;
@@ -760,4 +760,17 @@ must_write(int fd, void *buf, size_t n)
             pos += res;
         }
     }
+}
+
+static void
+reset_default_signals()
+{
+    int i;
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sa.sa_handler = SIG_DFL;
+    for (i = 1; i < _NSIG; i++)
+        sigaction(i, &sa, NULL);
 }

@@ -61,8 +61,6 @@ int logdebug = 0;
 time_t start_time;
 time_t last_reload;
 
-/* Triggered by signal if sigint is raised */
-int global_exit = 0;
 static char *optstr = "bc:n:p:u:vV";
 static struct option long_options[] = {
     {"background",    no_argument,       0, 'b' },
@@ -777,35 +775,6 @@ mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents)
     ev_timer_again(EV_DEFAULT_UC, w);
 }
 
-void signal_handler(int sig)
-{
-    log_debug("Signal received: %d", sig);
-    if (global_exit > 0)
-        _exit(sig);
-    global_exit = 1;
-}
-
-void signal_setup()
-{
-    int i;
-    struct sigaction sa;
-    /* setup signals */
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    sa.sa_handler = SIG_DFL;
-    for(i = 1; i < _NSIG; i++)
-        sigaction(i, &sa, NULL);
-
-    sa.sa_handler = signal_handler;
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGQUIT, &sa, NULL);
-
-    sa.sa_handler = SIG_IGN;
-    sigaction(SIGPIPE, &sa, NULL);
-}
-
 static void
 tuntap_io_event(struct ev_loop *loop, ev_io *w, int revents)
 {
@@ -864,11 +833,40 @@ update_process_title()
     setproctitle(title);
 }
 
+int mlvpn_hook(enum mlvpn_hook hook, int argc, char **argv)
+{
+    return priv_run_script(argc, argv);
+}
+
+
+static void
+mlvpn_config_reload(struct ev_loop *loop, ev_timer *w, int revents)
+{
+    log_info("reload configuration (SIGHUP).");
+    /* configuration file path does not matter after
+     * the first intialization.
+     */
+    if (mlvpn_config(priv_open_config(""), 0) != 0)
+        log_warn("configuration reload failed.");
+    else
+        mlvpn_rtun_recalc_weight();
+}
+
+static void
+mlvpn_quit(struct ev_loop *loop, ev_timer *w, int revents)
+{
+    log_info("killed by signal SIGTERM, SIGQUIT or SIGINT.");
+    ev_break(loop, EVBREAK_ALL);
+}
+
+
 int
 main(int argc, char **argv)
 {
     int ret, i;
-    struct ev_loop *loop = EV_DEFAULT;
+    struct ev_loop *loop;
+    ev_signal signal_hup;
+    ev_signal signal_quit;
     extern char *__progname;
 #ifdef HAVE_MLVPN_CONTROL
     struct mlvpn_control control;
@@ -1000,9 +998,6 @@ main(int argc, char **argv)
 
     LIST_INIT(&rtuns);
 
-    /* Handle signals properly */
-    signal_setup();
-
     /* Kill me if my root process dies ! */
 #ifdef HAVE_LINUX
     prctl(PR_SET_PDEATHSIG, SIGCHLD);
@@ -1011,9 +1006,10 @@ main(int argc, char **argv)
     /* Config file opening / parsing */
     mlvpn_options.config_fd = priv_open_config(mlvpn_options.config);
     if (mlvpn_options.config_fd < 0)
-    {
         fatalx("Unable to open config file.");
-    }
+
+    if (! (loop = ev_default_loop(EVFLAG_AUTO)))
+        fatal("could not initlaize libev. check LIBEV_FLAGS?");
 
     /* tun/tap initialization */
     mlvpn_tuntap_init();
@@ -1052,6 +1048,13 @@ main(int argc, char **argv)
     if (getppid() == 1)
         fatalx("Privileged process died.");
 
+    ev_signal_init(&signal_hup, mlvpn_config_reload, SIGHUP);
+    ev_signal_init(&signal_quit, mlvpn_quit, SIGINT);
+    ev_signal_init(&signal_quit, mlvpn_quit, SIGQUIT);
+    ev_signal_init(&signal_quit, mlvpn_quit, SIGTERM);
+    ev_signal_start(loop, &signal_hup);
+    ev_signal_start(loop, &signal_quit);
+
     ev_run(loop, 0);
 
     char *cmdargs[3] = {tuntap.devname, "tuntap_down", NULL};
@@ -1059,11 +1062,6 @@ main(int argc, char **argv)
 
     free(_progname);
     return 0;
-}
-
-int mlvpn_hook(enum mlvpn_hook hook, int argc, char **argv)
-{
-    return priv_run_script(argc, argv);
 }
 
 
