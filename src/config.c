@@ -80,6 +80,10 @@ mlvpn_config(int config_file_fd, int first_time)
 
                 _conf_set_int_from_conf(config, lastSection,
                                         "timeout", &default_timeout, 60, NULL, 0);
+                if (default_timeout < 5) {
+                    log_warnx("timeout can't be less than 5 seconds.");
+                    default_timeout = 5;
+                }
             } else {
                 char *bindaddr;
                 char *bindport;
@@ -144,7 +148,10 @@ mlvpn_config(int config_file_fd, int first_time)
                 _conf_set_int_from_conf(config, lastSection,
                                         "timeout",
                                         (int *)&timeout, default_timeout, NULL, 0);
-
+                if (timeout < 5) {
+                    log_warnx("timeout can't be less than 5 seconds.");
+                    timeout = 5;
+                }
                 if (! LIST_EMPTY(&rtuns))
                 {
                     LIST_FOREACH(tmptun, &rtuns, entries)
