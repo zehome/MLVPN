@@ -421,6 +421,41 @@ mlvpn_rtun_new(const char *name,
     return new;
 }
 
+void
+mlvpn_rtun_drop(mlvpn_tunnel_t *t)
+{
+    mlvpn_tunnel_t *tmp;
+    mlvpn_rtun_status_down(t);
+    ev_timer_stop(EV_DEFAULT_UC, &t->io_timeout);
+    ev_io_stop(EV_DEFAULT_UC, &t->io_read);
+
+    LIST_FOREACH(tmp, &rtuns, entries)
+    {
+        if (mystr_eq(tmp->name, t->name))
+        {
+            LIST_REMOVE(tmp, entries);
+            if (tmp->name)
+                free(tmp->name);
+            if (tmp->bindaddr)
+                free(tmp->bindaddr);
+            if (tmp->bindport)
+                free(tmp->bindport);
+            if (tmp->destaddr)
+                free(tmp->destaddr);
+            if (tmp->destport)
+                free(tmp->destport);
+            if (tmp->addrinfo)
+                freeaddrinfo(tmp->addrinfo);
+            mlvpn_pktbuffer_free(tmp->sbuf);
+            mlvpn_pktbuffer_free(tmp->hpsbuf);
+            /* Safety */
+            tmp->name = NULL;
+            break;
+        }
+    }
+    update_process_title();
+}
+
 /* Based on tunnel bandwidth, compute a "weight" value
  * to balance correctly the round robin rtun_choose.
  */
@@ -617,40 +652,6 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     }
 }
 
-void
-mlvpn_rtun_drop(mlvpn_tunnel_t *t)
-{
-    mlvpn_tunnel_t *tmp;
-    mlvpn_rtun_status_down(t);
-    ev_timer_stop(EV_DEFAULT_UC, &t->io_timeout);
-    ev_io_stop(EV_DEFAULT_UC, &t->io_read);
-
-    LIST_FOREACH(tmp, &rtuns, entries)
-    {
-        if (mystr_eq(tmp->name, t->name))
-        {
-            LIST_REMOVE(tmp, entries);
-            if (tmp->name)
-                free(tmp->name);
-            if (tmp->bindaddr)
-                free(tmp->bindaddr);
-            if (tmp->bindport)
-                free(tmp->bindport);
-            if (tmp->destaddr)
-                free(tmp->destaddr);
-            if (tmp->destport)
-                free(tmp->destport);
-            if (tmp->addrinfo)
-                freeaddrinfo(tmp->addrinfo);
-            mlvpn_pktbuffer_free(tmp->sbuf);
-            mlvpn_pktbuffer_free(tmp->hpsbuf);
-            /* Safety */
-            tmp->name = NULL;
-            break;
-        }
-    }
-    update_process_title();
-}
 
 void
 mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
