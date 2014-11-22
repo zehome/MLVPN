@@ -471,13 +471,12 @@ mlvpn_rtun_recalc_weight()
     LIST_FOREACH(t, &rtuns, entries)
     {
         if (t->bandwidth == 0)
-        {
-            log_warnx("MLVPN can't balance correctly the traffic on"
-                      " tunnels if bandwidth limit is disabled! (tun '%s')",
-                      t->name);
             warned++;
-        }
         bandwidth_total += t->bandwidth;
+    }
+
+    if (warned && bandwidth_total > 0) {
+        log_warn("configuration error: you must set the bandwidth on all tunnels. (or 0 on all tunnels");
     }
 
     if (warned == 0)
