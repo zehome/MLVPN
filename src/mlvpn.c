@@ -52,6 +52,7 @@
 struct tuntap_s tuntap;
 char *_progname;
 static char **saved_argv;
+struct ev_loop *loop;
 
 char *status_command = NULL;
 char *process_title = NULL;
@@ -77,9 +78,9 @@ static struct option long_options[] = {
 };
 static struct mlvpn_options mlvpn_options;
 
-static void mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents);
-static void mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents);
-static void mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents);
+static void mlvpn_rtun_read(EV_P_ ev_io *w, int revents);
+static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
+static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun);
 static void mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t);
 static int mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
@@ -136,7 +137,7 @@ static void inline mlvpn_rtun_tick(mlvpn_tunnel_t *t) {
 
 /* read from the rtunnel => write directly to the tap send buffer */
 static void
-mlvpn_rtun_read(struct ev_loop *loop, ev_io *w, int revents)
+mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
 {
     mlvpn_tunnel_t *tun = w->data;
     ssize_t len;
@@ -252,7 +253,7 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
         memcpy(tuntap_pkt->data, decap_pkt.data, tuntap_pkt->len);
         /* Send the packet back into the LAN */
         if (!ev_is_active(&tuntap.io_write)) {
-            ev_io_start(EV_DEFAULT_UC, &tuntap.io_write);
+            ev_io_start(EV_A_ &tuntap.io_write);
         }
     } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
         mlvpn_rtun_tick(tun);
@@ -314,14 +315,14 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     }
 
     if (ev_is_active(&tun->io_write) && mlvpn_cb_is_empty(pktbuf)) {
-        ev_io_stop(EV_DEFAULT_UC, &tun->io_write);
+        ev_io_stop(EV_A_ &tun->io_write);
     }
     return ret;
 }
 
 
 static void
-mlvpn_rtun_write(struct ev_loop *loop, ev_io *w, int revents)
+mlvpn_rtun_write(EV_P_ ev_io *w, int revents)
 {
     mlvpn_tunnel_t *tun = w->data;
     if (! mlvpn_cb_is_empty(tun->hpsbuf)) {
@@ -424,8 +425,8 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
 {
     mlvpn_tunnel_t *tmp;
     mlvpn_rtun_status_down(t);
-    ev_timer_stop(EV_DEFAULT_UC, &t->io_timeout);
-    ev_io_stop(EV_DEFAULT_UC, &t->io_read);
+    ev_timer_stop(EV_A_ &t->io_timeout);
+    ev_io_stop(EV_A_ &t->io_read);
 
     LIST_FOREACH(tmp, &rtuns, entries)
     {
@@ -610,8 +611,8 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     mlvpn_rtun_tick(t);
     ev_io_set(&t->io_read, fd, EV_READ);
     ev_io_set(&t->io_write, fd, EV_WRITE);
-    ev_io_start(EV_DEFAULT_UC, &t->io_read);
-    ev_timer_start(EV_DEFAULT_UC, &t->io_timeout);
+    ev_io_start(EV_A_ &t->io_read);
+    ev_timer_start(EV_A_ &t->io_timeout);
     return 0;
 }
 
@@ -638,7 +639,7 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     mlvpn_pktbuffer_reset(t->sbuf);
     mlvpn_pktbuffer_reset(t->hpsbuf);
     if (ev_is_active(&t->io_write)) {
-        ev_io_stop(EV_DEFAULT_UC, &t->io_write);
+        ev_io_stop(EV_A_ &t->io_write);
     }
 
     if (old_status >= MLVPN_CHAP_AUTHOK)
@@ -691,7 +692,7 @@ static void mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
             t->status = MLVPN_CHAP_AUTHSENT;
             log_debug("Sending 'OK' packet to client.");
             if (!ev_is_active(&t->io_write)) {
-                ev_io_start(EV_DEFAULT_UC, &t->io_write);
+                ev_io_start(EV_A_ &t->io_write);
             }
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
             log_info("[rtun %s] authenticated.", t->name);
@@ -752,7 +753,7 @@ mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t)
 }
 
 static void
-mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents)
+mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
 {
     mlvpn_tunnel_t *t = w->data;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
@@ -770,13 +771,13 @@ mlvpn_rtun_check_timeout(struct ev_loop *loop, ev_timer *w, int revents)
         mlvpn_rtun_tick_connect(t);
     }
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
-        ev_io_start(EV_DEFAULT_UC, &t->io_write);
+        ev_io_start(EV_A_ &t->io_write);
     }
-    ev_timer_again(EV_DEFAULT_UC, w);
+    ev_timer_again(EV_A_ w);
 }
 
 static void
-tuntap_io_event(struct ev_loop *loop, ev_io *w, int revents)
+tuntap_io_event(EV_P_ ev_io *w, int revents)
 {
     if (revents & EV_READ) {
         mlvpn_tuntap_read(&tuntap);
@@ -784,7 +785,7 @@ tuntap_io_event(struct ev_loop *loop, ev_io *w, int revents)
         mlvpn_tuntap_write(&tuntap);
         /* Nothing else to read */
         if (mlvpn_cb_is_empty(tuntap.sbuf)) {
-            ev_io_stop(EV_DEFAULT_UC, &tuntap.io_write);
+            ev_io_stop(EV_A_ &tuntap.io_write);
         }
     }
 }
@@ -840,7 +841,7 @@ int mlvpn_hook(enum mlvpn_hook hook, int argc, char **argv)
 
 
 static void
-mlvpn_config_reload(struct ev_loop *loop, ev_timer *w, int revents)
+mlvpn_config_reload(EV_P_ ev_timer *w, int revents)
 {
     log_info("reload configuration (SIGHUP).");
     /* configuration file path does not matter after
@@ -853,7 +854,7 @@ mlvpn_config_reload(struct ev_loop *loop, ev_timer *w, int revents)
 }
 
 static void
-mlvpn_quit(struct ev_loop *loop, ev_timer *w, int revents)
+mlvpn_quit(EV_P_ ev_timer *w, int revents)
 {
     log_info("killed by signal SIGTERM, SIGQUIT or SIGINT.");
     ev_break(loop, EVBREAK_ALL);
@@ -864,7 +865,6 @@ int
 main(int argc, char **argv)
 {
     int ret, i;
-    struct ev_loop *loop;
     ev_signal signal_hup;
     ev_signal signal_quit;
     extern char *__progname;
