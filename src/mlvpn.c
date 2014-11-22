@@ -628,6 +628,7 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     t->last_activity = now;
     mlvpn_rtun_wrr_init(&rtuns);
     priv_run_script(3, cmdargs);
+    update_process_title();
 }
 
 void
@@ -650,6 +651,7 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
         /* Re-initialize weight round robin */
         mlvpn_rtun_wrr_init(&rtuns);
     }
+    update_process_title();
 }
 
 
@@ -842,7 +844,8 @@ update_process_title()
     char status[32];
     int len;
     memset(title, 0, sizeof(title));
-    strlcat(title, process_title, sizeof(title));
+    if (*process_title)
+        strlcat(title, process_title, sizeof(title));
     LIST_FOREACH(t, &rtuns, entries)
     {
         switch(t->status) {
