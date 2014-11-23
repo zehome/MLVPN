@@ -3,7 +3,7 @@ mlvpn.conf(5) -- MLVPN configuration
 
 ## DESCRIPTION
 
-See mlvpn(1) for more info on MLVPN.
+See mlvpn(1) for more info.
 
 ## SYNTAX
 
@@ -14,7 +14,7 @@ Sections are surrounded with []. **[general]** for example.
 Comments can be inserted anyware, starting with **#**.
 
 Key / Values are written in plain ascii separated with the "=" character.
-Example: loglevel = 4
+Example: loglevel = 2
 
 Long strings should be escaped with doublequote.
 
@@ -39,21 +39,21 @@ Prameters:
   - (*) mode = "client" or "server"
     mlvpn(1) should act as a socket server or socket client?
 
-  - (*) protocol = "udp" or "tcp"
-    Prefer UDP for better performance.
-
-  - logfile = "/path/to/mlvpn.log"
-    Tells MLVPN where to store logfile.
-
-  - loglevel = 3
+  - loglevel = 1
     Change the log level.
-    Valid values from **1** (quiet) to **4** (debug)
+      - **0** errors only.
+      - **1** info. (recommended)
+      - **2** debug. (very very verbose)
 
   - timeout = 30
     Integer value for detecting "link" timeout.
 
   - interface_name = "mlvpn0"
     Change the **Tun/Tap** interface name.
+
+  - password = ""
+    The password is used to generate a key used by libsodium.
+    password is mandatory and must be the same on the client and on the server.
 
 ### LINKS
 
@@ -67,7 +67,7 @@ Parameters:
     Bind on a specific address. (IPv4 only)
 
   - (both) bindport = 5080
-    Bind on a specific port. 
+    Bind on a specific port.
 
   - (client) remotehost = "1.2.3.4"
     Where to connect to.
@@ -75,28 +75,16 @@ Parameters:
   - (client) remoteport = 5080
 
   - (both) bandwidth_upload = 61440
-    client => server max bandwidth used by mlvpn for this link.
-    Bandwidth is specified in Bytes (1024 base).
-
-  - (both) bandwidth_download = 512000
-    server => client max bandwidth used by mlvpn for this link.
-    Bandwidth is specified in Bytes (1024 base).
+    Maxiumm bandwidth of the link. (from this host to the remote)
+    Bandwidth is specified in Bytes (1KiB = 1024Bytes).
 
   - (both) timeout = 25
     Override **[general]** timeout for this link.
 
-  - (both) protocol = 10
-    Override **[general]** protocol for this link.
+## RELOADING
 
-  - latency_increase = 40
-    artificial latency increase expressed in milliseconds.
-    This setting can be used to "match" latency of two links.
-    Latency matching is very important because it will minimize packet
-    reordering when MLVPN is used in a multi-link environment.
-    If ping adsl1 to server  is ~ 120ms and adsl2 to server is ~ 200 ms
-    then add half the difference: (200 - 120)/2 = 40
-    This calculation can be wrong as the path from adsl1 to server
-    can have a different latency than the server to adsl1 path.
+The configuration can be reloaded at any moment by sending SIGHUP to the child
+mlvpn process.
 
 ## EXAMPLE
 

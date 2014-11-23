@@ -16,6 +16,7 @@ Contents:
 
    linux_example
    debian_packaging
+   openbsd
    copyright
 
 .. _`BSD License`: http://www.opensource.org/licenses/BSD-3-Clause

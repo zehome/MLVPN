@@ -1,3 +1,8 @@
+mlvpn (2.0) mlvpn-unstable; urgency=low
+  * New upstream release.
+
+ -- Laurent Coustet <ed@zehome.com>  Sun, 23 Nov 2014 00:57:42 +0100
+
 mlvpn (1.3.2) mlvpn-unstable; urgency=low
   * Improve debian wheezy support. (Uses /run instead of /var/run)
   * closes #31

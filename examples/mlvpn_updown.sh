@@ -28,10 +28,10 @@ newstatus="$2"
 (
 if [ "$newstatus" = "tuntap_up" ]; then
     echo "Setting up interface $tuntap_intf"
-    /sbin/ifconfig $tuntap_intf 192.168.66.10 netmask 255.255.255.0 mtu 1400 up
+    /sbin/ip link set dev $tuntap_intf mtu 1400 up
+    /sbin/ip addr add 10.42.42.2/30 dev $tuntap_intf
 elif [ "$newstatus" = "tuntap_down" ]; then
     echo "Shutting down interface $tuntap_intf"
-    /sbin/ifconfig $tuntap_intf down
 elif [ "$newstatus" = "rtun_up" ]; then
     echo "MLVPN informed me rtun [$3] is up"
 elif [ "$newstatus" = "rtun_down" ]; then

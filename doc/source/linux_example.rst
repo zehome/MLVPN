@@ -332,26 +332,23 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     [general]
     statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
     tuntap = "tun"
-    loglevel = 4
+    loglevel = 1
     mode = "client"
-    protocol = "udp"
     interface_name = "mlvpn0"
     timeout = 30
+    password = "pleasechangeme!"
     
     [adsl1]
     bindhost = "192.168.1.2"
     remotehost = "128.128.128.128"
     remoteport = 5080
     bandwidth_upload = 61440
-    bandwidth_download = 512000
-    latency_increase = 10
     
     [adsl2]
     bindhost = "192.168.2.2"
     remotehost = "128.128.128.128"
     remoteport = 5081
     bandwidth_upload = 61440
-    bandwidth_download = 512000
 
 
 Little note, we are adding 10 ms of latency on adsl1 to match the latency of adsl2.
@@ -385,12 +382,12 @@ Again I stripped the script to the minimum.
     (
     if [ "$newstatus" = "tuntap_up" ]; then
         echo "$tuntap_intf setup"
-        /sbin/ifconfig $tuntap_intf 10.42.42.2 netmask 255.255.255.252 mtu 1400 up
-        route add proof.ovh.net gw 10.42.42.2
+        /sbin/ip link set dev $tuntap_intf mtu 1400 up
+        /sbin/ip addr add 10.42.42.2/30 dev $tuntap_intf
+        /sbin/route add proof.ovh.net gw 10.42.42.2
     elif [ "$newstatus" = "tuntap_down" ]; then
         echo "$tuntap_intf shutdown"
-        route del proof.ovh.net gw 10.42.42.2
-        /sbin/ifconfig $tuntap_intf down
+        /sbin/route del proof.ovh.net gw 10.42.42.2
     elif [ "$newstatus" = "rtun_up" ]; then
         echo "rtun [${rtun}] is up"
     elif [ "$newstatus" = "rtun_down" ]; then
@@ -413,22 +410,19 @@ mlvpn0.conf
     [general]
     statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
     tuntap = "tun"
-    loglevel = 4
+    loglevel = 1
     mode = "server"
-    protocol = "udp"
     interface_name = "mlvpn0"
     timeout = 30
+    password = "pleasechangeme!"
     
     [adsl1]
     bindport = 5080
-    bandwidth_upload = 61440
-    bandwidth_download = 512000
-    latency_increase = 10
+    bandwidth_upload = 512000
     
     [adsl2]
     bindport = 5081
-    bandwidth_upload = 61440
-    bandwidth_download = 512000
+    bandwidth_upload = 512000
 
 
 mlvpn0_updown.sh
@@ -445,15 +439,16 @@ mlvpn0_updown.sh
     (
     if [ "$newstatus" = "tuntap_up" ]; then
         echo "$tuntap_intf setup"
-        /sbin/ifconfig $tuntap_intf 10.42.42.1 netmask 255.255.255.252 mtu 1400 up
+        /sbin/ip link set dev $tuntap_intf mtu 1400 up
+        /sbin/ip addr add 10.42.42.1/30 dev $tuntap_intf
         # NAT thru our server (eth0 is our output interface on the server)
         # mlvpn0 link
         /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
         # LAN 192.168.0.0/24 from "client"
-        /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
+        /sbin/ip route add 192.168.0.0/24 via 10.42.42.2
         /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
     elif [ "$newstatus" = "tuntap_down" ]; then
-        /sbin/route del -net 192.168.0.0/24 gw 10.42.42.2
+        /sbin/ip route del 192.168.0.0/24 via 10.42.42.2
         /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
         /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
     fi
@@ -493,7 +488,7 @@ Check logfiles on client
     rtun [adsl1] is up
     rtun [adsl2] is up
 
-Seems good. Some test ping
+Seems good. Let's test the ICMP echo reply. (ping)
 
 .. code-block:: sh
 
