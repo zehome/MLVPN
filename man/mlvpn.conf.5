@@ -1,13 +1,13 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "MLVPN\.CONF" "5" "March 2012" "" ""
+.TH "MLVPN\.CONF" "5" "November 2014" "" ""
 .
 .SH "NAME"
 \fBmlvpn\.conf\fR \- MLVPN configuration
 .
 .SH "DESCRIPTION"
-See mlvpn(1) for more info on MLVPN\.
+See mlvpn(1) for more info\.
 .
 .SH "SYNTAX"
 mlvpn\.conf(5) is a "ini style" config file\.
@@ -19,7 +19,7 @@ Sections are surrounded with []\. \fB\fIgeneral\fR\fR for example\.
 Comments can be inserted anyware, starting with \fB#\fR\.
 .
 .P
-Key / Values are written in plain ascii separated with the "=" character\. Example: loglevel = 4
+Key / Values are written in plain ascii separated with the "=" character\. Example: loglevel = 2
 .
 .P
 Long strings should be escaped with doublequote\.
@@ -55,19 +55,28 @@ mlvpn(1) remote tunnel is down See the example mlvpn_updown\.sh for more info\.
 (*) mode = "client" or "server" mlvpn(1) should act as a socket server or socket client?
 .
 .IP "\(bu" 4
-(*) protocol = "udp" or "tcp" Prefer UDP for better performance\.
+loglevel = 1 Change the log level\.
 .
 .IP "\(bu" 4
-logfile = "/path/to/mlvpn\.log" Tells MLVPN where to store logfile\.
+\fB0\fR errors only\.
 .
 .IP "\(bu" 4
-loglevel = 3 Change the log level\. Valid values from \fB1\fR (quiet) to \fB4\fR (debug)
+\fB1\fR info\. (recommended)
 .
 .IP "\(bu" 4
-timeout = 5 Integer value for detecting "link" timeout\.
+\fB2\fR debug\. (very very verbose)
+.
+.IP "" 0
+
+.
+.IP "\(bu" 4
+timeout = 30 Integer value for detecting "link" timeout\.
 .
 .IP "\(bu" 4
 interface_name = "mlvpn0" Change the \fBTun/Tap\fR interface name\.
+.
+.IP "\(bu" 4
+password = "" The password is used to generate a key used by libsodium\. password is mandatory and must be the same on the client and on the server\.
 .
 .IP "" 0
 .
@@ -93,18 +102,15 @@ Parameters:
 (client) remoteport = 5080
 .
 .IP "\(bu" 4
-(both) bandwidth_upload = 61440 client => server max bandwidth used by mlvpn for this link\. Bandwidth is specified in Bytes (1024 base)\.
+(both) bandwidth_upload = 61440 Maxiumm bandwidth of the link\. (from this host to the remote) Bandwidth is specified in Bytes (1KiB = 1024Bytes)\.
 .
 .IP "\(bu" 4
-(both) bandwidth_download = 512000 server => client max bandwidth used by mlvpn for this link\. Bandwidth is specified in Bytes (1024 base)\.
-.
-.IP "\(bu" 4
-(both) timeout = 10 Override \fB\fIgeneral\fR\fR timeout for this link\.
-.
-.IP "\(bu" 4
-(both) protocol = 10 Override \fB\fIgeneral\fR\fR protocol for this link\.
+(both) timeout = 25 Override \fB\fIgeneral\fR\fR timeout for this link\.
 .
 .IP "" 0
+.
+.SH "RELOADING"
+The configuration can be reloaded at any moment by sending SIGHUP to the child mlvpn process\.
 .
 .SH "EXAMPLE"
 See examples/mlvpn\.conf
