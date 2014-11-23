@@ -175,7 +175,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 log_warnx("[rtun %s] Error in getnameinfo: %d",
                        tun->name, ret);
             } else {
-                log_debug("[rtun %s] new UDP connection -> %s",
+                log_debug("[rtun %s] new connection -> %s",
                    tun->name, clienthost);
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
@@ -366,7 +366,6 @@ mlvpn_rtun_new(const char *name,
     new->server_mode = server_mode;
     new->weight = 1;
     new->status = MLVPN_CHAP_DISCONNECTED;
-    new->encap_prot = ENCAP_PROTO_UDP;
     new->addrinfo = NULL;
     new->sentpackets = 0;
     new->sentbytes = 0;

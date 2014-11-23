@@ -62,10 +62,6 @@ struct mlvpn_options
     int root_allowed;
 };
 
-enum encap_proto {
-    ENCAP_PROTO_UDP
-};
-
 enum chap_status {
     MLVPN_CHAP_DISCONNECTED,
     MLVPN_CHAP_AUTHSENT,
@@ -96,7 +92,6 @@ typedef struct mlvpn_tunnel_s
     circular_buffer_t *sbuf;    /* send buffer */
     circular_buffer_t *hpsbuf;  /* high priority buffer */
     circular_buffer_t *rbuf;    /* receive buffer */
-    enum encap_proto encap_prot;
     struct addrinfo *addrinfo;
     enum chap_status status;    /* Auth status */
     ev_tstamp last_activity;

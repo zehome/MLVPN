@@ -23,7 +23,6 @@ mlvpn_config(int config_file_fd, int first_time)
     char *lastSection = NULL;
     char *tundevname;
 
-    int default_protocol = ENCAP_PROTO_UDP;
     int default_timeout = 60;
     int default_server_mode = 0; /* 0 => client */
     int logverbose = 0;
@@ -68,16 +67,6 @@ mlvpn_config(int config_file_fd, int first_time)
                 _conf_set_int_from_conf(config, lastSection,
                                         "loglevel", &logverbose, 0, NULL, 0);
                 log_verbose(logverbose);
-                _conf_set_str_from_conf(config, lastSection,
-                                        "protocol", &tmp, "udp", NULL, 0);
-                if (mystr_eq(tmp, "udp")) {
-                    default_protocol = ENCAP_PROTO_UDP;
-                } else if (mystr_eq(tmp, "tcp")) {
-                    log_warnx("TCP is not supported.");
-                } else {
-                    log_warnx("Unknown protocol %s.", tmp);
-                }
-
                 _conf_set_int_from_conf(config, lastSection,
                                         "timeout", &default_timeout, 60, NULL, 0);
                 if (default_timeout < 5) {
@@ -91,7 +80,6 @@ mlvpn_config(int config_file_fd, int first_time)
                 char *dstport;
                 int bwlimit = 0;
                 int timeout = 30;
-                int protocol = default_protocol;
                 int create_tunnel = 1;
 
                 if (default_server_mode)
@@ -131,20 +119,6 @@ mlvpn_config(int config_file_fd, int first_time)
                                             "bandwidth_upload", &bwlimit, 0, NULL, 0);
                 }
 
-                _conf_set_str_from_conf(config, lastSection,
-                                        "protocol", &tmp, NULL, NULL, 0);
-
-                if (tmp)
-                {
-                    if (mystr_eq(tmp, "udp")) {
-                        protocol = ENCAP_PROTO_UDP;
-                    } else if (mystr_eq(tmp, "tcp")) {
-                        log_warnx("TCP is not supported.");
-                    } else {
-                        log_warnx("Unknown protocol %s.", tmp);
-                    }
-                }
-
                 _conf_set_int_from_conf(config, lastSection,
                                         "timeout",
                                         (int *)&timeout, default_timeout, NULL, 0);
@@ -163,9 +137,7 @@ mlvpn_config(int config_file_fd, int first_time)
                             if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
                                     (! mystr_eq(tmptun->bindport, bindport)) ||
                                     (! mystr_eq(tmptun->destaddr, dstaddr)) ||
-                                    (! mystr_eq(tmptun->destport, dstport)) ||
-                                    (tmptun->encap_prot != protocol))
-                            {
+                                    (! mystr_eq(tmptun->destport, dstport))) {
                                 mlvpn_rtun_status_down(tmptun);
                             }
 

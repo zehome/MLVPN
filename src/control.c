@@ -47,7 +47,6 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl);
 #define JSON_STATUS_RTUN "{\n" \
     "   \"name\": \"%s\",\n" \
     "   \"mode\": \"%s\",\n" \
-    "   \"encap\": \"%s\",\n" \
     "   \"bindaddr\": \"%s\",\n" \
     "   \"bindport\": \"%s\",\n" \
     "   \"destaddr\": \"%s\",\n" \
@@ -380,7 +379,6 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
     {
         char *mode = t->server_mode ? "server" : "client";
         char *status;
-        char *encap = t->encap_prot == ENCAP_PROTO_UDP ? "udp" : "tcp";
 
         if (t->status == MLVPN_CHAP_DISCONNECTED)
             status = "disconnected";
@@ -392,7 +390,6 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
         ret = snprintf(buf, 1024, JSON_STATUS_RTUN,
                        t->name,
                        mode,
-                       encap,
                        t->bindaddr ? t->bindaddr : "any",
                        t->bindport ? t->bindport : "any",
                        t->destaddr ? t->destaddr : "",
