@@ -55,6 +55,20 @@ Prameters:
     The password is used to generate a key used by libsodium.
     password is mandatory and must be the same on the client and on the server.
 
+  - cleartext_data = 0
+    If set to 1, data packets will NOT be encrypted.
+    Use with cautions.
+
+  - control_unix_path = ""
+    Path to the unix socket for remote control.
+
+  - control_bind_host = ""
+    Bind address of the remote control. (HTTP)
+    (url: http://[control_bind_host]:[control_bind_port]/status)
+
+  - control_bind_port = ""
+    Bind port of the remote control. (HTTP)
+
 ### LINKS
 
 Each link must be declared in it's own section.
@@ -80,6 +94,10 @@ Parameters:
 
   - (both) timeout = 25
     Override **[general]** timeout for this link.
+
+  - (client) fallback_only = 0
+    Links defined with fallback_only will be connected at all times,
+    but will only be used if all other tunnels are down.
 
 ## RELOADING
 

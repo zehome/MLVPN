@@ -33,13 +33,13 @@ static int wrr_min_index()
 }
 
 /* initialize wrr system */
-int mlvpn_rtun_wrr_init(struct rtunhead *head)
+int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
 {
     mlvpn_tunnel_t *t;
     wrr.len = 0;
     LIST_FOREACH(t, head, entries)
     {
-        if (t->status >= MLVPN_CHAP_AUTHOK)
+        if (t->status >= MLVPN_CHAP_AUTHOK && t->fallback_only == use_fallbacks)
         {
             if (wrr.len >= MAX_TUNNELS)
                 fatalx("You have too much tunnels declared");

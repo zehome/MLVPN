@@ -287,11 +287,11 @@ priv_init(char *argv[], char *username)
                          path, strerror(errno));
             } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
                 snprintf(errormessage, ERRMSGSIZ,
-                         "%s is group/other accessible. Fix permissions!",
+                         "%s is group/other accessible. Fix permissions.",
                          path);
             } else if (!(st.st_mode & S_IXUSR)) {
                 snprintf(errormessage, ERRMSGSIZ,
-                         "%s is not executable. Fix permissions!",
+                         "%s is not executable. Fix permissions.",
                          path);
             } else {
                 strlcpy(script_path, path, len);
