@@ -53,6 +53,7 @@ struct tuntap_s tuntap;
 char *_progname;
 static char **saved_argv;
 struct ev_loop *loop;
+struct mlvpn_options mlvpn_options;
 
 char *status_command = NULL;
 char *process_title = NULL;
@@ -75,7 +76,6 @@ static struct option long_options[] = {
     {"yes-run-as-root",no_argument,      0, 3   },
     {0,               0,                 0, 0 }
 };
-static struct mlvpn_options mlvpn_options;
 
 static void mlvpn_rtun_read(EV_P_ ev_io *w, int revents);
 static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
@@ -215,8 +215,8 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
     rlen = ntohs(proto.len);
 #ifdef ENABLE_CRYPTO
     int ret;
-    if (tun->cleartext_data && proto.flags == MLVPN_PKT_DATA) {
-        memcpy(&decap_pkt.data, &proto.data, rlen);    
+    if (mlvpn_options.cleartext_data && proto.flags == MLVPN_PKT_DATA) {
+        memcpy(&decap_pkt.data, &proto.data, rlen);
     } else {
         if ((ret = crypto_decrypt((unsigned char *)&decap_pkt.data,
                                   (const unsigned char *)&proto.data, rlen,
@@ -261,7 +261,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.len = pkt->len;
     proto.flags = pkt->type;
 #ifdef ENABLE_CRYPTO
-    if (tun->cleartext_data && pkt->type == MLVPN_PKT_DATA) {
+    if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
         memcpy(&proto.data, &pkt->data, wlen);
     } else {
         crypto_nonce_random((unsigned char *)&proto.nonce, sizeof(proto.nonce));
@@ -608,7 +608,7 @@ void
 mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
 {
     char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
-    mlvpn_status_s status;
+    struct mlvpn_rtun_status_s status;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
     t->status = MLVPN_CHAP_AUTHOK;
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
@@ -616,10 +616,12 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
 
     status = mlvpn_rtun_status();
 
-    mlvpn_rtun_wrr_reset(&rtuns, status.use_fallbacks);
+    mlvpn_rtun_wrr_reset(&rtuns, status.fallback_mode);
     priv_run_script(3, cmdargs);
     if (status.connected > 0) {
-        cmdargs = {tuntap.devname, "tuntap_up", NULL, NULL};
+        cmdargs[0] = tuntap.devname;
+        cmdargs[1] = "tuntap_up";
+        cmdargs[3] = NULL;
         priv_run_script(2, cmdargs);
     }
     update_process_title();
@@ -629,7 +631,7 @@ void
 mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
 {
     enum chap_status old_status = t->status;
-    mlvpn_status_s status;
+    struct mlvpn_rtun_status_s status;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->disconnects++;
     mlvpn_pktbuffer_reset(t->rbuf);
@@ -646,9 +648,11 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
         char *cmdargs[4] = {tuntap.devname, "rtun_down", t->name, NULL};
         priv_run_script(3, cmdargs);
         /* Re-initialize weight round robin */
-        mlvpn_rtun_wrr_reset(&rtuns, status.use_fallbacks);
+        mlvpn_rtun_wrr_reset(&rtuns, status.fallback_mode);
         if (status.connected == 0) {
-            cmdargs = {tuntap.devname, "tuntap_down", NULL, NULL};
+            cmdargs[0] = tuntap.devname;
+            cmdargs[1] = "tuntap_down";
+            cmdargs[2] = NULL;
             priv_run_script(2, cmdargs);
         }
     }
@@ -661,6 +665,7 @@ mlvpn_rtun_status()
     mlvpn_tunnel_t *t;
     struct mlvpn_rtun_status_s status;
     status.fallback_mode = 1;
+    status.connected = 0;
     LIST_FOREACH(t, &rtuns, entries)
     {
         if (t->status == MLVPN_CHAP_AUTHOK) {
@@ -878,7 +883,7 @@ mlvpn_quit(EV_P_ ev_timer *w, int revents)
 int
 main(int argc, char **argv)
 {
-    int ret, i, c, option_index, config_fd;
+    int i, c, option_index, config_fd;
     char tmp[1024];
     struct stat st;
     ev_signal signal_hup;
@@ -899,9 +904,10 @@ main(int argc, char **argv)
     compat_init_setproctitle(argc, argv);
     argv = saved_argv;
 
-    memset(mlvpn_options, 0, sizeof(mlvpn_options));
+    memset(&mlvpn_options, 0, sizeof(mlvpn_options));
     mlvpn_options.change_process_title = 1;
-    strlcpy(mlvpn_options.config, "mlvpn.conf", 11);
+    strlcpy(mlvpn_options.config_path, "mlvpn.conf",
+        sizeof(mlvpn_options.config_path));
 
     /* Parse the command line quickly for config file name.
      * This is needed for priv_init to know where the config
@@ -910,7 +916,7 @@ main(int argc, char **argv)
      * priv_init will not allow to change the config file path.
      */
 
-    
+
     while(1)
     {
         c = getopt_long(argc, saved_argv, optstr,
@@ -930,12 +936,12 @@ main(int argc, char **argv)
             mlvpn_options.root_allowed = 1;
             break;
         case 'c':  /* --config */
-            strlcpy(mlvpn_options.config, optarg,
-                    sizeof(mlvpn_options.config));
-            if (access(mlvpn_options.config, R_OK) != 0) {
+            strlcpy(mlvpn_options.config_path, optarg,
+                    sizeof(mlvpn_options.config_path));
+            if (access(mlvpn_options.config_path, R_OK) != 0) {
                 fprintf(stderr, "Unable to read configuration file: `%s'.\n", tmp);
             }
-            if (stat(mlvpn_options.config, &st) < 0) {
+            if (stat(mlvpn_options.config_path, &st) < 0) {
                 fatal("unable to open configuration file");
             } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
                 fatal("configuration file is group/other accessible. Fix permissions.");
@@ -1004,10 +1010,10 @@ main(int argc, char **argv)
         fprintf(stderr, "libsodium initialization failed.\n");
         _exit(1);
     }
-    
+
     log_init(mlvpn_options.debug);
     log_verbose(mlvpn_options.verbose);
-    
+
     priv_init(argv, mlvpn_options.unpriv_user);
     if (mlvpn_options.change_process_title)
         update_process_title();
@@ -1020,11 +1026,11 @@ main(int argc, char **argv)
 #endif
 
     /* Config file opening / parsing */
-    config_fd = priv_open_config(mlvpn_options.config);
+    config_fd = priv_open_config(mlvpn_options.config_path);
     if (config_fd < 0)
-        log_fatalx("Unable to open config file.");
+        fatalx("Unable to open config file.");
     if (mlvpn_config(config_fd, 1) != 0)
-        log_fatal("Unable to open config file.");
+        fatal("Unable to open config file.");
     if (! (loop = ev_default_loop(EVFLAG_AUTO)))
         fatal("could not initlaize libev. check LIBEV_FLAGS?");
 
@@ -1032,10 +1038,10 @@ main(int argc, char **argv)
     mlvpn_tuntap_init();
 
     if (mlvpn_tuntap_alloc(&tuntap) <= 0)
-        log_fatalx("Unable to create tunnel device.");
+        fatalx("Unable to create tunnel device.");
     else
         log_info("Created tap interface %s", tuntap.devname);
-    
+
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);
@@ -1044,7 +1050,8 @@ main(int argc, char **argv)
 
 #ifdef HAVE_MLVPN_CONTROL
     /* Initialize mlvpn remote control system */
-    strdup(control.fifo_path, mlvpn_options.control_sock_path);
+    strlcpy(control.fifo_path, mlvpn_options.control_unix_path,
+        sizeof(control.fifo_path));
     control.mode = MLVPN_CONTROL_READWRITE;
     control.fifo_mode = 0600;
     control.bindaddr = strdup(mlvpn_options.control_bind_host);

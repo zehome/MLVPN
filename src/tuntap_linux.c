@@ -95,7 +95,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     tuntap->fd = fd;
 
     char *cmd_args[3] = {tuntap->devname, "tuntap_up", NULL};
-    priv_run_script(2, hook_args);
+    priv_run_script(2, cmd_args);
     return fd;
 }
 

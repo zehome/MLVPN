@@ -48,7 +48,7 @@ struct mlvpn_options
     /* process name if set */
     char process_name[1024];
     /* where is the config file */
-    char control_sock_path[MAXPATHLEN];
+    char control_unix_path[MAXPATHLEN];
     char control_bind_host[MLVPN_MAXHNAMSTR];
     char control_bind_port[MLVPN_MAXHNAMSTR];
     char config_path[MAXPATHLEN];
