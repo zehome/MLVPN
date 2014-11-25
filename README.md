@@ -9,13 +9,14 @@ Take a look at the official documentation on readthedocs.org: http://mlvpn.readt
 Introduction
 ============
 MLVPN will do it's best to acheive the following tasks:
-	- Bond your internet links to increase bandwidth (unlimited)
-	- Secure your internet connection by actively monitoring
-	  your links and removing the faulty ones, without loosing
-	  your TCP connections.
-	- Secure your internet connection to the aggregation server using
-	  strong cryptography.
-	- Scriptable automation and monitoring.
+
+  * Bond your internet links to increase bandwidth (unlimited)
+  * Secure your internet connection by actively monitoring
+    your links and removing the faulty ones, without loosing
+    your TCP connections.
+  * Secure your internet connection to the aggregation server using
+    strong cryptography.
+  * Scriptable automation and monitoring.
 
 Quick install
 =============
@@ -88,10 +89,10 @@ benefit from MLVPN on *ANY* operating system of course.
 
 Contributors
 ============
-  - Laurent Coustet, author and maintainer
-  - Philippe Pepiot, contributor (privilege separation, bugfix)
-  - Ghislain Lévèque, contributor (weight round robin)
-  - Fabien Dupont, contributor (bugfix)
+  * Laurent Coustet, author and maintainer
+  * Philippe Pepiot, contributor (privilege separation, bugfix)
+  * Ghislain Lévèque, contributor (weight round robin)
+  * Fabien Dupont, contributor (bugfix)
 
 LICENCE
 =======
