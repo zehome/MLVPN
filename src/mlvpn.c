@@ -327,7 +327,8 @@ mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
                const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
-               int server_mode, uint32_t timeout)
+               int server_mode, uint32_t timeout,
+               int fallback_only)
 {
     mlvpn_tunnel_t *new;
 
@@ -360,6 +361,7 @@ mlvpn_rtun_new(const char *name,
     new->sentbytes = 0;
     new->recvbytes = 0;
     new->bandwidth = 0;
+    new->fallback_only = fallback_only;
 
     if (bindaddr)
     {
@@ -669,7 +671,7 @@ mlvpn_rtun_status()
     LIST_FOREACH(t, &rtuns, entries)
     {
         if (t->status == MLVPN_CHAP_AUTHOK) {
-            if (!t->fallback_only && status.fallback_mode)
+            if (!t->fallback_only)
                 status.fallback_mode = 0;
             status.connected++;
         }
@@ -895,6 +897,9 @@ main(int argc, char **argv)
     /* uptime statistics */
     last_reload = start_time = time((time_t *)NULL);
 
+    /* Debug mode enabled until program is started. */
+    log_init(1);
+
     _progname = strdup(__progname);
     saved_argv = calloc(argc + 1, sizeof(*saved_argv));
     for(i = 0; i < argc; i++) {
@@ -1006,10 +1011,7 @@ main(int argc, char **argv)
     }
 
     if (crypto_init() == -1)
-    {
-        fprintf(stderr, "libsodium initialization failed.\n");
-        _exit(1);
-    }
+        fatal("libsodium initialization failed.");
 
     log_init(mlvpn_options.debug);
     log_verbose(mlvpn_options.verbose);
@@ -1029,10 +1031,10 @@ main(int argc, char **argv)
     config_fd = priv_open_config(mlvpn_options.config_path);
     if (config_fd < 0)
         fatalx("Unable to open config file.");
-    if (mlvpn_config(config_fd, 1) != 0)
-        fatal("Unable to open config file.");
     if (! (loop = ev_default_loop(EVFLAG_AUTO)))
         fatal("could not initlaize libev. check LIBEV_FLAGS?");
+    if (mlvpn_config(config_fd, 1) != 0)
+        fatal("Unable to open config file.");
 
     /* tun/tap initialization */
     mlvpn_tuntap_init();

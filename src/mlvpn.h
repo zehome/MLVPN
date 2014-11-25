@@ -119,7 +119,8 @@ mlvpn_tunnel_t *mlvpn_rtun_choose();
 mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     const char *bindaddr, const char *bindport,
     const char *destaddr, const char *destport,
-    int server_mode, uint32_t timeout);
+    int server_mode, uint32_t timeout,
+    int fallback_only);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 
