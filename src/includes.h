@@ -4,6 +4,7 @@
 #include "config.h"
 #include "defines.h"
 
+#include <sys/param.h>
 #include <sys/types.h>
 
 #ifndef HAVE_STRLCPY
