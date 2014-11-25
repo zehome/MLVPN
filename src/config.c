@@ -7,7 +7,7 @@
 
 extern char *status_command;
 extern struct tuntap_s tuntap;
-extern struct struct mlvpn_options;
+extern struct mlvpn_options;
 
 /* Config file reading / re-read.
  * config_file_fd: fd opened in priv_open_config
