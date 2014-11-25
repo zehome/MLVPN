@@ -1033,11 +1033,10 @@ main(int argc, char **argv)
         fatalx("Unable to open config file.");
     if (! (loop = ev_default_loop(EVFLAG_AUTO)))
         fatal("could not initlaize libev. check LIBEV_FLAGS?");
-    if (mlvpn_config(config_fd, 1) != 0)
-        fatal("Unable to open config file.");
-
     /* tun/tap initialization */
     mlvpn_tuntap_init();
+    if (mlvpn_config(config_fd, 1) != 0)
+        fatal("Unable to open config file.");
 
     if (mlvpn_tuntap_alloc(&tuntap) <= 0)
         fatalx("Unable to create tunnel device.");
