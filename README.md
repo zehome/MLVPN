@@ -63,7 +63,7 @@ MLVPN uses privilege separation to keep high privileges operations
 away from the core routing stuff.
 
 Code running as root is very minimalist and highly readable to
-avoid leakage as much as possible.
+avoid risks as much as possible.
 
 Read more http://en.wikipedia.org/wiki/Privilege_separation
 
