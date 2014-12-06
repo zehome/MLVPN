@@ -1000,7 +1000,7 @@ main(int argc, char **argv)
 
     if (mlvpn_options.change_process_title)
     {
-        if (mlvpn_options.process_name)
+        if (*mlvpn_options.process_name)
         {
             process_title = mlvpn_options.process_name;
             setproctitle("%s [priv]", mlvpn_options.process_name);
