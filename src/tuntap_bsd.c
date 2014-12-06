@@ -166,6 +166,7 @@ root_tuntap_open(int tuntapmode, char *devname)
         tuninfo.baudrate = 0;
         if (ioctl(fd, TUNSIFINFO, &tuninfo, sizeof(tuninfo)) < 0) {
             warn("ioctl(TUNSIFMODE)");
+            close(fd);
             return -1;
         }
 #else
@@ -173,6 +174,7 @@ root_tuntap_open(int tuntapmode, char *devname)
         flags = IFF_POINTOPOINT | IFF_MULTICAST;
         if (ioctl(fd, TUNSIFMODE, &flags) < 0) {
             warn("ioctl(TUNSIFMODE)");
+            close(fd);
             return -1;
         }
 
@@ -183,6 +185,7 @@ root_tuntap_open(int tuntapmode, char *devname)
         if (ioctl(fd, TUNSIFHEAD, &flags) < 0)
         {
             warn("ioctl(TUNSIFHEAD)");
+            close(fd);
             return -1;
         }
 #endif

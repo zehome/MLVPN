@@ -133,6 +133,7 @@ root_tuntap_open(int tuntapmode, char *devname)
         if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
         {
             warn("priv_open_tun failed. (Already registered ?)");
+            close(fd);
             return -1;
         }
 

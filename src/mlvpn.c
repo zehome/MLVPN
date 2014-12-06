@@ -207,7 +207,7 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
     memset(&proto, 0, sizeof(proto));
     memset(&decap_pkt, 0, sizeof(decap_pkt));
 
-    if (rawpkt->len > sizeof(proto)) {
+    if (rawpkt->len > rawpkt->data || rawpkt->len > sizeof(proto)) {
         log_warnx("Invalid packet size received: %d.", rawpkt->len);
         return;
     }
@@ -868,10 +868,16 @@ mlvpn_config_reload(EV_P_ ev_timer *w, int revents)
     /* configuration file path does not matter after
      * the first intialization.
      */
-    if (mlvpn_config(priv_open_config(""), 0) != 0)
-        log_warn("configuration reload failed.");
-    else
-        mlvpn_rtun_recalc_weight();
+    int config_fd = priv_open_config("");
+    if (config_fd > 0)
+    {
+        if (mlvpn_config(config_fd, 0) != 0)
+            log_warn("configuration reload failed.");
+        else
+            mlvpn_rtun_recalc_weight();
+    } else {
+        log_warn("configuration open failed.");
+    }
 }
 
 static void
