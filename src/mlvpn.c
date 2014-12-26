@@ -207,7 +207,7 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
     memset(&proto, 0, sizeof(proto));
     memset(&decap_pkt, 0, sizeof(decap_pkt));
 
-    if (rawpkt->len > rawpkt->data || rawpkt->len > sizeof(proto)) {
+    if (rawpkt->len > sizeof(rawpkt->data) || rawpkt->len > sizeof(proto)) {
         log_warnx("Invalid packet size received: %d.", rawpkt->len);
         return;
     }
