@@ -30,6 +30,16 @@ sudo apt-get update
 sudo apt-get install mlvpn
 ```
 
+
+Install FreeBSD port
+--------------------
+```sh
+pkg install git libev libsodium
+git clone --branch freebsd https://github.com/zehome/MLVPN mlvpn
+cd mlvpn
+make
+```
+
 Build from source
 -----------------
 ```sh
