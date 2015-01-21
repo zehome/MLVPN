@@ -1,0 +1,4 @@
+### ------------------------------------------------------------------------
+###  Edit /etc/rc.conf[.local] to start mlvpn automatically at system
+###  startup. See %%PREFIX%%/etc/rc.d/mlvpn for details.
+### ------------------------------------------------------------------------
