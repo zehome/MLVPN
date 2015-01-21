@@ -858,7 +858,7 @@ update_process_title()
             strlcat(title, status, sizeof(title));
         }
     }
-    setproctitle(title);
+    setproctitle("%s", title);
 }
 
 static void
