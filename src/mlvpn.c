@@ -862,7 +862,7 @@ update_process_title()
 }
 
 static void
-mlvpn_config_reload(EV_P_ ev_timer *w, int revents)
+mlvpn_config_reload(EV_P_ ev_signal *w, int revents)
 {
     log_info("reload configuration (SIGHUP).");
     /* configuration file path does not matter after
@@ -881,7 +881,7 @@ mlvpn_config_reload(EV_P_ ev_timer *w, int revents)
 }
 
 static void
-mlvpn_quit(EV_P_ ev_timer *w, int revents)
+mlvpn_quit(EV_P_ ev_signal *w, int revents)
 {
     log_info("killed by signal SIGTERM, SIGQUIT or SIGINT.");
     ev_break(loop, EVBREAK_ALL);
