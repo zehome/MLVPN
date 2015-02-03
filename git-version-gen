@@ -97,6 +97,8 @@ fi
 
 if test -n "$v"
 then
+    echo "$v" | tr -d "$nl"
+    exit 0
     : # use $v
 # Otherwise, if there is at least one git commit involving the working
 # directory, and "git describe" output looks sensible, use that to
