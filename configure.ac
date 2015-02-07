@@ -117,4 +117,8 @@ if test "$RONN" = :; then
     AC_MSG_WARN([Unable to build manpages without ronn! gem install ronn please.])
 fi
 
+dnl Enable extra warnings
+CFLAGS="$CFLAGS -Wall -Wextra -Wno-unused-parameter -Wno-strict-aliasing -Wno-sign-compare"
+AC_SUBST(CFLAGS)
+
 AC_OUTPUT

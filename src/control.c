@@ -326,7 +326,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
 {
     char cline[MLVPN_CTRL_BUFSIZ];
     char *cmd = NULL;
-    int i, j;
+    unsigned int i, j;
 
     /* Cleanup \r */
     for (i = 0, j = 0; i <= strlen(line); i++)

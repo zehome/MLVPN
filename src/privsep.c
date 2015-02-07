@@ -436,7 +436,8 @@ root_launch_script(char *setup_script, int argc, char **argv)
         for(i = 0; i < argc; i++)
             newargs[i+1] = argv[i];
         newargs[i+1] = NULL;
-        chdir("/");
+        if(chdir("/") != 0)
+            errx(1, "chdir failed.");
         execv(setup_script, newargs);
         _exit(1);
     } else if (pid > 0) {
@@ -535,8 +536,8 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
                  struct addrinfo *hints)
 {
     char hostcpy[MLVPN_MAXHNAMSTR], servcpy[MLVPN_MAXHNAMSTR];
-    int cmd, i;
-    size_t hostname_len, servname_len, ret_len;
+    int cmd;
+    size_t i, hostname_len, servname_len, ret_len;
     struct addrinfo *new, *last = NULL;
 
     if (priv_fd < 0)

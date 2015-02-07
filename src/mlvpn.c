@@ -131,7 +131,7 @@ mlvpn_sock_set_nonblocking(int fd)
     return ret;
 }
 
-static void inline mlvpn_rtun_tick(mlvpn_tunnel_t *t) {
+inline static void mlvpn_rtun_tick(mlvpn_tunnel_t *t) {
     t->last_activity = ev_now(EV_DEFAULT_UC);
 }
 

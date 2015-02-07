@@ -130,7 +130,7 @@ _conf_parseConfig(int config_fd)
 char *
 _conf_strip_comment(char *line, unsigned int size)
 {
-    int i, j = 0;
+    unsigned int i, j = 0;
     short quote = 0;
     char c;
     char *new;
@@ -187,7 +187,7 @@ exit:
 char *
 _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
 {
-    int i, j;
+    unsigned int i, j;
     char *section = NULL;
     char *errorMsg = NULL;
     int found_terminator = 0;
@@ -242,7 +242,7 @@ error:
 confObj_t *
 _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 {
-    int i, j, k;
+    unsigned int i, j, k;
     int len;
     int quote, space;
     char *buf;

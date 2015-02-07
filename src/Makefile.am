@@ -36,4 +36,3 @@ mlvpn_SOURCES += control.c
 endif
 
 mlvpn_LDFLAGS=-lm
-CFLAGS=-g -Wall -Wno-strict-aliasing -Wno-format-zero-length
