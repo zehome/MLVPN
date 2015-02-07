@@ -111,24 +111,6 @@ esac], [
 ])
 AM_CONDITIONAL([MLVPN_CONTROL], [test x$mlvpncontrol = xtrue ])
 
-### --enable-reorder (MLVPN packet re-ordering)
-AC_ARG_ENABLE([reorder],
-[  --disable-reorder              Turn off packets re-ordering],
-[case "${enableval}" in
-    yes)
-        AC_DEFINE(HAVE_MLVPN_REORDER, 1, [Enable packet re-ordering])
-        mlvpnreorder=true
-    ;;
-    no) mlvpnreorder=false ;;
-    *)
-        AC_MSG_ERROR([bad value ${enableval} for --enable-reorder])
-    ;;
-esac], [
-    AC_DEFINE(HAVE_MLVPN_REORDER, 1, [Enable packet re-ordering (set by default value)])
-    mlvpnreorder=true
-])
-AM_CONDITIONAL([MLVPN_REORDER], [test x$mlvpnreorder = xtrue ])
-
 AC_CONFIG_FILES([Makefile src/Makefile man/Makefile])
 AC_CHECK_PROGS([RONN], [ronn], [:])
 if test "$RONN" = :; then
