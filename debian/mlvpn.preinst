@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+action=$1
+version=$2
+
+if [ "$action" = upgrade ] || [ "$action" = install ]; then
+    [ -d /run/mlvpn ] || mkdir /run/mlvpn
+    touch /run/mlvpn/.placeholder
+fi
+
+#DEBHELPER#

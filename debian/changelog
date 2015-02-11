@@ -1,0 +1,36 @@
+mlvpn (2.0.2) UNRELEASED; urgency=low
+  * Uses libev / libsodium instead of custom event system.
+
+ -- Laurent Coustet <ed@zehome.com>  Mon, 02 Feb 2015 22:51:36 +0100
+
+mlvpn (1.3.2) UNRELEASED; urgency=low
+  * Improve debian wheezy support. (Uses /run instead of /var/run)
+  * closes #31
+
+ -- Laurent Coustet <ed@zehome.com>  Wed, 12 Feb 2014 20:16:18 +0100
+
+mlvpn (1.3-1) UNRELEASED; urgency=low
+  * Buffer system refactoring (Improving performance)
+  * Introduce new system to re-order packets on the receiving side.
+    (Can be disabled with compile option and configuration)
+
+ -- Laurent Coustet <ed@zehome.com>  Sun, 28 Oct 2012 18:40:00 +0200
+
+mlvpn (1.2-1) UNRELEASED; urgency=low
+  * New version, not a public release yet
+  * Based on mlvpn 1.2 (dev/untested)
+
+ -- Laurent Coustet <ed@zehome.com>  Sat, 05 May 2012 16:47:19 +0200
+
+mlvpn (1.0-1.1) UNRELEASED; urgency=low
+
+  * Non-maintainer upload.
+  * Create debian user for mlvpn before install
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Fri, 09 Mar 2012 10:47:36 +0100
+
+mlvpn (1.0-1) UNRELEASED; urgency=low
+
+  * Initial release.
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Fri, 02 Mar 2012 11:38:42 +0100
