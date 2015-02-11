@@ -1,3 +1,8 @@
+mlvpn (2.0.3) UNRELEASED; urgency=low
+  * Update to 2.0.3 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Wed, 11 Feb 2015 22:57:49 +0100
+
 mlvpn (2.0.2) UNRELEASED; urgency=low
   * Uses libev / libsodium instead of custom event system.
 
