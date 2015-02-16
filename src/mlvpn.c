@@ -42,6 +42,7 @@
 /* Linux specific things */
 #ifdef HAVE_LINUX
 #include <sys/prctl.h>
+#include "systemd.h"
 #endif
 
 #ifdef HAVE_FREEBSD
@@ -1021,6 +1022,10 @@ main(int argc, char **argv)
 
     log_init(mlvpn_options.debug);
     log_verbose(mlvpn_options.verbose);
+
+#ifdef HAVE_LINUX
+    mlvpn_systemd_notify();
+#endif
 
     priv_init(argv, mlvpn_options.unpriv_user);
     if (mlvpn_options.change_process_title)
