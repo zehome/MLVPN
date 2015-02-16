@@ -30,7 +30,8 @@ AC_CHECK_HEADERS([ \
     fcntl.h \
     sys/ndir.h \
     sys/dir.h \
-    ndir.h
+    ndir.h \
+    valgrind/valgrind.h
 ])
 
 dnl Check and set Operating System

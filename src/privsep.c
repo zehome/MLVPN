@@ -146,25 +146,29 @@ priv_init(char *argv[], char *username)
 
     if (!child_pid)
     {
-        /* Child - drop privileges and return */
-        if (is_root && pw)
-        {
-            if (chroot(pw->pw_dir) != 0)
-                err(1, "unable to chroot");
-        }
+        if (RUNNING_ON_VALGRIND) {
+            warnx("running on valgrind, keep privileges");
+        } else {
+            /* Child - drop privileges and return */
+            if (is_root && pw)
+            {
+                if (chroot(pw->pw_dir) != 0)
+                    err(1, "unable to chroot");
+            }
 
-        /* May be usefull to chose chdir directory ? */
-        if (chdir("/") != 0)
-            err(1, "unable to chdir");
+            /* May be usefull to chose chdir directory ? */
+            if (chdir("/") != 0)
+                err(1, "unable to chdir");
 
-        if (is_root && pw)
-        {
-            if (setgroups(1, &pw->pw_gid) == -1)
-                err(1, "setgroups() failed");
-            if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
-                err(1, "setresgid() failed");
-            if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
-                err(1, "setresuid() failed");
+            if (is_root && pw)
+            {
+                if (setgroups(1, &pw->pw_gid) == -1)
+                    err(1, "setgroups() failed");
+                if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
+                    err(1, "setresgid() failed");
+                if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
+                    err(1, "setresuid() failed");
+            }
         }
         close(socks[0]);
         priv_fd = socks[1];
