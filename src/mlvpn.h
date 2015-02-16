@@ -103,14 +103,17 @@ typedef struct mlvpn_tunnel_s
     ev_timer io_timeout;
 } mlvpn_tunnel_t;
 
-struct mlvpn_rtun_status_s {
+struct mlvpn_status_s
+{
     int fallback_mode;
     int connected;
+    int initialized;
+    time_t start_time;
+    time_t last_reload;
 };
 
 int mlvpn_config(int config_file_fd, int first_time);
 int mlvpn_sock_set_nonblocking(int fd);
-
 
 /* wrr */
 int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
