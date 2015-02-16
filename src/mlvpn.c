@@ -633,8 +633,6 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     t->status = MLVPN_CHAP_AUTHOK;
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
     t->last_activity = now;
-    t->rseq = 0;
-    t->sseq = 0;
     mlvpn_update_status();
     mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
     priv_run_script(3, cmdargs);
