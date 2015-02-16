@@ -24,7 +24,7 @@ mlvpn_SOURCES += \
     vis.c vis.h
 
 if LINUX
-mlvpn_SOURCES += tuntap_linux.c
+mlvpn_SOURCES += tuntap_linux.c systemd.c systemd.h
 endif
 
 if BSD

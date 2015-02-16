@@ -1,0 +1,17 @@
+[Unit]
+Description=MLVPN connection to %i
+PartOf=mlvpn.service
+ReloadPropagatedFrom=mlvpn.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/sbin/mlvpn --config /etc/mlvpn/%i.conf --user mlvpn
+ExecReload=/bin/kill -HUP $MAINPID
+WorkingDirectory=/etc/openvpn
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+
