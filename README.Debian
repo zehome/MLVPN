@@ -1,0 +1,22 @@
+initial configuration
+---------------------
+Copy on example configuration file from /usr/share/doc/mlvpn/examples/ to /etc/mlvpn/xxx.conf
+Make sure the configuration file is NOT readable by anyone other than root: chmod 0600 /etc/mlvpn/*.conf
+
+multiple configurations in parallel
+-----------------------------------
+When mlvpn is started by /etc/init.d/mlvpn or mlvpn.service,
+the configuration file /etc/default/mlvpn is read and, all tunnels
+defined in AUTOSTART will be started/restarted/...
+
+systemd
+-------
+
+If using systemd, then you can start/stop using:
+  service mlvpn@xxx start
+
+  or
+
+  systemctl start mlvpn@xxx
+
+  where xxx is the name of your configuration file in /etc/mlvpn, without the ".conf" extension.
