@@ -868,7 +868,7 @@ update_process_title()
                 s = "!";
                 break;
         }
-        len = snprintf(status, sizeof(status) - 1, " %s%s", s, t->name);
+        len = snprintf(status, sizeof(status) - 1, "%s%s ", s, t->name);
         if (len) {
             status[len] = 0;
             strlcat(title, status, sizeof(title));
