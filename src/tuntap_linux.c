@@ -91,11 +91,8 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     int fd;
 
     if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) <= 0 )
-        fatalx("unable to open /dev/net/tun read/write.");
+        fatalx("failed to open /dev/net/tun read/write.");
     tuntap->fd = fd;
-
-    char *cmd_args[3] = {tuntap->devname, "tuntap_up", NULL};
-    priv_run_script(2, cmd_args);
     return fd;
 }
 
@@ -113,8 +110,9 @@ root_tuntap_open(int tuntapmode, char *devname)
     int fd;
 
     fd = open("/dev/net/tun", O_RDWR);
-    if (fd >= 0)
-    {
+    if (fd < 0) {
+        warn("failed to open /dev/net/tun");
+    } else {
         memset(&ifr, 0, sizeof(ifr));
         if (tuntapmode == MLVPN_TUNTAPMODE_TAP)
             ifr.ifr_flags = IFF_TAP;
@@ -132,13 +130,17 @@ root_tuntap_open(int tuntapmode, char *devname)
         /* ioctl to create the if */
         if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
         {
-            warn("priv_open_tun failed. (Already registered ?)");
+            /* don't call fatal because we want a clean nice error for the
+             * unprivilged process.
+             */
+            warn("open tun %s ioctl failed", devname);
             close(fd);
-            return -1;
+            fd = -1;
         }
-
-        /* The kernel is the only one able to "name" the if.
-         * so we reread it to get the real name set by the kernel. */
+    }
+    /* The kernel is the only one able to "name" the if.
+     * so we reread it to get the real name set by the kernel. */
+    if (fd > 0) {
         strlcpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ-1);
     }
     return fd;
