@@ -54,15 +54,32 @@ struct tuntap_s tuntap;
 char *_progname;
 static char **saved_argv;
 struct ev_loop *loop;
-struct mlvpn_options mlvpn_options;
-
 char *status_command = NULL;
 char *process_title = NULL;
 int logdebug = 0;
 
-/* Statistics */
-time_t start_time;
-time_t last_reload;
+struct mlvpn_status_s mlvpn_status = {
+    .start_time = 0,
+    .last_reload = 0,
+    .fallback_mode = 0,
+    .connected = 0,
+    .initialized = 0
+};
+
+struct mlvpn_options mlvpn_options = {
+    .change_process_title = 0,
+    .process_name = "mlvpn",
+    .control_unix_path = "",
+    .control_bind_host = "",
+    .control_bind_port = "",
+    .config_path = "mlvpn.conf",
+    .config_fd = -1,
+    .debug = 0,
+    .verbose = 0,
+    .unpriv_user = "mlvpn",
+    .cleartext_data = 1,
+    .root_allowed = 0
+};
 
 static char *optstr = "c:n:u:hvV";
 static struct option long_options[] = {
@@ -88,7 +105,7 @@ static void mlvpn_rtun_send_auth(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_status_up(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_recalc_weight();
-static struct mlvpn_rtun_status_s mlvpn_rtun_status();
+static void mlvpn_update_status();
 static int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 static void update_process_title();
 
@@ -607,25 +624,25 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     return 0;
 }
 
-void
+static void
 mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
 {
     char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
-    struct mlvpn_rtun_status_s status;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
     t->status = MLVPN_CHAP_AUTHOK;
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
     t->last_activity = now;
-
-    status = mlvpn_rtun_status();
-
-    mlvpn_rtun_wrr_reset(&rtuns, status.fallback_mode);
+    t->rseq = 0;
+    t->sseq = 0;
+    mlvpn_update_status();
+    mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
     priv_run_script(3, cmdargs);
-    if (status.connected > 0) {
+    if (mlvpn_status.connected > 0 && mlvpn_status.initialized == 0) {
         cmdargs[0] = tuntap.devname;
         cmdargs[1] = "tuntap_up";
         cmdargs[3] = NULL;
         priv_run_script(2, cmdargs);
+        mlvpn_status.initialized = 1;
     }
     update_process_title();
 }
@@ -634,7 +651,6 @@ void
 mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
 {
     enum chap_status old_status = t->status;
-    struct mlvpn_rtun_status_s status;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->disconnects++;
     mlvpn_pktbuffer_reset(t->rbuf);
@@ -644,40 +660,38 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
         ev_io_stop(EV_A_ &t->io_write);
     }
 
-    status = mlvpn_rtun_status();
-
+    mlvpn_update_status();
     if (old_status >= MLVPN_CHAP_AUTHOK)
     {
         char *cmdargs[4] = {tuntap.devname, "rtun_down", t->name, NULL};
         priv_run_script(3, cmdargs);
         /* Re-initialize weight round robin */
-        mlvpn_rtun_wrr_reset(&rtuns, status.fallback_mode);
-        if (status.connected == 0) {
+        mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
+        if (mlvpn_status.connected == 0 && mlvpn_status.initialized == 1) {
             cmdargs[0] = tuntap.devname;
             cmdargs[1] = "tuntap_down";
             cmdargs[2] = NULL;
             priv_run_script(2, cmdargs);
+            mlvpn_status.initialized = 0;
         }
     }
     update_process_title();
 }
 
-static struct mlvpn_rtun_status_s
-mlvpn_rtun_status()
+static void
+mlvpn_update_status()
 {
     mlvpn_tunnel_t *t;
-    struct mlvpn_rtun_status_s status;
-    status.fallback_mode = 1;
-    status.connected = 0;
+    mlvpn_status.fallback_mode = 1;
+    mlvpn_status.connected = 0;
     LIST_FOREACH(t, &rtuns, entries)
     {
         if (t->status == MLVPN_CHAP_AUTHOK) {
             if (!t->fallback_only)
-                status.fallback_mode = 0;
-            status.connected++;
+                mlvpn_status.fallback_mode = 0;
+            mlvpn_status.connected++;
         }
     }
-    return status;
 }
 
 void
@@ -872,10 +886,13 @@ mlvpn_config_reload(EV_P_ ev_signal *w, int revents)
     int config_fd = priv_open_config("");
     if (config_fd > 0)
     {
-        if (mlvpn_config(config_fd, 0) != 0)
-            log_warn("configuration reload failed.");
-        else
+        if (mlvpn_config(config_fd, 0) != 0) {
+            log_warn("configuration reload failed");
+        } else {
+            if (time(&mlvpn_status.last_reload) == -1)
+                log_warn("last_reload time set failed");
             mlvpn_rtun_recalc_weight();
+        }
     } else {
         log_warn("configuration open failed.");
     }
@@ -902,7 +919,10 @@ main(int argc, char **argv)
     struct mlvpn_control control;
 #endif
     /* uptime statistics */
-    last_reload = start_time = time((time_t *)NULL);
+    if (time(&mlvpn_status.start_time) == -1)
+        log_warn("start_time time() failed");
+    if (time(&mlvpn_status.last_reload) == -1)
+        log_warn("last_reload time() failed");
 
     /* Debug mode enabled until program is started. */
     log_init(1);
@@ -916,19 +936,12 @@ main(int argc, char **argv)
     compat_init_setproctitle(argc, argv);
     argv = saved_argv;
 
-    memset(&mlvpn_options, 0, sizeof(mlvpn_options));
-    mlvpn_options.change_process_title = 1;
-    strlcpy(mlvpn_options.config_path, "mlvpn.conf",
-        sizeof(mlvpn_options.config_path));
-
     /* Parse the command line quickly for config file name.
      * This is needed for priv_init to know where the config
      * file is.
      *
      * priv_init will not allow to change the config file path.
      */
-
-
     while(1)
     {
         c = getopt_long(argc, saved_argv, optstr,
