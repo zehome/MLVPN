@@ -23,6 +23,12 @@
 
 #include <arpa/inet.h>
 
+#ifdef HAVE_VALGRIND_VALGRIND_H
+# include <valgrind/valgrind.h>
+#else
+# define RUNNING_ON_VALGRIND 0
+#endif
+
 #include "pkt.h"
 #include "buffer.h"
 
