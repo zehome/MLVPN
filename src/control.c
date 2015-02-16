@@ -19,10 +19,9 @@
 
 extern struct tuntap_s tuntap;
 extern char *_progname;
-extern time_t start_time;
-extern time_t last_reload;
-
+extern struct mlvpn_status_s mlvpn_status;
 void mlvpn_control_write_status(struct mlvpn_control *ctrl);
+
 
 #define HTTP_HEADERS "HTTP/1.1 200 OK\r\n" \
     "Connection: close\r\n" \
@@ -368,8 +367,8 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
     ret = snprintf(buf, 1024, JSON_STATUS_BASE,
         _progname,
         1, 1, /* TODO */
-        (uint32_t) start_time,
-        (uint32_t) last_reload,
+        (uint32_t) mlvpn_status.start_time,
+        (uint32_t) mlvpn_status.last_reload,
         0,
         tuntap.type == MLVPN_TUNTAPMODE_TUN ? "tun" : "tap",
         tuntap.devname
