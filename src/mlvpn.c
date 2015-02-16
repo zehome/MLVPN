@@ -261,6 +261,7 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
         }
     } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
         mlvpn_rtun_tick(tun);
+        t->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
     } else {
         mlvpn_rtun_send_auth(tun);
     }
@@ -633,6 +634,7 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     t->status = MLVPN_CHAP_AUTHOK;
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
     t->last_activity = now;
+    t->last_keepalive_ack = now;
     mlvpn_update_status();
     mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
     priv_run_script(3, cmdargs);
@@ -800,7 +802,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
 
     if (t->status == MLVPN_CHAP_AUTHOK && t->timeout > 0) {
-        if ((t->last_activity != 0) && (t->last_activity + t->timeout) < now) {
+        if ((t->last_keepalive_ack != 0) && (t->last_keepalive_ack + t->timeout) < now) {
             log_info("[rtun %s] timeout", t->name);
             mlvpn_rtun_status_down(t);
         } else {
