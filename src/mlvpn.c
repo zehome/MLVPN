@@ -261,7 +261,7 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
         }
     } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
         mlvpn_rtun_tick(tun);
-        t->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
+        tun->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
     } else {
         mlvpn_rtun_send_auth(tun);
     }
