@@ -451,8 +451,14 @@ root_launch_script(char *setup_script, int argc, char **argv)
         sigprocmask(SIG_SETMASK, &oldmask, NULL);
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             return status;
+        } else if (WIFSIGNALED(status)) {
+            log_warnx("network script %s killed by signal %d",
+                setup_script,
+                WTERMSIG(status));
         } else {
-            log_warnx( "network script exit status %d", status);
+            log_warnx("network script %s exit status %d",
+                setup_script,
+                WEXITSTATUS(status));
         }
     } else
         log_warn("%s: could not launch network script", setup_script);
