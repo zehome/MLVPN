@@ -1,4 +1,4 @@
-debian/tmp/lib/systemd/system/mlvpn.servic
+debian/tmp/lib/systemd/system/mlvpn.service
 debian/tmp/lib/systemd/system/mlvpn@.service
 debian/tmp/usr/lib/tmpfiles.d/mlvpn.conf
 debian/tmp/usr/share/man/man1/*
