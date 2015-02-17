@@ -27,7 +27,7 @@ if HAVE_SYSTEMDSYSTEMUNITDIR
 systemdsystemunit_DATA = examples/systemd/mlvpn.service examples/systemd/mlvpn@.service
 endif
 if HAVE_SYSTEMDSYSTEMGENERATORDIR
-systemdsystemgenerator_DATA = examples/systemd/mlvpn-generator
+systemdsystemgenerator_SCRIPTS = examples/systemd/mlvpn-generator
 endif
 if HAVE_SYSTEMDTMPFILESDIR
 systemdtmpfiles_DATA = examples/systemd/mlvpn.conf
