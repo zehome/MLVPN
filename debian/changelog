@@ -1,3 +1,8 @@
+mlvpn (2.0.5) UNRELEASED; urgency=low
+  * Update to 2.0.5 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Tue, 17 Feb 2015 01:05:24 +0100
+
 mlvpn (2.0.4) unstable; urgency=low
   * Update to 2.0.4 release.
 
