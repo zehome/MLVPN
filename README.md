@@ -24,8 +24,8 @@ Quick install
 Install debian package
 ----------------------
 ```sh
-echo "deb http://debian.mlvpn.fr mlvpn-unstable/" >/etc/apt/sources.list.d/mlvpn.list
 sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
+echo "deb http://debian.mlvpn.fr unstable/" >/etc/apt/sources.list.d/mlvpn.list
 sudo apt-get update
 sudo apt-get install mlvpn
 ```
@@ -55,8 +55,6 @@ Build debian package
 ```sh
 $ sudo apt-get install build-essential make autoconf
 $ dpkg-buildpackage -us -uc -rfakeroot
-OR
-# dpkg-buildpackage -us -uc
 ```
 
 Dependencies
@@ -87,7 +85,6 @@ Read more on http://cr.yp.to/chacha.html and http://doc.libsodium.org/.
 
 Principle of operations
 =======================
-
 **TODO**
 
 Compatibility
