@@ -18,6 +18,7 @@ AC_PROG_CC_C99
 AC_GNU_SOURCE
 AC_DEFINE([__USE_BSD], 1, [Enable BSD extensions])
 
+
 AC_MSG_CHECKING([if compiler allows __attribute__ on return types])
 AC_COMPILE_IFELSE(
     [AC_LANG_PROGRAM([[
@@ -107,20 +108,21 @@ mlvpn_ARG_ENABLE([control], [remote control system (cli and http)], [yes])
 
 # Systemd
 mlvpn_ARG_WITH([systemdsystemunitdir], [Directory for systemd service files],
-              [$($PKG_CONFIG --variable=systemdsystemunitdir systemd 2> /dev/null)])
-              AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
-              AM_CONDITIONAL(HAVE_SYSTEMDSYSTEMUNITDIR,
-                  [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
+              [$(pkg-config --variable=systemdsystemunitdir systemd 2> /dev/null)])
+    AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+    AM_CONDITIONAL(HAVE_SYSTEMDSYSTEMUNITDIR,
+        [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
 mlvpn_ARG_WITH([systemdsystemgeneratordir], [Directory for systemd generators],
-              [$($PKG_CONFIG --variable=systemdsystemgeneratordir systemd 2> /dev/null)])
-              AC_SUBST([systemdsystemgeneratordir], [$with_systemdsystemgeneratordir])
-              AM_CONDITIONAL(HAVE_SYSTEMDSYSTEMGENERATORDIR,
-                  [test -n "$with_systemdsystemgeneratordir" -a "x$with_systemdsystemgeneratordir" != xno ])
+              [$(pkg-config --variable=systemdsystemgeneratordir systemd 2> /dev/null)])
+    AC_SUBST([systemdsystemgeneratordir], [$with_systemdsystemgeneratordir])
+    AM_CONDITIONAL(HAVE_SYSTEMDSYSTEMGENERATORDIR,
+        [test -n "$with_systemdsystemgeneratordir" -a "x$with_systemdsystemgeneratordir" != xno ])
+
 mlvpn_ARG_WITH([systemdtmpfilesdir], [Directory for systemd tmpfiles],
-              [$($PKG_CONFIG --variable=tmpfilesdir systemd 2> /dev/null)])
-              AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
-              AM_CONDITIONAL(HAVE_SYSTEMDTMPFILESDIR,
-                  [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
+              [$(pkg-config --variable=tmpfilesdir systemd 2> /dev/null)])
+    AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
+    AM_CONDITIONAL(HAVE_SYSTEMDTMPFILESDIR,
+        [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
 
 AC_CONFIG_FILES([Makefile src/Makefile man/Makefile])
 AC_CHECK_PROGS([RONN], [ronn], [:])
