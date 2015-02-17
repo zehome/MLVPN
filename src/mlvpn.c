@@ -33,7 +33,7 @@
 #include "tool.h"
 #include "setproctitle.h"
 #include "crypto.h"
-#ifdef HAVE_MLVPN_CONTROL
+#ifdef ENABLE_CONTROL
 #include "control.h"
 #endif
 #include "tuntap_generic.h"
@@ -915,7 +915,7 @@ main(int argc, char **argv)
     ev_signal signal_hup;
     ev_signal signal_quit;
     extern char *__progname;
-#ifdef HAVE_MLVPN_CONTROL
+#ifdef ENABLE_CONTROL
     struct mlvpn_control control;
 #endif
     /* uptime statistics */
@@ -1075,7 +1075,7 @@ main(int argc, char **argv)
 
     priv_set_running_state();
 
-#ifdef HAVE_MLVPN_CONTROL
+#ifdef ENABLE_CONTROL
     /* Initialize mlvpn remote control system */
     strlcpy(control.fifo_path, mlvpn_options.control_unix_path,
         sizeof(control.fifo_path));

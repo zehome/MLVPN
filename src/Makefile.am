@@ -1,7 +1,8 @@
 #
 # MLVPN
-# (c) 2012 Laurent Coustet <ed@zehome.com>
+# (c) 2015 Laurent Coustet <ed@zehome.com>
 
+ACLOCAL_AMFLAGS = -I $(top_srcdir)/m4
 AUTOMAKE_OPTIONS = foreign
 
 sbin_PROGRAMS = mlvpn
@@ -31,7 +32,7 @@ if BSD
 mlvpn_SOURCES += tuntap_bsd.c
 endif
 
-if MLVPN_CONTROL
+if ENABLE_CONTROL
 mlvpn_SOURCES += control.c
 endif
 
