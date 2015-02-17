@@ -1,11 +1,19 @@
+AC_PREREQ([2.64])
 AC_INIT([mlvpn],
     m4_esyscmd([./git-version-gen .tarball-version]),
     [ed@zehome.com])
 AC_CONFIG_AUX_DIR([build-aux])
-AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
-AM_SILENT_RULES([yes])
-AC_PROG_CC
 AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
+AC_SUBST([CONFIGURE_ARGS], [$ac_configure_args])
+AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
+
+AM_MAINTAINER_MODE
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES(yes)])
+
+# Checks
+AC_PROG_CC
+AC_PROG_CC_C99
 
 AC_GNU_SOURCE
 AC_DEFINE([__USE_BSD], 1, [Enable BSD extensions])
@@ -24,6 +32,7 @@ __attribute__((__unused__)) static void foo(void){return;}]],
 if test "x$no_attrib_nonnull" != "x1" ; then
     AC_DEFINE([HAVE_ATTRIBUTE__NONNULL__], [1], [Have attribute nonnull])
 fi
+
 
 AC_CHECK_HEADERS([ \
     dirent.h \
@@ -94,23 +103,24 @@ AC_DEFINE([HAVE_LIBSODIUM], [1], [sodium_init in -lsodium])
 
 ### Command lines options ###
 
-### --enable-control (MLVPN simple http/CLI control system)
-AC_ARG_ENABLE([control],
-[  --disable-control              Turn off remote control system (cli and http)],
-[case "${enableval}" in
-    yes)
-        AC_DEFINE(HAVE_MLVPN_CONTROL, 1, [Enable MLVPN Control])
-        mlvpncontrol=true
-    ;;
-    no) mlvpncontrol=false ;;
-    *)
-        AC_MSG_ERROR([bad value ${enableval} for --enable-control])
-    ;;
-esac], [
-    AC_DEFINE(HAVE_MLVPN_CONTROL, 1, [Enable MLVPN Control (set by default value)])
-    mlvpncontrol=true
-])
-AM_CONDITIONAL([MLVPN_CONTROL], [test x$mlvpncontrol = xtrue ])
+mlvpn_ARG_ENABLE([control], [remote control system (cli and http)], [yes])
+
+# Systemd
+mlvpn_ARG_WITH([systemdsystemunitdir], [Directory for systemd service files],
+              [$($PKG_CONFIG --variable=systemdsystemunitdir systemd 2> /dev/null)])
+              AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+              AM_CONDITIONAL(HAVE_SYSTEMDSYSTEMUNITDIR,
+                  [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
+mlvpn_ARG_WITH([systemdsystemgeneratordir], [Directory for systemd generators],
+              [$($PKG_CONFIG --variable=systemdsystemgeneratordir systemd 2> /dev/null)])
+              AC_SUBST([systemdsystemgeneratordir], [$with_systemdsystemgeneratordir])
+              AM_CONDITIONAL(HAVE_SYSTEMDSYSTEMGENERATORDIR,
+                  [test -n "$with_systemdsystemgeneratordir" -a "x$with_systemdsystemgeneratordir" != xno ])
+mlvpn_ARG_WITH([systemdtmpfilesdir], [Directory for systemd tmpfiles],
+              [$($PKG_CONFIG --variable=tmpfilesdir systemd 2> /dev/null)])
+              AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
+              AM_CONDITIONAL(HAVE_SYSTEMDTMPFILESDIR,
+                  [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
 
 AC_CONFIG_FILES([Makefile src/Makefile man/Makefile])
 AC_CHECK_PROGS([RONN], [ronn], [:])
