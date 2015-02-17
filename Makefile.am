@@ -17,20 +17,5 @@ BUILT_SOURCES = $(top_srcdir)/.version
 $(top_srcdir)/.version:
 	echo $(VERSION) > $(top_srcdir)/.version
 
-SUBDIRS = src man
-dist_doc_DATA = AUTHORS README.md examples/mlvpn.conf \
-    examples/mlvpn_updown.sh examples/mlvpn.init.d examples/default_mlvpn \
-    examples/mlvpn_updown_openbsd.sh
-
-## systemd service file
-if HAVE_SYSTEMDSYSTEMUNITDIR
-systemdsystemunit_DATA = examples/systemd/mlvpn.service examples/systemd/mlvpn@.service
-endif
-if HAVE_SYSTEMDSYSTEMGENERATORDIR
-systemdsystemgenerator_SCRIPTS = examples/systemd/mlvpn-generator
-endif
-if HAVE_SYSTEMDTMPFILESDIR
-systemdtmpfiles_DATA = examples/systemd/mlvpn.conf
-endif
-
-EXTRA_dist = examples/systemd/mlvpn.service examples/systemd/mlvpn@.service examples/systemd/mlvpn.conf examples/systemd/mlvpn-generator  mlvpn.service
+SUBDIRS = src man doc
+dist_doc_DATA = AUTHORS README.md

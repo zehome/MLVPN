@@ -4,6 +4,12 @@ AC_INIT([mlvpn],
     [ed@zehome.com])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_FILES([Makefile
+                 doc/Makefile
+                 doc/examples/Makefile
+                 doc/examples/systemd/Makefile
+                 src/Makefile
+                 man/Makefile])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([CONFIGURE_ARGS], [$ac_configure_args])
 AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
@@ -14,6 +20,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES(yes)])
 # Checks
 AC_PROG_CC
 AC_PROG_CC_C99
+AC_PROG_SED
 
 AC_GNU_SOURCE
 AC_DEFINE([__USE_BSD], 1, [Enable BSD extensions])
@@ -124,7 +131,6 @@ mlvpn_ARG_WITH([systemdtmpfilesdir], [Directory for systemd tmpfiles],
     AM_CONDITIONAL(HAVE_SYSTEMDTMPFILESDIR,
         [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
 
-AC_CONFIG_FILES([Makefile src/Makefile man/Makefile])
 AC_CHECK_PROGS([RONN], [ronn], [:])
 if test "$RONN" = :; then
     AC_MSG_WARN([Unable to build manpages without ronn! gem install ronn please.])

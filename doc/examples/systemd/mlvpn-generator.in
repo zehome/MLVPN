@@ -10,12 +10,12 @@ GENDIR="$1"
 WANTDIR="$1/mlvpn.service.wants"
 SERVICEFILE="/lib/systemd/system/mlvpn@.service"
 AUTOSTART="all"
-CONFIG_DIR=/etc/mlvpn
+CONFIG_DIR=@sysconfdir@/mlvpn
 
 mkdir -p "$WANTDIR"
 
-if test -e /etc/default/mlvpn ; then
-    . /etc/default/mlvpn
+if test -e @sysconfdir@/default/mlvpn ; then
+    . @sysconfdir@/default/mlvpn
 fi
 
 # No VPNs automatically started
