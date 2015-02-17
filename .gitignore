@@ -4,7 +4,6 @@ build-aux
 config.h.in
 config.h
 configure
-debian/
 Makefile
 autom4te.cache
 config.log
