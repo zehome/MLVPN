@@ -36,4 +36,5 @@ if ENABLE_CONTROL
 mlvpn_SOURCES += control.c
 endif
 
-mlvpn_LDFLAGS=-lm
+mlvpn_LDFLAGS=-lm $(libsodium_LIBS) $(libev_LIBS)
+mlvpn_CFLAGS=$(CFLAGS) $(libsodium_CFLAGS) $(libev_CFLAGS)
