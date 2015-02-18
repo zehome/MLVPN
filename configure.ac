@@ -93,24 +93,26 @@ AC_CHECK_FUNCS([ \
     vsnprintf
 ])
 
-dnl Checks for libev
-# lib ev
-AC_CHECK_HEADERS([ev.h], [], [AC_MSG_ERROR("ev.h not found")])
-AC_CHECK_LIB([ev], [ev_time], [
-LIBS="-lev ${LIBS}"
-AC_DEFINE([HAVE_LIBEV], [1], [ev_time in -lev])
-], [AC_MSG_ERROR("libev not found")])
+dnl checks for libsodium
+PKG_CHECK_MODULES([libsodium], [libsodium >= 0.6], [], [
+    AC_CHECK_HEADERS([sodium.h], [], [AC_MSG_ERROR("sodium.h not found")])
+    AC_CHECK_LIB([sodium], [sodium_init], [
+    libsodium_LIBS="-lsodium ${LIBS}"
+    AC_DEFINE([HAVE_LIBSODIUM], [1], [sodium_init in -lsodium])
+    ], [AC_MSG_ERROR("libsodium not found")])
+])
 
-dnl Checks for libsodium
-# libsodium
-AC_CHECK_HEADERS([sodium.h], [], [AC_MSG_ERROR("sodium.h not found")])
-AC_CHECK_LIB([sodium], [sodium_init], [
-LIBS="-lsodium ${LIBS}"
-AC_DEFINE([HAVE_LIBSODIUM], [1], [sodium_init in -lsodium])
-], [AC_MSG_ERROR("libsodium not found")])
+dnl checks for libev
+# lib ev
+PKG_CHECK_MODULES([libev], [libev], [], [
+    AC_CHECK_HEADERS([ev.h], [], [AC_MSG_ERROR("ev.h not found")])
+    AC_CHECK_LIB([ev], [ev_time], [
+    libev_LIBS="-lev"
+    AC_DEFINE([HAVE_LIBEV], [1], [ev_time in -lev])
+    ], [AC_MSG_ERROR("libev not found")])
+])
 
 ### Command lines options ###
-
 mlvpn_ARG_ENABLE([control], [remote control system (cli and http)], [yes])
 
 # Systemd
