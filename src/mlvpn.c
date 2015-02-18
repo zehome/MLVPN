@@ -117,7 +117,6 @@ usage(char **argv)
     fprintf(stderr,
             "usage: %s [options]\n\n"
             "Options:\n"
-            " -b, --background      launch as a daemon (fork)\n"
             " -c, --config [path]   path to config file (ex. /etc/mlvpn.conf)\n"
             " --natural-title       do not change process title\n"
             " -n, --name            change process-title and include 'name'\n"
