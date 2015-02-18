@@ -77,10 +77,10 @@ Read more http://en.wikipedia.org/wiki/Privilege_separation
 
 Cryptography
 ------------
-  * Encryption: ChaCha20 stream cipher
+  * Encryption: Salsa20 stream cipher
   * Authentication: Poly1305 MAC
 
-Read more on http://cr.yp.to/chacha.html and http://doc.libsodium.org/.
+Read more on http://cr.yp.to/salsa20.html and http://doc.libsodium.org/.
 
 
 Principle of operations
