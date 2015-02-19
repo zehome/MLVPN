@@ -1,3 +1,9 @@
+mlvpn (1.3.2) mlvpn-unstable; urgency=low
+  * Improve debian wheezy support. (Uses /run instead of /var/run)
+  * closes #31
+
+ -- Laurent Coustet <ed@zehome.com>  Wed, 12 Feb 2014 20:16:18 +0100
+
 mlvpn (1.3-1) UNRELEASED; urgency=low
   * Buffer system refactoring (Improving performance)
   * Introduce new system to re-order packets on the receiving side.

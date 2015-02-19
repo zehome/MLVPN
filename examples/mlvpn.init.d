@@ -38,51 +38,20 @@ if test -e /etc/default/mlvpn ; then
   . /etc/default/mlvpn
 fi
 
-if [ "$DISABLE_PROCTITLE" = "yes" ]; then
-  INIT_NATURAL_TITLE="--natural-title"
-else
-  INIT_NATURAL_TITLE="--name $NAME"
-fi
-
-# Check / change permissions on the script run by mlvpn (hooks)
-check_updown_script () {
-    # First get mlvpn_updown_script path
-    script_path=$(awk 'match($0, /^\s*[^#]*(statuscommand\s*=\s*)([^ ]*)/, grp) {print grp[2]}' ${CONFIG_DIR}/${NAME}.conf)
-    STATUS=1
-    if [ -z "${script_path}" ]; then
-      log_failure_msg " ${CONFIG_DIR}/${NAME}.conf must have a valid statuscommand!"
-      return
-    fi
-    if [ ! -f "${script_path}" ]; then
-      log_failure_msg " ${CONFIG_DIR}/${NAME}.conf must exists."
-      return
-    fi
-    if ! (stat -t -c '%u %g %a' ${script_path} | grep -q '0 0 700'); then
-      log_failure_msg " ${CONFIG_DIR}/${NAME}.conf must be owned by root:root mode 700."
-      return
-    fi
-    STATUS=0
-}
-
 start_vpn () {
     log_progress_msg "$NAME"
-    check_updown_script
-
-    if [ "$STATUS" != "0" ]; then
-      return
-    fi
+    STATUS=0
 
     start-stop-daemon --start --quiet --oknodo \
-        --pidfile /var/run/mlvpn.$NAME.pid \
+        --pidfile /run/mlvpn.$NAME.pid \
         --background \
         --make-pidfile \
-        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER \
-        $INIT_NATURAL_TITLE || STATUS=1
+        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER || STATUS=1
 }
 stop_vpn () {
   kill `cat $PIDFILE` || true
   rm -f $PIDFILE
-  rm -f /var/run/mlvpn.$NAME.status 2> /dev/null
+  rm -f /var/mlvpn.$NAME.status 2> /dev/null
 }
 
 case "$1" in
@@ -133,7 +102,7 @@ stop)
   log_daemon_msg "Stopping $DESC"
 
   if test -z "$2" ; then
-    for PIDFILE in `ls /var/run/mlvpn.*.pid 2> /dev/null`; do
+    for PIDFILE in `ls /run/mlvpn.*.pid 2> /dev/null`; do
       NAME=`echo $PIDFILE | cut -c18-`
       NAME=${NAME%%.pid}
       stop_vpn
@@ -142,8 +111,8 @@ stop)
   else
     while shift ; do
       [ -z "$1" ] && break
-      if test -e /var/run/mlvpn.$1.pid ; then
-        PIDFILE=`ls /var/run/mlvpn.$1.pid 2> /dev/null`
+      if test -e /run/mlvpn.$1.pid ; then
+        PIDFILE=`ls /run/mlvpn.$1.pid 2> /dev/null`
         NAME=`echo $PIDFILE | cut -c18-`
         NAME=${NAME%%.pid}
         stop_vpn
@@ -158,7 +127,7 @@ stop)
 # Only 'reload' running VPNs. New ones will only start with 'start' or 'restart'.
 reload|force-reload)
  log_daemon_msg "Reloading $DESC"
-  for PIDFILE in `ls /var/run/mlvpn.*.pid 2> /dev/null`; do
+  for PIDFILE in `ls /run/mlvpn.*.pid 2> /dev/null`; do
     NAME=`echo $PIDFILE | cut -c18-`
     NAME=${NAME%%.pid}
     stop_vpn
@@ -177,7 +146,7 @@ restart)
   ;;
 cond-restart)
   log_daemon_msg "Restarting $DESC."
-  for PIDFILE in `ls /var/run/mlvpn.*.pid 2> /dev/null`; do
+  for PIDFILE in `ls /run/mlvpn.*.pid 2> /dev/null`; do
     NAME=`echo $PIDFILE | cut -c18-`
     NAME=${NAME%%.pid}
     stop_vpn
@@ -225,9 +194,9 @@ status)
       fi
       if test "x$AUTOVPN" = "x1" ; then
         # If it is autostarted, then it contributes to global status
-        status_of_proc -p /var/run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
+        status_of_proc -p /run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
       else
-        status_of_proc -p /var/run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}' (non autostarted)" || true
+        status_of_proc -p /run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}' (non autostarted)" || true
       fi
     done
   else
@@ -238,7 +207,7 @@ status)
       NAME=$1
       if test -e $CONFIG_DIR/$NAME.conf ; then
         # Config exists
-        status_of_proc -p /var/run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
+        status_of_proc -p /run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
       else
         # Config does not exist
         log_warning_msg "VPN '$NAME': missing $CONFIG_DIR/$NAME.conf file !"

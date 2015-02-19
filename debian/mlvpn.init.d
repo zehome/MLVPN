@@ -32,6 +32,9 @@ CONFIG_DIR=/etc/mlvpn
 test -x $DAEMON || exit 0
 test -d $CONFIG_DIR || exit 0
 
+# Directory used by mlvpn chroot (mlvpn user $HOME)
+[ -d /run/mlvpn ] || mkdir /run/mlvpn
+
 # Source defaults file; edit that file to configure this script.
 AUTOSTART="all"
 if test -e /etc/default/mlvpn ; then
@@ -43,7 +46,7 @@ start_vpn () {
     STATUS=0
 
     start-stop-daemon --start --quiet --oknodo \
-        --pidfile /var/run/mlvpn.$NAME.pid \
+        --pidfile /run/mlvpn.$NAME.pid \
         --background \
         --make-pidfile \
         --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER || STATUS=1
@@ -51,7 +54,7 @@ start_vpn () {
 stop_vpn () {
   kill `cat $PIDFILE` || true
   rm -f $PIDFILE
-  rm -f /var/run/mlvpn.$NAME.status 2> /dev/null
+  rm -f /var/mlvpn.$NAME.status 2> /dev/null
 }
 
 case "$1" in
@@ -102,7 +105,7 @@ stop)
   log_daemon_msg "Stopping $DESC"
 
   if test -z "$2" ; then
-    for PIDFILE in `ls /var/run/mlvpn.*.pid 2> /dev/null`; do
+    for PIDFILE in `ls /run/mlvpn.*.pid 2> /dev/null`; do
       NAME=`echo $PIDFILE | cut -c18-`
       NAME=${NAME%%.pid}
       stop_vpn
@@ -111,8 +114,8 @@ stop)
   else
     while shift ; do
       [ -z "$1" ] && break
-      if test -e /var/run/mlvpn.$1.pid ; then
-        PIDFILE=`ls /var/run/mlvpn.$1.pid 2> /dev/null`
+      if test -e /run/mlvpn.$1.pid ; then
+        PIDFILE=`ls /run/mlvpn.$1.pid 2> /dev/null`
         NAME=`echo $PIDFILE | cut -c18-`
         NAME=${NAME%%.pid}
         stop_vpn
@@ -127,7 +130,7 @@ stop)
 # Only 'reload' running VPNs. New ones will only start with 'start' or 'restart'.
 reload|force-reload)
  log_daemon_msg "Reloading $DESC"
-  for PIDFILE in `ls /var/run/mlvpn.*.pid 2> /dev/null`; do
+  for PIDFILE in `ls /run/mlvpn.*.pid 2> /dev/null`; do
     NAME=`echo $PIDFILE | cut -c18-`
     NAME=${NAME%%.pid}
     stop_vpn
@@ -146,7 +149,7 @@ restart)
   ;;
 cond-restart)
   log_daemon_msg "Restarting $DESC."
-  for PIDFILE in `ls /var/run/mlvpn.*.pid 2> /dev/null`; do
+  for PIDFILE in `ls /run/mlvpn.*.pid 2> /dev/null`; do
     NAME=`echo $PIDFILE | cut -c18-`
     NAME=${NAME%%.pid}
     stop_vpn
@@ -194,9 +197,9 @@ status)
       fi
       if test "x$AUTOVPN" = "x1" ; then
         # If it is autostarted, then it contributes to global status
-        status_of_proc -p /var/run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
+        status_of_proc -p /run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
       else
-        status_of_proc -p /var/run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}' (non autostarted)" || true
+        status_of_proc -p /run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}' (non autostarted)" || true
       fi
     done
   else
@@ -207,7 +210,7 @@ status)
       NAME=$1
       if test -e $CONFIG_DIR/$NAME.conf ; then
         # Config exists
-        status_of_proc -p /var/run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
+        status_of_proc -p /run/mlvpn.${NAME}.pid mlvpn "VPN '${NAME}'" || GLOBAL_STATUS=1
       else
         # Config does not exist
         log_warning_msg "VPN '$NAME': missing $CONFIG_DIR/$NAME.conf file !"

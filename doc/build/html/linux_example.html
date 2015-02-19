@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -15,7 +13,7 @@
     
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '',
+        URL_ROOT:    './',
         VERSION:     '1.3',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
@@ -25,7 +23,10 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="mlvpn 1.3 documentation" href="index.html" /> 
+    <link rel="copyright" title="Copyright" href="copyright.html" />
+    <link rel="top" title="mlvpn 1.3 documentation" href="index.html" />
+    <link rel="next" title="Building debian packages for mlvpn" href="debian_packaging.html" />
+    <link rel="prev" title="MLVPN - Documentation" href="index.html" /> 
   </head>
   <body>
     <div class="related">
@@ -34,6 +35,12 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="debian_packaging.html" title="Building debian packages for mlvpn"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="MLVPN - Documentation"
+             accesskey="P">previous</a> |</li>
         <li><a href="index.html">mlvpn 1.3 documentation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -54,7 +61,7 @@ to the other using multiple links in order to aggregate them.</p>
 </div>
 <div class="section" id="example-case">
 <h2>Example case<a class="headerlink" href="#example-case" title="Permalink to this headline">¶</a></h2>
-<div class="highlight-ascii"><pre>                                                       128.128.128.128
+<div class="highlight-none"><div class="highlight"><pre>                                                       128.128.128.128
                                                       +---------------+
                                          +-----------&gt;| Fast internet |--&gt; OUT
                                          |            +---------------+
@@ -82,7 +89,8 @@ to the other using multiple links in order to aggregate them.</p>
    +------+                        |
    | LAN  |------------------------+
    +------+
-192.168.0.0/24</pre>
+192.168.0.0/24
+</pre></div>
 </div>
 <p>In this setup we have multiple machines:</p>
 <blockquote>
@@ -113,18 +121,20 @@ to the other using multiple links in order to aggregate them.</p>
 <p>You should be able to access the internet using both links.</p>
 <p>You can test it using standard routing.</p>
 <p>Before we do anything: (Note: you may require installing iproute2)</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ip route show
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ip route show
 default via 192.168.1.1 dev eth0
 192.168.0.0/24 dev eth0  proto kernel  scope link  src 192.168.0.1
 192.168.1.0/24 dev eth0  proto kernel  scope link  src 192.168.1.2
-192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2</pre>
+192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2
+</pre></div>
 </div>
 <p>This routing table means every packet to the internet will go thru 192.168.1.1.
 We can test it:</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ping -n -c2 -I192.168.1.2 ping.ovh.net
-PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
-64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=42.1 ms
-64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=41.7 ms</pre>
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ping -n -c2 -I192.168.1.2 ping.ovh.net
+PING ping.ovh.net <span class="o">(</span>213.186.33.13<span class="o">)</span> 56<span class="o">(</span>84<span class="o">)</span> bytes of data.
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>1 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>42.1 ms
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>2 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>41.7 ms
+</pre></div>
 </div>
 <p>Ok I started to use &#8220;-I192.168.1.2&#8221; here. That&#8217;s not mandatory in this
 example, but this will become handy later.</p>
@@ -132,24 +142,27 @@ example, but this will become handy later.</p>
 we are sending to ping.ovh.net.</p>
 <p>Now, we know our ADSL1 link is working properly.</p>
 <p>Testing the second link will need us to modify the routing table.</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ip route add 213.186.33.13 via 192.168.2.1
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ip route add 213.186.33.13 via 192.168.2.1
 root@mlvpnclient:~# ip route show
 default via 192.168.1.1 dev eth0
 213.186.33.13 via 192.168.2.2 dev eth0
 192.168.0.0/24 dev eth0  proto kernel  scope link  src 192.168.0.1
 192.168.1.0/24 dev eth0  proto kernel  scope link  src 192.168.1.2
-192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2</pre>
+192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2
+</pre></div>
 </div>
 <p>Notice the new 213.186.33.13 (ping.ovh.net) added to the routing table.</p>
 <p>Again, we can test the link:</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ping -n -c2 -I192.168.2.2 ping.ovh.net
-PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
-64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=62.4 ms
-64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=61.1 ms</pre>
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ping -n -c2 -I192.168.2.2 ping.ovh.net
+PING ping.ovh.net <span class="o">(</span>213.186.33.13<span class="o">)</span> 56<span class="o">(</span>84<span class="o">)</span> bytes of data.
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>1 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>62.4 ms
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>2 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>61.1 ms
+</pre></div>
 </div>
 <p>Noticed we changed the source address, and the latency is higher on ADSL2 by ~ 20ms.</p>
 <p>Everything is fine, let&#8217;s cleanup the routing table:</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ip route del 213.186.33.13</pre>
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ip route del 213.186.33.13
+</pre></div>
 </div>
 </div>
 <div class="section" id="configuring-the-source-routing">
@@ -169,24 +182,26 @@ from 192.168.1.2 to go thru ADSL1. Simple yah?</p>
 <h3>Let&#8217;s configure it<a class="headerlink" href="#let-s-configure-it" title="Permalink to this headline">¶</a></h3>
 <p>First, you need to create multiple routing tables in the kernel.</p>
 <p>That&#8217;s better to name them, so yo do it by modifing <strong>/etc/iproute2/rt_tables</strong>.</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# echo 101 adsl1 &gt;&gt; /etc/iproute2/rt_tables
-root@mlvpnclient:~# echo 102 adsl2 &gt;&gt; /etc/iproute2/rt_tables</pre>
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# <span class="nb">echo </span>101 adsl1 &gt;&gt; /etc/iproute2/rt_tables
+root@mlvpnclient:~# <span class="nb">echo </span>102 adsl2 &gt;&gt; /etc/iproute2/rt_tables
+</pre></div>
 </div>
 <p>Your configuration file should now look like this</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# cat /etc/iproute2/rt_tables
-#
-# reserved values
-#
-255 local
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# cat /etc/iproute2/rt_tables
+<span class="c">#</span>
+<span class="c"># reserved values</span>
+<span class="c">#</span>
+255 <span class="nb">local</span>
 254 main
 253 default
 0   unspec
-#
-# local
-#
-#1  inr.ruhep
+<span class="c">#</span>
+<span class="c"># local</span>
+<span class="c">#</span>
+<span class="c">#1  inr.ruhep</span>
 101 adsl1
-102 adsl2</pre>
+102 adsl2
+</pre></div>
 </div>
 <p>We have &#8220;named&#8221; two new routing tables, but we did not create them.
 /etc/iproute2/rt_tables file is optional.</p>
@@ -197,7 +212,7 @@ ip route add default via 192.168.1.1 dev eth0 table adsl1
 
 <span class="c"># Inserting routes in the adsl2 table</span>
 ip route add 192.168.2.0/24 dev eth0 scope link table adsl2
-ip route add default via 192.168.1.1 dev eth0 table adsl1
+ip route add default via 192.168.2.1 dev eth0 table adsl2
 
 <span class="c"># ip rule is the source routing magic. This will redirect</span>
 <span class="c"># packets coming from source &quot;X&quot; to table &quot;adsl1&quot;, &quot;adsl2&quot; or &quot;default&quot;.</span>
@@ -212,15 +227,16 @@ ip rule add from 192.168.2.0/24 table adsl2
 <p>First, show me your configuration! The first thing you should always do is
 displaying ip rules. (Which routing table will be used when ?)</p>
 <p>(Please note rules are applied in order from 0 to 32767)</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ip rule list
-  0:      from all lookup local
-  32764:  from 192.168.1.0/24 lookup adsl1
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ip rule list
+  0:      from all lookup <span class="nb">local</span>
+<span class="nb">  </span>32764:  from 192.168.1.0/24 lookup adsl1
   32765:  from 192.168.2.0/24 lookup adsl2
   32766:  from all lookup main
-  32767:  from all lookup default</pre>
+  32767:  from all lookup default
+</pre></div>
 </div>
 <p>Then the routing tables:</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ip route show table adsl1
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ip route show table adsl1
   192.168.1.0/24 dev eth0  scope link
   default via 192.168.1.1 dev eth0
 root@mlvpnclient:~# ip route show table adsl2
@@ -231,18 +247,20 @@ root@mlvpnclient:~# ip route show table main
   213.186.33.13 via 192.168.2.2 dev eth0
   192.168.0.0/24 dev eth0  proto kernel  scope link  src 192.168.0.1
   192.168.1.0/24 dev eth0  proto kernel  scope link  src 192.168.1.2
-  192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2</pre>
+  192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2
+</pre></div>
 </div>
 <p>Ping test</p>
-<div class="highlight-cmd"><pre>root@mlvpnclient:~# ping -c2 -n -I192.168.1.1 ping.ovh.net
-PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
-64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=40.6 ms
-64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=41.5 ms
+<div class="highlight-sh"><div class="highlight"><pre>root@mlvpnclient:~# ping -c2 -n -I192.168.1.1 ping.ovh.net
+PING ping.ovh.net <span class="o">(</span>213.186.33.13<span class="o">)</span> 56<span class="o">(</span>84<span class="o">)</span> bytes of data.
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>1 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>40.6 ms
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>2 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>41.5 ms
 
 root@mlvpnclient:~# ping -c2 -n -I192.168.2.1 ping.ovh.net
-PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
-64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=62.0 ms
-64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=64.1 ms</pre>
+PING ping.ovh.net <span class="o">(</span>213.186.33.13<span class="o">)</span> 56<span class="o">(</span>84<span class="o">)</span> bytes of data.
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>1 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>62.0 ms
+64 bytes from 213.186.33.13: <span class="nv">icmp_req</span><span class="o">=</span>2 <span class="nv">ttl</span><span class="o">=</span>51 <span class="nb">time</span><span class="o">=</span>64.1 ms
+</pre></div>
 </div>
 <p>Hey that&#8217;s working fine !</p>
 </div>
@@ -258,7 +276,7 @@ PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
 
 <span class="c"># Inserting routes in the adsl2 table</span>
 /sbin/ip route add 192.168.2.0/24 dev eth0 scope link table adsl2
-/sbin/ip route add default via 192.168.1.1 dev eth0 table adsl1
+/sbin/ip route add default via 192.168.2.1 dev eth0 table adsl2
 
 <span class="c"># ip rule is the source routing magic. This will redirect</span>
 <span class="c"># packets coming from source &quot;X&quot; to table &quot;adsl1&quot;, &quot;adsl2&quot; or &quot;default&quot;.</span>
@@ -269,7 +287,7 @@ PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
 <p>Verify permissions: <strong>chmod +x /usr/local/sbin/source_routing</strong></p>
 <p>You can use post-up scripts of /etc/network/interfaces to run this script.</p>
 <p>/etc/network/interfaces</p>
-<div class="highlight-interfaces"><pre>auto eth0
+<div class="highlight-none"><div class="highlight"><pre>auto eth0
 iface eth0 inet static
     address 192.168.0.1
     netmask 255.255.255.0
@@ -284,7 +302,8 @@ iface eth0:adsl1 inet static
 auto eth0:adsl2
 iface eth0:adsl2 inet static
     address 192.168.2.2
-    netmask 255.255.255.0</pre>
+    netmask 255.255.255.0
+</pre></div>
 </div>
 <p>Don&#8217;t forget to execute the script once by hand or thru <strong>service networking restart</strong>.</p>
 </div>
@@ -413,7 +432,7 @@ This is a little trick to help mlvpn aggregation. (Latency must be matched)</p>
     /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
     /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
 <span class="k">elif</span> <span class="o">[</span> <span class="s2">&quot;$newstatus&quot;</span> <span class="o">=</span> <span class="s2">&quot;tuntap_down&quot;</span> <span class="o">]</span>; <span class="k">then</span>
-    /sbin/route add -net 192.168.0.0/24 gw 10.42.42.2
+    /sbin/route del -net 192.168.0.0/24 gw 10.42.42.2
     /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
     /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
 <span class="k">fi</span>
@@ -426,32 +445,37 @@ This is a little trick to help mlvpn aggregation. (Latency must be matched)</p>
 </div>
 <div class="section" id="id3">
 <h2>Testing<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
-<p>Double check permissions of /etc/mlvpn/<a href="#id4"><span class="problematic" id="id5">*</span></a>.sh (chmod 700 owned by root)</p>
+<p>Double check permissions of /etc/mlvpn/*.sh (chmod 700 owned by root)</p>
 <p>Don&#8217;t forget to accept UDP 5080 and 5081 on your firewall, server side.</p>
-<div class="highlight-cmd"><pre>root@server:~ # iptables -I INPUT -i eth0 -p udp --dport 5080 -s [ADSL1_PUBLICIP] -j ACCEPT
-root@server:~ # iptables -I INPUT -i eth0 -p udp --dport 5081 -s [ADSL2_PUBLICIP] -j ACCEPT</pre>
+<div class="highlight-sh"><div class="highlight"><pre>root@server:~ <span class="c"># iptables -I INPUT -i eth0 -p udp --dport 5080 -s [ADSL1_PUBLICIP] -j ACCEPT</span>
+root@server:~ <span class="c"># iptables -I INPUT -i eth0 -p udp --dport 5081 -s [ADSL2_PUBLICIP] -j ACCEPT</span>
+</pre></div>
 </div>
 <p>Start mlvpn on server side manually</p>
-<div class="highlight-cmd"><pre>root@server:~ # mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf</pre>
+<div class="highlight-sh"><div class="highlight"><pre>root@server:~ <span class="c"># mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf</span>
+</pre></div>
 </div>
 <p>Start mlvpn on client side manually</p>
-<div class="highlight-cmd"><pre>root@client:~ # mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf</pre>
+<div class="highlight-sh"><div class="highlight"><pre>root@client:~ <span class="c"># mlvpn --user mlvpn -c /etc/mlvpn/mlvpn0.conf</span>
+</pre></div>
 </div>
 <p>Check logfiles on client</p>
-<div class="highlight-cmd"><pre>root@client:~ # cat /var/log/mlvpn_commands.log
+<div class="highlight-sh"><div class="highlight"><pre>root@client:~ <span class="c"># cat /var/log/mlvpn_commands.log</span>
 mlvpn0 setup
-rtun [adsl1] is up
-rtun [adsl2] is up</pre>
+rtun <span class="o">[</span>adsl1<span class="o">]</span> is up
+rtun <span class="o">[</span>adsl2<span class="o">]</span> is up
+</pre></div>
 </div>
 <p>Seems good. Some test ping</p>
-<div class="highlight-cmd"><pre># Testing connectivity to the server (tunnel address space)
-root@client:~ # ping -n -c2 -I10.42.42.2 10.42.42.1
-# Testing connectivity to the server (LAN address space)
-root@client:~ # ping -n -c1 -I192.168.0.1 10.42.42.1
-# Testing connectivity to the internet
-root@client:~ # ping -n -c1 -I192.168.0.1 proof.ovh.net
-# Download speed testing
-root@client:~ # wget -O/dev/null http://proof.ovh.net/files/10Gio.dat</pre>
+<div class="highlight-sh"><div class="highlight"><pre><span class="c"># Testing connectivity to the server (tunnel address space)</span>
+root@client:~ <span class="c"># ping -n -c2 -I10.42.42.2 10.42.42.1</span>
+<span class="c"># Testing connectivity to the server (LAN address space)</span>
+root@client:~ <span class="c"># ping -n -c1 -I192.168.0.1 10.42.42.1</span>
+<span class="c"># Testing connectivity to the internet</span>
+root@client:~ <span class="c"># ping -n -c1 -I192.168.0.1 proof.ovh.net</span>
+<span class="c"># Download speed testing</span>
+root@client:~ <span class="c"># wget -O/dev/null http://proof.ovh.net/files/10Gio.dat</span>
+</pre></div>
 </div>
 </div>
 </div>
@@ -493,6 +517,12 @@ root@client:~ # wget -O/dev/null http://proof.ovh.net/files/10Gio.dat</pre>
 </li>
 </ul>
 
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">MLVPN - Documentation</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="debian_packaging.html"
+                        title="next chapter">Building debian packages for mlvpn</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/linux_example.txt"
@@ -521,12 +551,18 @@ root@client:~ # wget -O/dev/null http://proof.ovh.net/files/10Gio.dat</pre>
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="debian_packaging.html" title="Building debian packages for mlvpn"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="MLVPN - Documentation"
+             >previous</a> |</li>
         <li><a href="index.html">mlvpn 1.3 documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2012, Laurent COUSTET.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+        &copy; <a href="copyright.html">Copyright</a> 2012-2014, Laurent COUSTET.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
     </div>
   </body>
 </html>

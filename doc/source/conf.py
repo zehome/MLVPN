@@ -41,14 +41,14 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'mlvpn'
-copyright = u'2012, Laurent COUSTET'
+copyright = u'2012-2014, Laurent COUSTET'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-version = '1'
+version = '2'
 # The full version, including alpha/beta/rc tags.
 release = '1.3'
 

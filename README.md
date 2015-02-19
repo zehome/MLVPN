@@ -17,10 +17,19 @@ en utilisant plusieurs liens, dans le but de fournir:
 Quick install
 =============
 
+Install debian package
+----------------------
+```sh
+echo "deb http://debian.mlvpn.fr mlvpn-unstable/" >/etc/apt/sources.list.d/mlvpn.list
+sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
+sudo apt-get update
+sudo apt-get install mlvpn
+```
 
 Build from source
 -----------------
 ```sh
+$ sudo apt-get install build-essential make autoconf
 $ ./autogen.sh
 $ ./configure
 $ make
@@ -30,6 +39,7 @@ $ make install
 Build debian package
 --------------------
 ```sh
+$ sudo apt-get install build-essential make autoconf
 $ dpkg-buildpackage -us -uc -rfakeroot
 OR
 # dpkg-buildpackage -us -uc
@@ -42,7 +52,6 @@ Fonctionnalités
   * File d'émission "haute performance" sans limitation de débit (QoS)
   * Haute-Disponibilité (supporte la perte de liens)
   * Sécurité par séparation des privilèges
-  * Authentification du client
 
 Fonctions non supportées
 ========================
@@ -94,18 +103,6 @@ Authentification
 ----------------
 Ce système permet de gérer correctement les timeout. Il n'a pas pour but
 d'améliorer la sécurité du système.
-
-Un mot de passe partagé entre les 2 parties est stocké dans le fichier de configuration.
-
-Le client ne relaye les paquets qu'il reçoit que si la communication a été
-authentifié via ce mot de passe.
-
-Le principe est (trop) simple:
-  - client envoie un challenge aléatoire
-  - serveur reçoit le challenge, y contatene le mot de passe
-  - serveur renvoie un hash sha1 du motdepasse+challenge
-  - client vérifie que le hash correspond a ce qu'il a lui même calculé
-
 
 Compatiblité
 ============
