@@ -175,10 +175,7 @@ root_tuntap_open(int tuntapmode, char *devname)
             return -1;
         }
 
-        /* TODO: change this to 1 and handle 4 bytes
-         * on read for family (INET6 & so on)
-         */
-        flags = 0;
+        flags = 1;
         if (ioctl(fd, TUNSIFHEAD, &flags) < 0)
         {
             warn("ioctl(TUNSIFHEAD)");
