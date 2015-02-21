@@ -93,6 +93,8 @@ AC_CHECK_FUNCS([ \
     vsnprintf
 ])
 
+AC_CACHE_SAVE
+
 dnl checks for libsodium
 PKG_CHECK_MODULES([libsodium], [libsodium >= 0.6], [], [
     AC_CHECK_HEADERS([sodium.h], [], [AC_MSG_ERROR("sodium.h not found")])
