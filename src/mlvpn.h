@@ -29,6 +29,10 @@
  #define RUNNING_ON_VALGRIND 0
 #endif
 
+#ifdef HAVE_DECL_RES_INIT
+ #include <netinet/in.h>
+ #include <arpa/nameser.h>
+ #include <resolv.h>
 #endif
 
 #include "pkt.h"

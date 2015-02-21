@@ -74,6 +74,7 @@ enum cmd_types {
     PRIV_INIT_SCRIPT,   /* set allowed status script path */
     PRIV_OPEN_TUN,      /* open tun/tap device */
     PRIV_RUN_SCRIPT,    /* run status script */
+    PRIV_RELOAD_RESOLVER,
     PRIV_GETADDRINFO,
     PRIV_SET_RUNNING_STATE /* ready for maximum security */
 };
@@ -388,6 +389,11 @@ priv_init(char *argv[], char *username)
                 free(script_argv[i]);
             }
             free(script_argv);
+            break;
+        case PRIV_RELOAD_RESOLVER:
+#ifdef HAVE_DECL_RES_INIT
+            res_init();
+#endif
             break;
 
         case PRIV_SET_RUNNING_STATE:

@@ -41,6 +41,15 @@ if test "x$no_attrib_nonnull" != "x1" ; then
     AC_DEFINE([HAVE_ATTRIBUTE__NONNULL__], [1], [Have attribute nonnull])
 fi
 
+AC_CHECK_DECLS(
+    [res_init],
+    [AC_CHECK_LIB(resolv, res_init)],
+    [], [
+      #include <netinet/in.h>
+      #include <arpa/nameser.h>
+      #include <resolv.h>
+    ]
+)
 
 AC_CHECK_HEADERS([ \
     dirent.h \

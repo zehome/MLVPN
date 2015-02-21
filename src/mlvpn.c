@@ -880,6 +880,7 @@ static void
 mlvpn_config_reload(EV_P_ ev_signal *w, int revents)
 {
     log_info("reload configuration (SIGHUP)");
+    priv_reload_resolver();
     /* configuration file path does not matter after
      * the first intialization.
      */
