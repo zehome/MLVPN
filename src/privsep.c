@@ -513,7 +513,7 @@ int priv_open_tun(int tuntapmode, char *devname)
     size_t len;
 
     if (priv_fd < 0)
-        errx(1, "priv_open_tun: called from privileged portion");
+        errx(1, "%s: called from privileged portion", "priv_open_tun");
 
     if (devname == NULL)
         len = 0;
@@ -538,8 +538,9 @@ int priv_open_tun(int tuntapmode, char *devname)
         fd = len;
     } else {
         /* Too big ! */
-        errx(1, "priv_open_tun: device name returned by privileged "
-             "service is too long.");
+        errx(1, "%s: device name returned by privileged "
+             "service is too long.",
+             "priv_open_tun");
     }
     return fd;
 }
@@ -557,7 +558,7 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     struct addrinfo *new, *last = NULL;
 
     if (priv_fd < 0)
-        errx(1, "%s: called from privileged portion", "priv_gethostserv");
+        errx(1, "%s: called from privileged portion", "priv_getaddrinfo");
 
     strlcpy(hostcpy, host, sizeof(hostcpy)-1);
     hostname_len = strlen(hostcpy) + 1;
@@ -667,17 +668,25 @@ priv_run_script(int argc, char **argv)
     return retval;
 }
 
+void priv_reload_resolver(void)
+{
+    int cmd;
+    if (priv_fd < 0)
+        errx(1, "%s: called from privileged portion",
+             "priv_reload_resolver");
+    cmd = PRIV_RELOAD_RESOLVER;
+    must_write(priv_fd, &cmd, sizeof(cmd));
+}
+
 /* Child can signal that its initial parsing is done, so that parent
  * can revoke further logfile permissions.  This call only works once. */
 void
 priv_set_running_state(void)
 {
     int cmd;
-
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion",
-             "priv_config_parse_done");
-
+             "priv_set_running_state");
     cmd = PRIV_SET_RUNNING_STATE;
     must_write(priv_fd, &cmd, sizeof(cmd));
 }
