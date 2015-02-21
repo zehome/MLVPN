@@ -10,23 +10,25 @@
 #include <ev.h>
 
 #ifdef HAVE_OPENBSD
-#include <netinet/in.h>
+ #include <netinet/in.h>
 #endif
 
 /* Many thanks Fabien Dupont! */
 #ifdef HAVE_LINUX
-/* Absolutely essential to have it there for IFNAMSIZ */
-#include <sys/types.h>
-#include <netdb.h>
-#include <linux/if.h>
+ /* Absolutely essential to have it there for IFNAMSIZ */
+ #include <sys/types.h>
+ #include <netdb.h>
+ #include <linux/if.h>
 #endif
 
 #include <arpa/inet.h>
 
 #ifdef HAVE_VALGRIND_VALGRIND_H
-# include <valgrind/valgrind.h>
+ #include <valgrind/valgrind.h>
 #else
-# define RUNNING_ON_VALGRIND 0
+ #define RUNNING_ON_VALGRIND 0
+#endif
+
 #endif
 
 #include "pkt.h"
@@ -41,7 +43,7 @@
 
 /* tuntap interface name size */
 #ifndef IFNAMSIZ
-#define IFNAMSIZ 16
+ #define IFNAMSIZ 16
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 

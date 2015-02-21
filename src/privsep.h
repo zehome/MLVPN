@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #ifdef HAVE_OPENBSD
-#include <netinet/in.h>
+ #include <netinet/in.h>
 #endif
 #include <arpa/inet.h>
 

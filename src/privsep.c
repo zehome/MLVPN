@@ -38,10 +38,10 @@
 #include <grp.h>
 
 #if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
-#include <signal.h>
+ #include <signal.h>
 #endif
 #ifdef HAVE_FREEBSD
-#define _NSIG _SIG_MAXSIG
+ #define _NSIG _SIG_MAXSIG
 #endif
 
 #include "privsep.h"
