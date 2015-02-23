@@ -3,101 +3,109 @@ mlvpn.conf(5) -- MLVPN configuration
 
 ## DESCRIPTION
 
-See mlvpn(1) for more info.
+mlvpn(1) configuration file
 
 ## SYNTAX
 
 mlvpn.conf(5) is a "ini style" config file.
-
-Sections are surrounded with []. **[general]** for example.
-
+settings are stores within sections, surrounded by [].
 Comments can be inserted anyware, starting with **#**.
+Key / values are plain ascii separated by "=".
+Strings should be escaped using double quotes '"'
 
-Key / Values are written in plain ascii separated with the "=" character.
-Example: loglevel = 2
-
-Long strings should be escaped with doublequote.
-
-## SECTIONS
-
-Mandatory keys are marked with "(*)".
 
 ### GENERAL
 
-The **[general]** sections is reserved by mlvpn(1) for global configuration.
+The **[general]** section is reserved for global configuration.
 
-Prameters:
+  - _statuscommand_ = "/path/to/secure.script.sh"
 
-  - (*) statuscommand = "/path/to/secured_updown_script.sh"
-    This command is launched when mlvpn(1) detects a change:
-      - mlvpn(1) **Tun/Tap** interface is ready.
-      - mlvpn(1) **Tun/Tap** interface must be shut down.
-      - mlvpn(1) remote tunnel is up
-      - mlvpn(1) remote tunnel is down
-    See the example mlvpn_updown.sh for more info.
+    **MANDATORY**
 
-  - (*) mode = "client" or "server"
-    mlvpn(1) should act as a socket server or socket client?
+    statuscommand path is called with two parameters when a status changed
+    within **mlvpn**. First argument is the interface name. Second argument
+    is the status name that changed.
+      - tuntap_up: at least one tunnel is up and running
+      - tuntap_down: all tunnels are down
+      - rtun_up: one tunnel changed status to up ($3 is the tunnel name)
+      - rtun_down: one tunnel changed status to down ($3 is the tunnel name)
 
-  - loglevel = 1
-    Change the log level.
-      - **0** errors only.
-      - **1** info. (recommended)
-      - **2** debug. (very very verbose)
+    See the example file _mlvpn_updown.sh_ for more informations
 
-  - timeout = 30
-    Integer value for detecting "link" timeout.
+  - _mode_ = "server"
 
-  - interface_name = "mlvpn0"
-    Change the **Tun/Tap** interface name.
+    **MANDATORY**
 
-  - password = ""
-    The password is used to generate a key used by libsodium.
-    password is mandatory and must be the same on the client and on the server.
+    - "server": listen on _bind_address_, _bind_port_ for every tunnel
+    - "client": connects to _remote_address_, _remote_port_ for every
+      tunnel
 
-  - cleartext_data = 0
-    If set to 1, data packets will NOT be encrypted.
+  - _loglevel_ = 1
+    Change the log level (0=errors, 1=info (recommanded), 2=debug)
+
+  - _timeout_ = 30
+    Timeout, expressed in seconds.
+
+    Triggered when the other side does not responds to keepalive packets.
+    Keepalive are send every timeout/2 seconds.
+
+  - _interface_name_ = "mlvpn0"
+    Set interface name to the specified value. (**LINUX ONLY**)
+
+  - _password_
+
+    **MANDATORY**
+
+    The password string is used to generate a key used by libsodium.
+    Password is mandatory and must be the same on the client and on the server.
+
+  - _cleartext_data_
+    If set to 1, data packets will **NOT** be encrypted.
+
     Use with cautions.
 
-  - control_unix_path = ""
+  - _control_unix_path_ = ""
     Path to the unix socket for remote control.
 
-  - control_bind_host = ""
+  - _control_bind_host_ = ""
     Bind address of the remote control. (HTTP)
     (url: http://[control_bind_host]:[control_bind_port]/status)
 
-  - control_bind_port = ""
+  - _control_bind_port_ = ""
     Bind port of the remote control. (HTTP)
 
-### LINKS
 
-Each link must be declared in it's own section.
+### TUNNELS
+Each tunnel must be declared in it's own section.
 
-The section name is the link name. Example: "[adsl1]", "[adsl2]".
+The section name is mapped to the tunnel name. Example: "[adsl1]", "[adsl2]".
 
-Parameters:
+  - _bindhost_ = "0.0.0.0"
+    Bind on a specific address. (IPv4 only) (client/server)
 
-  - (both) bindhost = "0.0.0.0"
-    Bind on a specific address. (IPv4 only)
+  - _bindport_ = 5080
+    Bind on a specific port. (client/server)
 
-  - (both) bindport = 5080
-    Bind on a specific port.
+  - _remotehost_ = "1.2.3.4"
+    Address of the remote host. (client)
 
-  - (client) remotehost = "1.2.3.4"
-    Where to connect to.
+  - _remoteport_ = 5080
+    Port of the remote host. (client)
 
-  - (client) remoteport = 5080
+  - _bandwidth_upload_ = 61440
+    Maxiumm upload bandwidth, in bytes for this link.
 
-  - (both) bandwidth_upload = 61440
-    Maxiumm bandwidth of the link. (from this host to the remote)
     Bandwidth is specified in Bytes (1KiB = 1024Bytes).
 
-  - (both) timeout = 25
-    Override **[general]** timeout for this link.
+    This is used to setup the weight round-robin balancing algorithm.
+    Set 0 if both links are similar. (client/server)
 
-  - (client) fallback_only = 0
+  - _timeout_ = 25
+    Override **[general]** timeout for this link. (client/server)
+
+  - _fallback_only_ = 0
     Links defined with fallback_only will be connected at all times,
-    but will only be used if all other tunnels are down.
+    but will only be used if all other tunnels are down. (client)
 
 ## RELOADING
 
@@ -110,4 +118,4 @@ See examples/mlvpn.conf
 
 ## SEE ALSO
 
-mlvpn.conf(5)
+mlvpn(1)

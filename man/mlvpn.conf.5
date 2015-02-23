@@ -1,111 +1,131 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "MLVPN\.CONF" "5" "November 2014" "" ""
+.TH "MLVPN\.CONF" "5" "February 2015" "" ""
 .
 .SH "NAME"
 \fBmlvpn\.conf\fR \- MLVPN configuration
 .
 .SH "DESCRIPTION"
-See mlvpn(1) for more info\.
+mlvpn(1) configuration file
 .
 .SH "SYNTAX"
-mlvpn\.conf(5) is a "ini style" config file\.
-.
-.P
-Sections are surrounded with []\. \fB\fIgeneral\fR\fR for example\.
-.
-.P
-Comments can be inserted anyware, starting with \fB#\fR\.
-.
-.P
-Key / Values are written in plain ascii separated with the "=" character\. Example: loglevel = 2
-.
-.P
-Long strings should be escaped with doublequote\.
-.
-.SH "SECTIONS"
-Mandatory keys are marked with "(*)"\.
+mlvpn\.conf(5) is a "ini style" config file\. settings are stores within sections, surrounded by []\. Comments can be inserted anyware, starting with \fB#\fR\. Key / values are plain ascii separated by "="\. Strings should be escaped using double quotes \'"\'
 .
 .SS "GENERAL"
-The \fB\fIgeneral\fR\fR sections is reserved by mlvpn(1) for global configuration\.
-.
-.P
-Prameters:
+The \fB\fIgeneral\fR\fR section is reserved for global configuration\.
 .
 .IP "\(bu" 4
-(*) statuscommand = "/path/to/secured_updown_script\.sh" This command is launched when mlvpn(1) detects a change:
+\fIstatuscommand\fR = "/path/to/secure\.script\.sh"
+.
+.IP
+\fBMANDATORY\fR
+.
+.IP
+statuscommand path is called with two parameters when a status changed within \fBmlvpn\fR\. First argument is the interface name\. Second argument is the status name that changed\.
 .
 .IP "\(bu" 4
-mlvpn(1) \fBTun/Tap\fR interface is ready\.
+tuntap_up: at least one tunnel is up and running
 .
 .IP "\(bu" 4
-mlvpn(1) \fBTun/Tap\fR interface must be shut down\.
+tuntap_down: all tunnels are down
 .
 .IP "\(bu" 4
-mlvpn(1) remote tunnel is up
+rtun_up: one tunnel changed status to up ($3 is the tunnel name)
 .
 .IP "\(bu" 4
-mlvpn(1) remote tunnel is down See the example mlvpn_updown\.sh for more info\.
+rtun_down: one tunnel changed status to down ($3 is the tunnel name)
+.
+.IP "" 0
+.
+.IP
+See the example file \fImlvpn_updown\.sh\fR for more informations
+.
+.IP "\(bu" 4
+\fImode\fR = "server"
+.
+.IP
+\fBMANDATORY\fR
+.
+.IP "\(bu" 4
+"server": listen on \fIbind_address\fR, \fIbind_port\fR for every tunnel
+.
+.IP "\(bu" 4
+"client": connects to \fIremote_address\fR, \fIremote_port\fR for every tunnel
 .
 .IP "" 0
 
 .
 .IP "\(bu" 4
-(*) mode = "client" or "server" mlvpn(1) should act as a socket server or socket client?
+\fIloglevel\fR = 1 Change the log level (0=errors, 1=info (recommanded), 2=debug)
 .
 .IP "\(bu" 4
-loglevel = 1 Change the log level\.
+\fItimeout\fR = 30 Timeout, expressed in seconds\.
+.
+.IP
+Triggered when the other side does not responds to keepalive packets\. Keepalive are send every timeout/2 seconds\.
 .
 .IP "\(bu" 4
-\fB0\fR errors only\.
+\fIinterface_name\fR = "mlvpn0" Set interface name to the specified value\. (\fBLINUX ONLY\fR)
 .
 .IP "\(bu" 4
-\fB1\fR info\. (recommended)
+\fIpassword\fR
+.
+.IP
+\fBMANDATORY\fR
+.
+.IP
+The password string is used to generate a key used by libsodium\. Password is mandatory and must be the same on the client and on the server\.
 .
 .IP "\(bu" 4
-\fB2\fR debug\. (very very verbose)
+\fIcleartext_data\fR If set to 1, data packets will \fBNOT\fR be encrypted\.
+.
+.IP
+Use with cautions\.
+.
+.IP "\(bu" 4
+\fIcontrol_unix_path\fR = "" Path to the unix socket for remote control\.
+.
+.IP "\(bu" 4
+\fIcontrol_bind_host\fR = "" Bind address of the remote control\. (HTTP) (url: http://[control_bind_host]:[control_bind_port]/status)
+.
+.IP "\(bu" 4
+\fIcontrol_bind_port\fR = "" Bind port of the remote control\. (HTTP)
 .
 .IP "" 0
-
 .
-.IP "\(bu" 4
-timeout = 30 Integer value for detecting "link" timeout\.
-.
-.IP "\(bu" 4
-interface_name = "mlvpn0" Change the \fBTun/Tap\fR interface name\.
-.
-.IP "\(bu" 4
-password = "" The password is used to generate a key used by libsodium\. password is mandatory and must be the same on the client and on the server\.
-.
-.IP "" 0
-.
-.SS " LINKS"
-Each link must be declared in it\'s own section\.
+.SS " TUNNELS"
+Each tunnel must be declared in it\'s own section\.
 .
 .P
-The section name is the link name\. Example: "[adsl1]", "[adsl2]"\.
-.
-.P
-Parameters:
+The section name is mapped to the tunnel name\. Example: "[adsl1]", "[adsl2]"\.
 .
 .IP "\(bu" 4
-(both) bindhost = "0\.0\.0\.0" Bind on a specific address\. (IPv4 only)
+\fIbindhost\fR = "0\.0\.0\.0" Bind on a specific address\. (IPv4 only) (client/server)
 .
 .IP "\(bu" 4
-(both) bindport = 5080 Bind on a specific port\.
+\fIbindport\fR = 5080 Bind on a specific port\. (client/server)
 .
 .IP "\(bu" 4
-(client) remotehost = "1\.2\.3\.4" Where to connect to\.
+\fIremotehost\fR = "1\.2\.3\.4" Address of the remote host\. (client)
 .
 .IP "\(bu" 4
-(client) remoteport = 5080
+\fIremoteport\fR = 5080 Port of the remote host\. (client)
 .
 .IP "\(bu" 4
-(both) bandwidth_upload = 61440 Maxiumm bandwidth of the link\. (from this host to the remote) Bandwidth is specified in Bytes (1KiB = 1024Bytes)\.
+\fIbandwidth_upload\fR = 61440 Maxiumm upload bandwidth, in bytes for this link\.
+.
+.IP
+Bandwidth is specified in Bytes (1KiB = 1024Bytes)\.
+.
+.IP
+This is used to setup the weight round\-robin balancing algorithm\. Set 0 if both links are similar\. (client/server)
 .
 .IP "\(bu" 4
-(both) timeout = 25 Override \fB\fIgeneral\fR\fR timeout for this link\.
+\fItimeout\fR = 25 Override \fB\fIgeneral\fR\fR timeout for this link\. (client/server)
+.
+.IP "\(bu" 4
+\fIfallback_only\fR = 0 Links defined with fallback_only will be connected at all times, but will only be used if all other tunnels are down\. (client)
 .
 .IP "" 0
 .
@@ -116,4 +136,4 @@ The configuration can be reloaded at any moment by sending SIGHUP to the child m
 See examples/mlvpn\.conf
 .
 .SH "SEE ALSO"
-mlvpn\.conf(5)
+mlvpn(1)

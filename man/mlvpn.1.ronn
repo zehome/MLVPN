@@ -3,35 +3,76 @@ mlvpn(1) -- MultiLink Virtual Public Network aggregator
 
 ## SYNOPSIS
 
-`mlvpn` --user mlvpn -c /path/to/mlvpn.conf
+`mlvpn` --user mlvpn --config /path/to/mlvpn.conf
 
 ## DESCRIPTION
 
-MLVPN is designed to help building aggregation tunnels between two hosts.
+**mlvpn** is designed to help building aggregation tunnels between two hosts.
 
 Main features are:
 
   * Bandwidth aggregation
   * High availability (detects link up/down)
   * Security (Privilege separation, auth and cipher using libsodium)
-  * Fully configurable (Thru external commands)
+  * Scritable
+  * External program control (using unix socket or TCP/HTTP socket)
 
-**NOT** provided by MLVPN:
+**mlvpn** uses privilege seperation to increase security. The monitor process
+is running as root, doing only privileged operations, the other process is doing
+most of the stuff.
 
-  * Cipher
-  * Compression
+In order to be able to aggregate multiple links with mismatched bandwidth,
+**mlvpn** uses a weight round-robin algorithm. **mlvpn** then sends packets,
+according to the capacity of the link. It should be noted that **mlvpn** only
+knows about what it sends, so you should ONLY use **mlvpn** on the links
+if you want good balancing of the links.
 
 ## OPTIONS
 
-Only one option, the path to the mlvpn.conf config file. If no config
-file is passed to mlvpn(1), then "./mlvpn.conf" is used.
+  * `--config`, `-c` _file_:
+    path to the configuration file
 
-## AUTHOR
+  * `--user`, `-u` _username_:
+    drop privileges to _username_
 
-MLVPN was invented and written by Laurent Coustet.
+  * `--natural-title`:
+    do not use setproctitle(3)
 
-More info on the github page. https://github.com/zehome/MLVPN/
+  * `--name`, `-n` _name_:
+    change process title to _name_ (privileged process will be named _name_ [priv]:
+    this option is disabled with `--natural-title` is used
+
+  * `--debug`:
+    log to stderr instead of syslog
+
+  * `--verbose`, `-v`:
+    increases verbosity (repeat multiple times to increase more)
+
+  * `--yes-run-as-root`:
+    don't drop privileges, kills privilege separation,
+    do not use unless you are hacking **mlvpn**
+
+  * `--version`:
+    display the current version of **mlvpn**
+
+  * `-h`:
+    show the help
+
+## FILES
+  * _/etc/mlvpn/*.conf_:
+    configuration files for **mlvpn**
 
 ## SEE ALSO
 
 mlvpn.conf(5)
+
+## LINKS
+
+  * https://github.com/zehome/MLVPN
+  * http://mlvpn.readthedocs.org/
+
+
+## AUTHORS
+
+  * Laurent Coustet
+    Initial work, current maintainer
