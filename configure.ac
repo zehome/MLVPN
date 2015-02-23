@@ -83,7 +83,7 @@ case $host_os in
         bsd=true
     ;;
     *bsd*)
-        AC_MSG_WARN("Unkown BSD system found. Might not work as expected!")
+        AC_MSG_WARN("Unknown BSD system found. Might not work as expected.")
         AC_DEFINE(HAVE_BSD, 1, [BSD])
         bsd=true
     ;;
