@@ -72,6 +72,10 @@ case $host_os in
         AC_DEFINE(HAVE_FREEBSD, 1, [FreeBSD])
         bsd=true
     ;;
+    *netbsd*)
+        AC_DEFINE(HAVE_NETBSD, 1, [NetBSD])
+        bsd=true
+    ;;
     *openbsd*)
         AC_DEFINE(HAVE_OPENBSD, 1, [OpenBSD])
         AC_DEFINE([HAVE_ATTRIBUTE__SENTINEL__], [1], [OpenBSD's gcc has sentinel])
@@ -101,6 +105,8 @@ AC_CHECK_FUNCS([ \
     sysconf \
     vsnprintf
 ])
+
+AC_CHECK_FUNCS([setresuid, setresgid])
 
 AC_CACHE_SAVE
 
