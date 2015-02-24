@@ -66,7 +66,7 @@ struct mlvpn_status_s mlvpn_status = {
 };
 
 struct mlvpn_options mlvpn_options = {
-    .change_process_title = 0,
+    .change_process_title = 1,
     .process_name = "mlvpn",
     .control_unix_path = "",
     .control_bind_host = "",
