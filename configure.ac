@@ -98,13 +98,19 @@ AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
 dnl Checks for library functions. Please keep in alphabetical order
 AC_CHECK_FUNCS([ \
     closefrom \
+    setproctitle \
     strlcat \
     strlcpy \
     strnvis \
-    setproctitle \
     sysconf \
     vsnprintf
 ])
+
+AM_CONDITIONAL([HAVE_CLOSEFROM], [test x"$have_closefrom" = x"true"])
+AM_CONDITIONAL([HAVE_SETPROCTITLE], [test x"$have_setproctitle" = x"true"])
+AM_CONDITIONAL([HAVE_STRLCAT], [test x"$have_strlcat" = x"true"])
+AM_CONDITIONAL([HAVE_STRLCPY], [test x"$have_strlcpy" = x"true"])
+AM_CONDITIONAL([HAVE_STRNVIS], [test x"$have_strnvis" = x"true"])
 
 AC_CHECK_FUNCS([setresuid, setresgid])
 

@@ -19,6 +19,8 @@ systemdtmpfiles_DATA = mlvpn.conf
 TEMPLATES += $(systemdtmpfiles_DATA)
 endif
 
+EXTRA_DIST = mlvpn.service.in mlvpn@.service.in mlvpn-generator.in mlvpn.conf.in
+
 mlvpn.service: mlvpn.service.in
 mlvpn@.service: mlvpn@.service.in
 mlvpn-generator: mlvpn-generator.in
