@@ -4,13 +4,12 @@
 export DH_VERBOSE=1
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-
 %:
 	dpkg-parsechangelog | grep ^Version: | cut -f 2 -d \  | cut -f 1 -d - > .tarball-version
 	dh $@ --with autoreconf
 
 override_dh_auto_configure:
-	dh_auto_configure -- $(shell dpkg-buildflags --export=sh) --host=$(DEB_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man --without-install-examples
+	dh_auto_configure -- $(shell dpkg-buildflags --export=sh) --host=$(DEB_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) --prefix=/usr --mandir=\$${prefix}/share/man --without-install-examples --with-systemdsystemunitdir=/lib/systemd/system --with-systemdsystemgeneratordir=/lib/systemd/system-generators --with-systemdtmpfilesdir=/usr/lib/tmpfiles.d
 
 override_dh_installinit:
 	dh_installinit --no-start -- defaults 16 80
