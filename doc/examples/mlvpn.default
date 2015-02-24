@@ -1,8 +1,4 @@
 # This is the configuration file for /etc/init.d/mlvpn
-
-#
-# Based on openvpn debian package
-#
 # Start only theses VPN automatically via init script.
 # Allowed values are "all", "none", or space separated list of
 # names of VPNs.

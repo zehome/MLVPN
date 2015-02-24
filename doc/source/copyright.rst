@@ -7,7 +7,7 @@ by Laurent Coustet
 
 .. |copy|   unicode:: U+000A9 .. COPYRIGHT SIGN
 
-Copyright |copy| 2011-2012, Laurent Coustet
+Copyright |copy| 2011-2015, Laurent Coustet
 
 All rights reserved.
 

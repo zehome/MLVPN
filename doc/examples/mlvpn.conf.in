@@ -2,7 +2,7 @@
 # Script called by mlvpn on network event
 # (tunnel up/down, link failure etc)
 # This command will be called as root.
-statuscommand = "/home/ed/MLVPN/mlvpn_updown.sh"
+statuscommand = "@sysconfdir@/mlvpn/mlvpn_updown.sh"
 
 # Tuntap type
 # tun provides better performance as encapsulation
@@ -31,26 +31,26 @@ cleartext_data = 0
 # You can visualise statistics using the www/ templates.
 # RAW json stream available on http://[control_bind_host]:[control_bind_port]/status
 # Edit www/js/mlvpn.js url to point to your mlvpn status URL.
-#control_unix_path = "/var/run/mlvpn.sock"
+#control_unix_path = "@localstatedir@/run/mlvpn.sock"
 #control_bind_host = "0.0.0.0"
 #control_bind_port = "1040"
 
 [adsl1]
 bindhost = "0.0.0.0"
-# bindport =
-remotehost = "10.2.3.4"
-remoteport = 5080
-bandwidth_upload = 61440
+bindport = 5080
+#remotehost = "10.2.3.4"
+#remoteport = 5080
+# bandwidth_upload = 61440
 # timeout = 25
 
-[adsl2]
-bindhost = "0.0.0.0"
-# bindport =
-remotehost = "10.2.3.4"
-remoteport = 5081
-bandwidth_upload = 512000
-
 #[adsl2]
+#bindhost = "0.0.0.0"
+## bindport =
+#remotehost = "10.2.3.4"
+#remoteport = 5081
+#bandwidth_upload = 512000
+
+#[adsl3]
 #bindhost = "0.0.0.0"
 #remotehost = "10.2.3.4"
 #remoteport = 5082

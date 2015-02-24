@@ -10,7 +10,7 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/bin/true
 ExecReload=/bin/true
-WorkingDirectory=/etc/mlvpn
+WorkingDirectory=@sysconfdir@/mlvpn
 
 [Install]
 WantedBy=multi-user.target

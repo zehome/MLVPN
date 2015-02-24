@@ -1,0 +1,9 @@
+template = $(SED) \
+	-e 's|@bindir[@]|$(bindir)|g' \
+	-e 's|@sbindir[@]|$(sbindir)|g' \
+	-e 's|@sysconfdir[@]|$(sysconfdir)|g' \
+	-e 's|@localstatedir[@]|$(localstatedir)|g' \
+	-e 's|@prefix[@]|$(prefix)|g'
+
+$(TEMPLATES): Makefile
+	$(AM_V_GEN)$(template) $(srcdir)/$@.in > $@.tmp && mv $@.tmp $@
