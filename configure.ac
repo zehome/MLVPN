@@ -137,6 +137,8 @@ PKG_CHECK_MODULES([libev], [libev], [], [
 
 ### Command lines options ###
 mlvpn_ARG_ENABLE([control], [remote control system (cli and http)], [yes])
+mlvpn_ARG_WITH([install-examples], [install example files], [yes])
+AM_CONDITIONAL([INSTALL_EXAMPLES], [test x"$with_install_examples" = x"yes" ])
 
 # Systemd
 mlvpn_ARG_WITH([systemdsystemunitdir], [Directory for systemd service files],

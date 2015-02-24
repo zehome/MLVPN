@@ -1,7 +1,9 @@
 # MLVPN
 # (c) 2015 Laurent Coustet <ed@zehome.com>
 
+if INSTALL_EXAMPLES
 SUBDIRS = examples
+endif
 
 # WIP, does not work.
 #doc_htmldir = ${docdir}/build/singlehtml
