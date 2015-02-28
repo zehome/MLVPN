@@ -51,7 +51,7 @@
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 
-#define NEXT_KEEPALIVE(now, t) (now + (t->timeout / 2))
+#define NEXT_KEEPALIVE(now, t) (now + (t->timeout / 3))
 
 struct mlvpn_options
 {
