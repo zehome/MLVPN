@@ -271,6 +271,10 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
             break;
 
         case '=':
+            if (quote) {
+                buf[j++] = c;
+                continue;
+            }
             if (j == 0)
             {
                 log_warnx("Parse error near line %d: line should not start with '='.",
