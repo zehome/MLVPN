@@ -104,7 +104,6 @@ typedef struct mlvpn_tunnel_s
     uint32_t bandwidth;   /* bandwidth in bytes per second */
     circular_buffer_t *sbuf;    /* send buffer */
     circular_buffer_t *hpsbuf;  /* high priority buffer */
-    circular_buffer_t *rbuf;    /* receive buffer */
     struct addrinfo *addrinfo;
     enum chap_status status;    /* Auth status */
     ev_tstamp last_activity;
