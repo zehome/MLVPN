@@ -249,6 +249,11 @@ mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
     decap_pkt.len = rlen;
     decap_pkt.type = proto.flags;
 
+    if (decap_pkt.len > tuntap.maxmtu) {
+        log_warnx("Packet too long received: %d", decap_pkt.len);
+        return;
+    }
+
     if (decap_pkt.type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
         mlvpn_rtun_tick(tun);
         mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
@@ -835,9 +840,11 @@ tuntap_io_event(EV_P_ ev_io *w, int revents)
 static void
 mlvpn_tuntap_init()
 {
+    mlvpn_proto_t proto;
     memset(&tuntap, 0, sizeof(tuntap));
     snprintf(tuntap.devname, MLVPN_IFNAMSIZ-1, "%s", "mlvpn0");
-    tuntap.mtu = 1500;
+    tuntap.maxmtu = 1500 - PKTHDRSIZ(proto) - IP4_UDP_OVERHEAD;
+    log_debug("max mtu for tuntap device: %d", tuntap.maxmtu);
     tuntap.type = MLVPN_TUNTAPMODE_TUN;
     tuntap.sbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
     ev_init(&tuntap.io_read, tuntap_io_event);

@@ -22,11 +22,18 @@ typedef struct {
 
 typedef struct {
     uint16_t len;
+    uint8_t lost;
     unsigned char flags;
     unsigned char nonce[crypto_NONCEBYTES];
     char data[DEFAULT_MTU];
 } __attribute__((packed)) mlvpn_proto_t;
 
 #define PKTHDRSIZ(pkt) (sizeof(pkt)-sizeof(pkt.data))
+#define IPV4_OVERHEAD 8
+#define UDP_OVERHEAD 8
+/* #define TCP_OVERHEAD 24 */
+
+#define IP4_UDP_OVERHEAD (IPV4_OVERHEAD + UDP_OVERHEAD)
+/* #define IP4_TCP_OVERHEAD (IPV4_OVERHEAD + TCP_OVERHEAD) */
 
 #endif
