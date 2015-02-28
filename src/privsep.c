@@ -226,12 +226,13 @@ priv_init(char *argv[], char *username)
             if (cur_state == STATE_CONFIG)
                 strlcpy(allowed_configfile, path, len);
             if (! *allowed_configfile)
-                fatalx("empty configuration file path.");
+                fatalx("empty configuration file path");
 
             fd = root_open_file(allowed_configfile, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
             if (fd < 0)
-                log_warnx("priv_open_config `%s' failed", allowed_configfile);
+                log_warnx("privsep", "priv_open_config `%s' failed",
+                    allowed_configfile);
             else
                 close(fd);
             break;
@@ -468,16 +469,17 @@ root_launch_script(char *setup_script, int argc, char **argv)
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             return status;
         } else if (WIFSIGNALED(status)) {
-            log_warnx("network script %s killed by signal %d",
+            log_warnx("privsep", "network script %s killed by signal %d",
                 setup_script,
                 WTERMSIG(status));
         } else {
-            log_warnx("network script %s exit status %d",
+            log_warnx("privsep", "network script %s exit status %d",
                 setup_script,
                 WEXITSTATUS(status));
         }
     } else
-        log_warn("%s: could not launch network script", setup_script);
+        log_warn("privsep",
+            "%s: could not launch network script", setup_script);
     return status;
 }
 
@@ -636,9 +638,9 @@ priv_init_script(char *path)
 
     if (len <= 0)
     {
-        errx(1, "priv_init_script: invalid answer from server.");
+        errx(1, "priv_init_script: invalid answer from server");
     } else if (len > ERRMSGSIZ) {
-        log_warnx("priv_init_script: error message truncated.");
+        log_warnx("privsep", "priv_init_script: error message truncated");
         len = ERRMSGSIZ;
     }
     must_read(priv_fd, errormessage, len);
@@ -646,7 +648,8 @@ priv_init_script(char *path)
 
     if (*errormessage)
     {
-        log_warnx("Error from priv server: %s", errormessage);
+        log_warnx("privsep", "error from priv server: %s",
+            errormessage);
         return -1;
     }
     return 0;

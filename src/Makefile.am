@@ -16,7 +16,7 @@ mlvpn_SOURCES = \
     privsep.c privsep_fdpass.c privsep.h \
     wrr.c \
     crypto.c crypto.h \
-    log.c \
+    log.c log.h \
     tuntap_generic.h \
     mlvpn.c mlvpn.h
 

@@ -38,9 +38,11 @@ mlvpn_systemd_notify()
         strlen(notifysocket) < 2)
         return;
 
-    log_debug("running with systemd, don't fork but signal ready");
+    log_debug("systemd",
+        "running with systemd, don't fork but signal ready");
     if ((fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
-        log_warn("unable to open systemd notification socket %s",
+        log_warn("systemd",
+            "unable to open systemd notification socket %s",
             notifysocket);
         return;
     }
@@ -61,7 +63,8 @@ mlvpn_systemd_notify()
     };
     unsetenv("NOTIFY_SOCKET");
     if (sendmsg(fd, &hdr, MSG_NOSIGNAL) < 0) {
-        log_warn("unable to send notification to systemd");
+        log_warn("systemd",
+            "unable to send notification to systemd");
         close(fd);
         return;
     }

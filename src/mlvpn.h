@@ -66,8 +66,8 @@ struct mlvpn_options
     char config_path[MAXPATHLEN];
     int config_fd;
     /* log verbosity */
-    int debug;
     int verbose;
+    int debug;
     /* User change if running as root */
     char unpriv_user[128];
     int cleartext_data;
@@ -139,19 +139,7 @@ mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 
-/* privsep */
 #include "privsep.h"
-
-/* log.c */
-void log_init(int);
-void log_verbose(int);
-void log_warn(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void log_warnx(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void log_info(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void log_debug(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void logit(int, const char *, ...) __attribute__((__format__ (printf, 2, 3)));
-void vlog(int, const char *, va_list) __attribute__((__format__ (printf, 2, 0)));
-__attribute__((noreturn)) void fatal(const char *);
-__attribute__((noreturn)) void fatalx(const char *);
+#include "log.h"
 
 #endif

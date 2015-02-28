@@ -142,7 +142,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
     {
         ctrl->fifofd = socket(AF_LOCAL, SOCK_STREAM, 0);
         if (ctrl->fifofd < 0)
-            log_warn("Unable to create unix socket");
+            log_warn("control", "cannot create unix socket");
         else {
             memset(&un_addr, 0, sizeof(un_addr));
             un_addr.sun_family = AF_UNIX;
@@ -153,7 +153,8 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
             if (bind(ctrl->fifofd, (struct sockaddr *) &un_addr,
                      sizeof(un_addr)) < 0)
             {
-                log_warn("Error binding socket %s", un_addr.sun_path);
+                log_warn("control",
+                    "cannot bind socket %s", un_addr.sun_path);
                 close(ctrl->fifofd);
                 ctrl->fifofd = -1;
             }
@@ -175,7 +176,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
         bak = res;
         if (ret < 0 || ! res)
         {
-            log_warnx("_getaddrinfo(%s,%s) failed: %s",
+            log_warnx("control", "priv_getaddrinfo(%s,%s) failed: %s",
                    ctrl->bindaddr, ctrl->bindport,
                    gai_strerror(ret));
         }
@@ -186,7 +187,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
                                         res->ai_socktype,
                                         res->ai_protocol)) < 0)
             {
-                log_warn("Socket creation error (%s:%s)",
+                log_warn("control", "cannot create socket (%s:%s)",
                    ctrl->bindaddr, ctrl->bindport);
             } else {
                 val = 1;
@@ -196,7 +197,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
                            &val, sizeof(int));
                 if (bind(ctrl->sockfd, res->ai_addr, res->ai_addrlen) < 0)
                 {
-                    log_warn("Bind error on %d", ctrl->sockfd);
+                    log_warn("control", "bind error");
                     close(ctrl->sockfd);
                     ctrl->sockfd = -1;
                 }
@@ -218,7 +219,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
         } else {
             if (listen(ctrl->fifofd, 1) < 0)
             {
-                log_warn("Error listening");
+                log_warn("control", "listen error");
                 close(ctrl->fifofd);
                 ctrl->fifofd = -1;
             }
@@ -233,7 +234,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
         } else {
             if (listen(ctrl->sockfd, 1) < 0)
             {
-                log_warn("Error listening");
+                log_warn("control", "listen error");
                 close(ctrl->sockfd);
                 ctrl->sockfd = -1;
             }
@@ -267,11 +268,11 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
     if (cfd < 0)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
-            log_warn("Error during accept");
+            log_warn("control", "accept error");
     } else {
         if (ctrl->clientfd != -1)
         {
-            log_debug("Remote control already connected on fd %d.",
+            log_debug("control", "already connected on %d",
                 ctrl->clientfd);
             send(cfd, "ERR: Already connected.\n", 24, 0);
             close(cfd);
@@ -280,7 +281,7 @@ mlvpn_control_accept(struct mlvpn_control *ctrl, int fd)
         accepted++;
         if (mlvpn_sock_set_nonblocking(cfd) < 0)
         {
-            log_warnx("Unable to set client control socket non blocking");
+            log_warnx("control", "cannot set socket to non-blocking");
             ctrl->clientfd = -1;
             close(cfd);
         } else
@@ -304,7 +305,7 @@ mlvpn_control_timeout(struct mlvpn_control *ctrl)
         if (ctrl->last_activity + MLVPN_CTRL_TIMEOUT <=
             time((time_t *)NULL))
         {
-            log_info("Control socket %d timeout.", ctrl->clientfd);
+            log_info("control", "client %d timeout.", ctrl->clientfd);
             mlvpn_control_close_client(ctrl);
             return 1;
         }
@@ -338,7 +339,7 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
     if (! cmd)
         return;
     else
-        log_debug("control command: %s\n", cmd);
+        log_debug("control", "command: %s\n", cmd);
 
     if (ctrl->http)
         mlvpn_control_write(ctrl, HTTP_HEADERS, strlen(HTTP_HEADERS));
@@ -421,7 +422,7 @@ mlvpn_control_read_check(struct mlvpn_control *ctrl)
         c = ctrl->rbuf[i];
         if (c == MLVPN_CTRL_EOF)
         {
-            log_debug("Received EOF from client %d.\n", ctrl->clientfd);
+            log_debug("control", "EOF from client %d", ctrl->clientfd);
             mlvpn_control_close_client(ctrl);
             break;
         }
@@ -452,11 +453,11 @@ mlvpn_control_read(struct mlvpn_control *ctrl)
     if (len > 0)
     {
         ctrl->last_activity = time((time_t *)NULL);
-        log_debug("Read %d bytes on control fd.", len);
+        log_debug("control", "received %d bytes", len);
         ctrl->rbufpos += len;
         if (ctrl->rbufpos >= MLVPN_CTRL_BUFSIZ)
         {
-            log_warnx("Buffer overflow on control read buffer.");
+            log_warnx("control", "overflow on read buffer");
             mlvpn_control_close_client(ctrl);
             return -1;
         }
@@ -464,7 +465,7 @@ mlvpn_control_read(struct mlvpn_control *ctrl)
         /* Parse the message */
         while (mlvpn_control_read_check(ctrl) != 0);
     } else if (len < 0) {
-        log_warn("Read error on fd %d", ctrl->clientfd);
+        log_warn("control", "read error on %d", ctrl->clientfd);
         mlvpn_control_close_client(ctrl);
     } else {
         /* End of file */
@@ -486,7 +487,7 @@ mlvpn_control_write(struct mlvpn_control *ctrl, void *buf, size_t len)
 
     if (ctrl->wbuflen - (ctrl->wbufpos+len) <= 0)
     {
-        log_warnx("Buffer overflow.");
+        log_warnx("control", "send buffer overflow");
         mlvpn_control_close_client(ctrl);
         return -1;
     }
@@ -504,13 +505,13 @@ mlvpn_control_send(struct mlvpn_control *ctrl)
 
     if (ctrl->wbufpos <= 0)
     {
-        log_warnx("Nothing to write on control socket.");
+        log_warnx("control", "nothing to write. THIS IS A BUG");
         return -1;
     }
     len = write(ctrl->clientfd, ctrl->wbuf, ctrl->wbufpos);
     if (len < 0)
     {
-        log_warn("Error writing on control socket %d",
+        log_warn("control", "write error on %d",
             ctrl->clientfd);
         mlvpn_control_close_client(ctrl);
     } else {
