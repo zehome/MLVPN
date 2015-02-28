@@ -6,7 +6,6 @@
 
 /* TCP overhead = 66 Bytes on the wire */
 #define DEFAULT_MTU 1500
-#define MAX_PKT_LEN 1500
 
 enum {
     MLVPN_PKT_AUTH,
