@@ -26,13 +26,13 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     if (! rtun)
     {
         char blackhole[DEFAULT_MTU];
-        return read(tuntap->fd, blackhole, DEFAULT_MTU);
+        return read(tuntap->fd, blackhole, sizeof(blackhole));
     }
 
     /* Buffer checking / reset in case of overflow */
     sbuf = rtun->sbuf;
     if (mlvpn_cb_is_full(sbuf))
-        log_warnx("[rtun %s] buffer overflow.", rtun->name);
+        log_warnx("[rtun %s] buffer overflow", rtun->name);
 
     /* Ask for a free buffer */
     pkt = mlvpn_pktbuffer_write(sbuf);
@@ -40,12 +40,18 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     if (ret < 0)
     {
         /* read error on tuntap is not recoverable. We must die. */
-        fatal("tuntap unrecoverable read error.");
+        fatal("tuntap unrecoverable read error");
     } else if (ret == 0) {
         /* End of file */
-        fatal("tuntap unrecoverable error (reached EOF on tuntap!)");
+        fatalx("tuntap device closed");
     }
     pkt->len = ret;
+    if (pkt->len > tuntap->maxmtu)
+    {
+        log_warnx("Packet too big %d > max MTU %d will be corrupted",
+            pkt->len, tuntap->maxmtu);
+        pkt->len = tuntap->maxmtu;
+    }
 
     if (!ev_is_active(&rtun->io_write) && !mlvpn_cb_is_empty(rtun->sbuf)) {
         ev_io_start(EV_DEFAULT_UC, &rtun->io_write);
@@ -63,21 +69,20 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
 
     /* Safety checks */
     if (mlvpn_cb_is_empty(buf))
-        fatal("tuntap_write called with empty buffer.");
+        fatalx("tuntap_write called with empty buffer");
 
     pkt = mlvpn_pktbuffer_read(buf);
     len = write(tuntap->fd, pkt->data, pkt->len);
     if (len < 0)
     {
-        log_warn("[tuntap %s] write error.",
-               tuntap->devname);
+        log_warn("[tuntap %s] write error", tuntap->devname);
     } else {
         if (len != pkt->len)
         {
-            log_warnx("[tuntap %s] write error: only %d/%d bytes sent.",
+            log_warnx("[tuntap %s] write error: only %d/%d bytes sent",
                tuntap->devname, len, pkt->len);
         } else {
-            log_debug("[tuntap %s] >> wrote %d bytes.",
+            log_debug("[tuntap %s] >> wrote %d bytes",
                tuntap->devname, len);
         }
     }
@@ -90,8 +95,9 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
 {
     int fd;
 
-    if ((fd = priv_open_tun(tuntap->type, tuntap->devname)) <= 0 )
-        fatalx("failed to open /dev/net/tun read/write.");
+    if ((fd = priv_open_tun(tuntap->type,
+           tuntap->devname, tuntap->maxmtu)) <= 0 )
+        fatalx("failed to open /dev/net/tun read/write");
     tuntap->fd = fd;
     return fd;
 }
@@ -104,10 +110,10 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
  * Compatibility: Linux 2.4+
  */
 int
-root_tuntap_open(int tuntapmode, char *devname)
+root_tuntap_open(int tuntapmode, char *devname, int mtu)
 {
     struct ifreq ifr;
-    int fd;
+    int fd, sockfd;
 
     fd = open("/dev/net/tun", O_RDWR);
     if (fd < 0) {
@@ -128,7 +134,7 @@ root_tuntap_open(int tuntapmode, char *devname)
             strlcpy(ifr.ifr_name, devname, MLVPN_IFNAMSIZ-1);
 
         /* ioctl to create the if */
-        if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0)
+        if (ioctl(fd, TUNSETIFF, &ifr) < 0)
         {
             /* don't call fatal because we want a clean nice error for the
              * unprivilged process.
@@ -136,6 +142,20 @@ root_tuntap_open(int tuntapmode, char *devname)
             warn("open tun %s ioctl failed", devname);
             close(fd);
             fd = -1;
+        }
+
+        /* set tun MTU */
+        if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+            warn("socket creation failed");
+        } else {
+            ifr.ifr_mtu = mtu;
+            if (ioctl(sockfd, SIOCSIFMTU, &ifr) < 0)
+            {
+                warn("unable to set tun %s mtu=%d", devname, mtu);
+                close(fd);
+                fd = -1;
+            }
+            close(sockfd);
         }
     }
     /* The kernel is the only one able to "name" the if.

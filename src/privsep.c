@@ -90,7 +90,7 @@ static volatile sig_atomic_t cur_state = STATE_INIT;
 static char allowed_configfile[MAXPATHLEN] = {0};
 
 static int root_open_file(char *, int);
-int root_tuntap_open(int tuntapmode, char *devname);
+int root_tuntap_open(int tuntapmode, char *devname, int mtu);
 static int root_launch_script(char *, int, char **);
 static void increase_state(int);
 static void sig_got_chld(int);
@@ -105,6 +105,7 @@ priv_init(char *argv[], char *username)
 {
     int i, fd, socks[2], cmd;
     int nullfd;
+    int mtu;
     int tuntapmode;
     size_t len;
     size_t hostname_len, servname_len, addrinfo_len;
@@ -254,9 +255,13 @@ priv_init(char *argv[], char *username)
             } else {
                 tuntapname[0] = '\0';
             }
+            must_read(socks[0], &mtu, sizeof(mtu));
+            if (mtu < 0 || mtu > 1500) {
+                fatalx("priv_open_tun: wrong mtu.");
+            }
 
             /* see tuntap_*.c . That's where this is defined. */
-            fd = root_tuntap_open(tuntapmode, tuntapname);
+            fd = root_tuntap_open(tuntapmode, tuntapname, mtu);
             if (fd < 0)
             {
                 len = 0;
@@ -512,7 +517,7 @@ priv_open_config(char *config_path)
 /* Open tun from unpriviled code
  * Scope: public
  */
-int priv_open_tun(int tuntapmode, char *devname)
+int priv_open_tun(int tuntapmode, char *devname, int mtu)
 {
     int cmd, fd;
     size_t len;
@@ -532,6 +537,7 @@ int priv_open_tun(int tuntapmode, char *devname)
     must_write(priv_fd, &len, sizeof(len));
     if (len > 0 && devname != NULL)
         must_write(priv_fd, devname, len);
+    must_write(priv_fd, &mtu, sizeof(mtu));
 
     must_read(priv_fd, &len, sizeof(len));
     if (len > 0 && len < MLVPN_IFNAMSIZ && devname != NULL)

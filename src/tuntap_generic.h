@@ -24,7 +24,7 @@ enum tuntap_type {
 struct tuntap_s
 {
     int fd;
-    int mtu;
+    int maxmtu;
     char devname[MLVPN_IFNAMSIZ];
     enum tuntap_type type;
     circular_buffer_t *sbuf;
@@ -35,8 +35,5 @@ struct tuntap_s
 int mlvpn_tuntap_alloc(struct tuntap_s *tuntap);
 int mlvpn_tuntap_read(struct tuntap_s *tuntap);
 int mlvpn_tuntap_write(struct tuntap_s *tuntap);
-
-/* runs as root! */
-int root_tuntap_open(int tuntapmode, char *devname);
 
 #endif
