@@ -98,7 +98,6 @@ static int mlvpn_rtun_start(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_read(EV_P_ ev_io *w, int revents);
 static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
 static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
-static void mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun);
 static void mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t);
 static int mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
 static void mlvpn_rtun_send_auth(mlvpn_tunnel_t *t);
@@ -109,6 +108,11 @@ static void mlvpn_update_status();
 static int mlvpn_rtun_bind(mlvpn_tunnel_t *t);
 static void update_process_title();
 static void mlvpn_tuntap_init();
+static int
+mlvpn_protocol_read(mlvpn_tunnel_t *tun,
+                    mlvpn_pkt_t *rawpkt,
+                    mlvpn_pkt_t *decap_pkt);
+
 
 
 static void
@@ -161,18 +165,28 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
     ssize_t len;
     struct sockaddr_storage clientaddr;
     socklen_t addrlen = sizeof(clientaddr);
-    mlvpn_pkt_t *pkt;
-
-    if (mlvpn_cb_is_full(tun->rbuf)) {
-        log_warnx("[rtun %s] receive buffer overflow", tun->name);
-        mlvpn_cb_reset(tun->rbuf);
-    }
-    pkt = mlvpn_pktbuffer_write(tun->rbuf);
-    len = recvfrom(tun->fd, pkt->data,
-                   sizeof(pkt->data),
+    mlvpn_pkt_t pkt;
+    len = recvfrom(tun->fd, pkt.data,
+                   sizeof(pkt.data),
                    MSG_DONTWAIT, (struct sockaddr *)&clientaddr, &addrlen);
-    if (len > 0) {
-        pkt->len = len;
+    if (len < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            log_warn("[rtun %s] read error on %d",
+               tun->name, tun->fd);
+            mlvpn_rtun_status_down(tun);
+        }
+    } else if (len == 0) {
+        log_info("[rtun %s] peer closed the connection %d", tun->name, tun->fd);
+    } else {
+        pkt.len = len;
+        mlvpn_pkt_t decap_pkt;
+
+        /* validate the received packet */
+        if (mlvpn_protocol_read(tun, &pkt, &decap_pkt) < 0) {
+            log_warnx("protocol read error.");
+            return;
+        }
+
         tun->recvbytes += len;
         tun->recvpackets += 1;
 
@@ -180,95 +194,98 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
             fatalx("tun->addrinfo is NULL!");
 
         if ((tun->addrinfo->ai_addrlen != addrlen) ||
-                (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0))
-        {
+                (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0)) {
+            if (mlvpn_options.cleartext_data && tun->status == MLVPN_CHAP_AUTHOK) {
+                log_warnx("[rtun %s] rejected non authenticated connection",
+                    tun->name);
+                return;
+            }
             char clienthost[NI_MAXHOST];
             char clientport[NI_MAXSERV];
             int ret;
             if ( (ret = getnameinfo((struct sockaddr *)&clientaddr, addrlen,
                                     clienthost, sizeof(clienthost),
                                     clientport, sizeof(clientport),
-                                    NI_NUMERICHOST|NI_NUMERICSERV)) < 0)
-            {
+                                    NI_NUMERICHOST|NI_NUMERICSERV)) < 0) {
                 log_warnx("[rtun %s] Error in getnameinfo: %d",
                        tun->name, ret);
             } else {
-                log_debug("[rtun %s] new connection -> %s",
-                   tun->name, clienthost);
+                log_debug("[rtun %s] new connection -> %s:%s",
+                   tun->name, clienthost, clientport);
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-        log_debug("< rtun %s read %d bytes", tun->name, (int)len);
-        mlvpn_rtun_read_dispatch(tun);
-    } else if (len < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            log_warn("[rtun %s] read error on %d",
-               tun->name, tun->fd);
-            mlvpn_rtun_status_down(tun);
+        log_debug("< rtun %s read %d bytes", tun->name, decap_pkt.len);
+
+        if (decap_pkt.type == MLVPN_PKT_DATA) {
+            if (tun->status == MLVPN_CHAP_AUTHOK) {
+                mlvpn_rtun_tick(tun);
+                mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
+                tuntap_pkt->len = decap_pkt.len;
+                memcpy(tuntap_pkt->data, decap_pkt.data, tuntap_pkt->len);
+                /* Send the packet back into the LAN */
+                if (!ev_is_active(&tuntap.io_write)) {
+                    ev_io_start(EV_A_ &tuntap.io_write);
+                }
+            } else {
+                log_debug("Received data, but protocol not authenticated. Ignoring.");
+            }
+        } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
+            mlvpn_rtun_tick(tun);
+            tun->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
+        } else if (decap_pkt.type == MLVPN_PKT_AUTH || decap_pkt.type == MLVPN_PKT_AUTH_OK) {
+            mlvpn_rtun_send_auth(tun);
         }
-    } else {
-        log_info("[rtun %s] peer closed the connection %d", tun->name, tun->fd);
-        mlvpn_rtun_status_down(tun);
     }
 }
 
-/* Pass thru the mlvpn_rbuf to find packets received
- * from the UDP channel and prepare packets for TUN/TAP device. */
-static void
-mlvpn_rtun_read_dispatch(mlvpn_tunnel_t *tun)
+static int
+mlvpn_protocol_read(
+    mlvpn_tunnel_t *tun, mlvpn_pkt_t *pkt,
+    mlvpn_pkt_t *decap_pkt)
 {
-    uint16_t rlen;
-    mlvpn_pkt_t *rawpkt = mlvpn_pktbuffer_read(tun->rbuf);
-    /* Decapsulate the packet */
-    mlvpn_pkt_t decap_pkt;
-    mlvpn_proto_t proto;
-    memset(&proto, 0, sizeof(proto));
-    memset(&decap_pkt, 0, sizeof(decap_pkt));
-
-    if (rawpkt->len > sizeof(rawpkt->data) || rawpkt->len > sizeof(proto)) {
-        log_warnx("Invalid packet size received: %d", rawpkt->len);
-        return;
-    }
-    memcpy(&proto, rawpkt->data, rawpkt->len);
-    rlen = ntohs(proto.len);
-#ifdef ENABLE_CRYPTO
     int ret;
+    uint16_t rlen;
+    mlvpn_proto_t proto;
+    /* Overkill */
+    memset(&proto, 0, sizeof(proto));
+    memset(decap_pkt, 0, sizeof(*decap_pkt));
+
+    /* pkt->data contains mlvpn_proto_t struct */
+    if (pkt->len > sizeof(pkt->data) || pkt->len > sizeof(proto) ||
+            pkt->len < (PKTHDRSIZ(proto) + IP4_UDP_OVERHEAD)) {
+        log_warnx("Invalid packet of %d bytes received", pkt->len);
+        goto fail;
+    }
+    memcpy(&proto, pkt->data, pkt->len);
+    rlen = ntohs(proto.len);
+    if (rlen == 0 || rlen > sizeof(proto.data)) {
+        log_warnx("Protocol error: invalid packet size: %d", rlen);
+        goto fail;
+    } else if (rlen > tuntap.maxmtu) {
+        log_warnx("Invalid packet too long for tun MTU: %d", rlen);
+        goto fail;
+    }
+    /* now auth the packet using libsodium before further checks */
+#ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && proto.flags == MLVPN_PKT_DATA) {
-        memcpy(&decap_pkt.data, &proto.data, rlen);
+        memcpy(decap_pkt->data, &proto.data, rlen);
     } else {
-        if ((ret = crypto_decrypt((unsigned char *)&decap_pkt.data,
+        if ((ret = crypto_decrypt((unsigned char *)decap_pkt->data,
                                   (const unsigned char *)&proto.data, rlen,
                                   (const unsigned char *)&proto.nonce)) != 0) {
-            log_warnx("crypto_decrypt failed: %d len=%d", ret, rlen);
-            return;
+            log_warnx("unauthenticated packet received: %d", ret);
+            goto fail;
         }
     }
 #else
-    memcpy(&decap_pkt.data, &proto.data, rlen);
+    memcpy(decap_pkt->data, &proto.data, rlen);
 #endif
-    decap_pkt.len = rlen;
-    decap_pkt.type = proto.flags;
-
-    if (decap_pkt.len > tuntap.maxmtu) {
-        log_warnx("Packet too long received: %d", decap_pkt.len);
-        return;
-    }
-
-    if (decap_pkt.type == MLVPN_PKT_DATA && tun->status == MLVPN_CHAP_AUTHOK) {
-        mlvpn_rtun_tick(tun);
-        mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
-        tuntap_pkt->len = decap_pkt.len;
-        memcpy(tuntap_pkt->data, decap_pkt.data, tuntap_pkt->len);
-        /* Send the packet back into the LAN */
-        if (!ev_is_active(&tuntap.io_write)) {
-            ev_io_start(EV_A_ &tuntap.io_write);
-        }
-    } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
-        mlvpn_rtun_tick(tun);
-        tun->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
-    } else {
-        mlvpn_rtun_send_auth(tun);
-    }
+    decap_pkt->len = rlen;
+    decap_pkt->type = proto.flags;
+    return 0;
+fail:
+    return -1;
 }
 
 static int
@@ -413,7 +430,6 @@ mlvpn_rtun_new(const char *name,
 
     new->sbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
     new->hpsbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
-    new->rbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
 
     mlvpn_rtun_tick(new);
 
@@ -658,7 +674,6 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     enum chap_status old_status = t->status;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->disconnects++;
-    mlvpn_pktbuffer_reset(t->rbuf);
     mlvpn_pktbuffer_reset(t->sbuf);
     mlvpn_pktbuffer_reset(t->hpsbuf);
     if (ev_is_active(&t->io_write)) {
@@ -724,7 +739,6 @@ mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
     if (t->server_mode)
     {
         /* server side */
-        log_debug("chap_dispatch(tunnel=%s status=%d)", t->name, t->status);
         if (t->status == MLVPN_CHAP_DISCONNECTED || t->status == MLVPN_CHAP_AUTHOK)
         {
             if (mlvpn_cb_is_full(t->hpsbuf)) {
@@ -736,19 +750,22 @@ mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
             pkt->data[1] = 'K';
             pkt->len = 2;
             pkt->type = MLVPN_PKT_AUTH_OK;
-            t->status = MLVPN_CHAP_AUTHSENT;
-            log_debug("Sending 'OK' packet to client");
+            if (t->status != MLVPN_CHAP_AUTHOK)
+                t->status = MLVPN_CHAP_AUTHSENT;
+            log_debug("[rtun %s] sending 'OK' packet to client", t->name);
             if (!ev_is_active(&t->io_write)) {
                 ev_io_start(EV_A_ &t->io_write);
             }
         } else if (t->status == MLVPN_CHAP_AUTHSENT) {
             log_info("[rtun %s] authenticated", t->name);
+            mlvpn_rtun_tick(t);
             mlvpn_rtun_status_up(t);
         }
     } else {
         /* client side */
-        if (t->status == MLVPN_CHAP_AUTHSENT)
-        {
+        if (t->status == MLVPN_CHAP_AUTHSENT) {
+            log_info("[rtun %s] authenticated", t->name);
+            mlvpn_rtun_tick(t);
             mlvpn_rtun_status_up(t);
         }
     }
@@ -757,20 +774,23 @@ mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
 static void
 mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
 {
-    int fd;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
-
-    fd = t->fd;
-    if (fd < 0 && t->status < MLVPN_CHAP_AUTHOK) {
-        t->conn_attempts += 1;
-        t->last_connection_attempt = now;
-        if (mlvpn_rtun_start(t) == 0) {
-            t->conn_attempts = 0;
+    if (t->server_mode) {
+        if (t->fd < 0) {
+            if (mlvpn_rtun_start(t) == 0) {
+                t->conn_attempts = 0;
+            }
         }
-    }
-
-    if (! t->server_mode &&
-            (t->fd > 0 && t->status < MLVPN_CHAP_AUTHOK)) {
+    } else {
+        if (t->status < MLVPN_CHAP_AUTHOK) {
+            t->conn_attempts += 1;
+            t->last_connection_attempt = now;
+            if (t->fd < 0) {
+                if (mlvpn_rtun_start(t) == 0) {
+                    t->conn_attempts = 0;
+                }
+            }
+        }
         mlvpn_rtun_challenge_send(t);
     }
 }
@@ -813,8 +833,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
             if (now > t->next_keepalive)
                 mlvpn_rtun_send_keepalive(now, t);
         }
-    }
-    if (t->status < MLVPN_CHAP_AUTHOK) {
+    } else if (t->status < MLVPN_CHAP_AUTHOK) {
         mlvpn_rtun_tick_connect(t);
     }
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
