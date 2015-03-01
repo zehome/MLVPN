@@ -303,13 +303,15 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
         memcpy(&proto.data, &pkt->data, wlen);
     } else {
-        crypto_nonce_random((unsigned char *)&proto.nonce, sizeof(proto.nonce));
         if (wlen + crypto_PADSIZE > sizeof(proto.data)) {
-            log_warnx("protocol", "%s packet too long: %u/%d",
+            log_warnx("protocol", "%s packet too long: %u/%d (packet=%d)",
                 tun->name,
-                (unsigned int)wlen, (unsigned int)sizeof(proto.data) + crypto_PADSIZE);
+                (unsigned int)wlen + crypto_PADSIZE,
+                (unsigned int)sizeof(proto.data),
+                pkt->len);
             return -1;
         }
+        crypto_nonce_random((unsigned char *)&proto.nonce, sizeof(proto.nonce));
         if ((ret = crypto_encrypt((unsigned char *)&proto.data,
                                   (const unsigned char *)&pkt->data, pkt->len,
                                   (const unsigned char *)&proto.nonce)) != 0) {
