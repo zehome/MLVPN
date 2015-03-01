@@ -25,7 +25,7 @@ typedef struct {
     uint8_t lost;
     unsigned char flags;
     unsigned char nonce[crypto_NONCEBYTES];
-    char data[DEFAULT_MTU];
+    char data[DEFAULT_MTU - crypto_NONCEBYTES - 4];
 } __attribute__((packed)) mlvpn_proto_t;
 
 #define PKTHDRSIZ(pkt) (sizeof(pkt)-sizeof(pkt.data))

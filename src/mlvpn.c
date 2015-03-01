@@ -213,7 +213,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-        log_debug("net", "< %s recv %d bytes", tun->name, decap_pkt.len);
+        log_debug("net", "< %s recv %d bytes (packet=%d)", tun->name, (int)len, decap_pkt.len);
 
         if (decap_pkt.type == MLVPN_PKT_DATA) {
             if (tun->status == MLVPN_CHAP_AUTHOK) {
@@ -275,6 +275,7 @@ mlvpn_protocol_read(
                 tun->name, ret);
             goto fail;
         }
+        rlen -= crypto_PADSIZE;
     }
 #else
     memcpy(decap_pkt->data, &proto.data, rlen);
@@ -296,7 +297,6 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
     wlen = PKTHDRSIZ(proto) + pkt->len;
-
     proto.len = pkt->len;
     proto.flags = pkt->type;
 #ifdef ENABLE_CRYPTO
@@ -339,8 +339,8 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
             log_warnx("net", "%s write error %d/%u",
                tun->name, (int)ret, (unsigned int)wlen);
         } else {
-            log_debug("net", "> %s sent %d bytes",
-               tun->name, (int)ret);
+            log_debug("net", "> %s sent %d bytes (packet=%d bytes)",
+               tun->name, (int)ret, pkt->len);
         }
     }
 

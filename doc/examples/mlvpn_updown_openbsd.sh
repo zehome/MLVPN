@@ -28,11 +28,13 @@ newstatus="$2"
 (
 if [ "$newstatus" = "tuntap_up" ]; then
     echo "Setting up interface $tuntap_intf"
-    # Be carefull with the MTU. MLVPN overhead is 44 bytes.
+    # Be carefull with the MTU. MLVPN overhead is:
+    #  - 60 bytes if using encrypted data
+    #  - 44 bytes if using cleartext data
     # NEVER set it to more than 1456.
-    # If you are running on PPPoE, then your MTU is probably 1492.
-    # So, please set mlvpn mtu to 1448
-    /sbin/ifconfig $tuntap_intf 192.168.66.20 192.168.66.10 netmask 255.255.255.0 mtu 1448 up
+    # If using cleartext data and pppoe MTU = 1448
+    # If using encrypted data and pppoe MTU = 1432
+    /sbin/ifconfig $tuntap_intf 192.168.66.20 192.168.66.10 netmask 255.255.255.0 mtu 1432 up
 elif [ "$newstatus" = "tuntap_down" ]; then
     echo "Shutting down interface $tuntap_intf"
     /sbin/ifconfig $tuntap_intf down
