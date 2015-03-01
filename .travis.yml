@@ -14,5 +14,5 @@ before_install:
   - ./autogen.sh && ./configure && make check
   - sudo make install && sudo ldconfig
   - cd ..
-run:
+script:
   - ./autogen.sh && ./configure && make && make install
