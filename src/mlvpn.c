@@ -632,7 +632,12 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
 
     /* setup non blocking sockets */
     socklen_t val = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(socklen_t));
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(socklen_t)) < 0) {
+        log_warn(NULL, "%s setsockopt SO_REUSEADDR failed", t->name);
+        close(t->fd);
+        t->fd = -1;
+        return -1;
+    }
     if (t->bindaddr)
     {
         if (mlvpn_rtun_bind(t) < 0)
