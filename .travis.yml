@@ -9,7 +9,7 @@ branches:
     - debian-unstable
 before_install:
   - sudo apt-get update -qq
-  - sudo apt-get install -qq libsodium-dev automake autoconf
+  - sudo apt-get install -qq libev-dev automake autoconf
   - git clone git://github.com/jedisct1/libsodium.git && cd libsodium
   - ./autogen.sh && ./configure && make check
   - sudo make install && sudo ldconfig
