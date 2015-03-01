@@ -262,10 +262,6 @@ mlvpn_protocol_read(
     if (rlen == 0 || rlen > sizeof(proto.data)) {
         log_warnx("protocol", "%s invalid packet size: %d", tun->name, rlen);
         goto fail;
-    } else if (rlen > tuntap.maxmtu) {
-        log_warnx("protocol", "%s invalid packet too long %d/%d",
-            tun->name, rlen, tuntap.maxmtu);
-        goto fail;
     }
     /* now auth the packet using libsodium before further checks */
 #ifdef ENABLE_CRYPTO
