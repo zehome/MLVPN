@@ -7,6 +7,7 @@ branches:
   only:
     - ev
     - debian-unstable
+    - coverity_scan
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq libev-dev automake autoconf libtool pkg-config
