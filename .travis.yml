@@ -12,7 +12,7 @@ before_install:
   - sudo apt-get install -qq libev-dev automake autoconf libtool pkg-config
   - git clone git://github.com/jedisct1/libsodium.git && cd libsodium && ./autogen.sh && ./configure && make check && sudo make install && sudo ldconfig ; cd ..
 script:
-  - ./autogen.sh && ./configure && make V=1 && make install
+  - ./autogen.sh && ./configure && make V=1 && sudo make install
 env:
   global:
    - secure: "Noxed1PEztsf6kRoFy17lmrsDW75SM6NK3lkHQ8yeyYvDtF3vzHXJ4TAgpcDA1RLuzOLvSjnkuucjWb8YLoisW3qs31h26qeZzN+PbeaMYFmtmkZJOiPorbtHYA47pB2xfdujoi1kSne/fHFXY0Jybj2DcUbYUS+9plnZ+4pV2w="
