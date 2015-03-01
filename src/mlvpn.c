@@ -567,6 +567,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
        until getting a valid listening socket. */
     log_info(NULL, "%s bind to %s", t->name, t->bindaddr);
     n = bind(fd, res->ai_addr, res->ai_addrlen);
+    freeaddrinfo(res);
     if (n < 0)
     {
         log_warn(NULL, "%s bind error", t->name);
