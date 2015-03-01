@@ -1,0 +1,12 @@
+language: c
+os: linux
+compiler:
+  - gcc
+  - clang
+branches:
+  only:
+    - ev
+    - debian-unstable
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq libev-dev libsodium-dev automake autoconf
