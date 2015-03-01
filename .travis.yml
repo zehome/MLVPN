@@ -24,4 +24,4 @@ addons:
     notification_email: ed@zehome.com
     build_command_prepend: "./autogen.sh && ./configure && make clean"
     build_command: "make"
-    branch_pattern: ev
+    branch_pattern: coverity_scan
