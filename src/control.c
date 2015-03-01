@@ -196,12 +196,14 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
                     log_warn("control", "setsockopt SO_REUSEADDR failed");
                     close(ctrl->sockfd);
                     ctrl->sockfd = -1;
+                    break;
                 }
                 if (setsockopt(ctrl->sockfd, IPPROTO_TCP, TCP_NODELAY,
                         &val, sizeof(int)) < 0) {
                     log_warn("control", "setsockopt TCP_NODELAY failed");
                     close(ctrl->sockfd);
                     ctrl->sockfd = -1;
+                    break;
                 }
                 if (bind(ctrl->sockfd, res->ai_addr, res->ai_addrlen) < 0)
                 {
