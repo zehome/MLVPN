@@ -63,6 +63,7 @@ _conf_parseConfig(int config_fd)
                     free(section);
                 free(config);
                 free(buf);
+                fclose(configFile);
                 return NULL;
             }
         }
