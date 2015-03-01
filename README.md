@@ -1,6 +1,7 @@
 =========================================
 MLVPN - Multi-Link Virtual Public Network
 =========================================
+[![Build Status](https://travis-ci.org/zehome/MLVPN.svg?branch=ev)](https://travis-ci.org/zehome/MLVPN)
 
 author: Laurent Coustet <ed arobase zehome.com>
 
@@ -98,7 +99,7 @@ Contributors
 ============
   * Laurent Coustet, author and maintainer
   * Philippe Pepiot, contributor (privilege separation, bugfix)
-  * Ghislain Lévèque, contributor (weight round robin)
+  * Ghislain LÃ©vÃ¨que, contributor (weight round robin)
   * Fabien Dupont, contributor (bugfix)
 
 LICENCE
@@ -108,5 +109,5 @@ See LICENCE file.
 Documentation
 =============
 Documentation is available on Read The Docs http://mlvpn.readthedocs.org/en/latest/
-La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
+La page de manuel est aussi Ã©crite en markdown. La conversion est rÃ©alisÃ©e grace a l'outil
 ronn (http://rtomayko.github.com/ronn/).
