@@ -242,7 +242,7 @@ log_debug(const char *token, const char *emsg, ...)
 {
     va_list  ap;
 
-    if ((level == 2 && log_debug_accept_token(token)) || logh || level > 3) {
+    if ((level == 2 && log_debug_accept_token(token)) || logh || level > 2) {
         va_start(ap, emsg);
         vlog(LOG_DEBUG, token, emsg, ap);
         va_end(ap);
