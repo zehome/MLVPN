@@ -184,28 +184,24 @@ mlvpn_config(int config_file_fd, int first_time)
                                 if (! tmptun->bindaddr)
                                     tmptun->bindaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
                                 strlcpy(tmptun->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
-                                free(bindaddr);
                             }
                             if (bindport)
                             {
                                 if (! tmptun->bindport)
                                     tmptun->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
                                 strlcpy(tmptun->bindport, bindport, MLVPN_MAXPORTSTR);
-                                free(bindport);
                             }
                             if (dstaddr)
                             {
                                 if (! tmptun->destaddr)
                                     tmptun->destaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
                                 strlcpy(tmptun->destaddr, dstaddr, MLVPN_MAXHNAMSTR);
-                                free(dstaddr);
                             }
                             if (dstport)
                             {
                                 if (! tmptun->destport)
                                     tmptun->destport = calloc(1, MLVPN_MAXPORTSTR+1);
                                 strlcpy(tmptun->destport, dstport, MLVPN_MAXPORTSTR);
-                                free(dstport);
                             }
                             tmptun->fallback_only = fallback_only;
                             create_tunnel = 0;
@@ -221,6 +217,14 @@ mlvpn_config(int config_file_fd, int first_time)
                         lastSection, bindaddr, bindport, dstaddr, dstport,
                         default_server_mode, timeout, fallback_only);
                 }
+                if (bindaddr)
+                    free(bindaddr);
+                if (bindport)
+                    free(bindport);
+                if (dstaddr)
+                    free(dstaddr);
+                if (dstport)
+                    free(dstport);
             }
         } else if (lastSection == NULL)
             lastSection = work->section;
