@@ -142,7 +142,7 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
              */
             warn("open tun %s ioctl failed", devname);
             close(fd);
-            fd = -1;
+            return -1;
         }
 
         /* set tun MTU */
@@ -154,7 +154,8 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
             {
                 warn("unable to set tun %s mtu=%d", devname, mtu);
                 close(fd);
-                fd = -1;
+                close(sockfd);
+                return -1;
             }
             close(sockfd);
         }
