@@ -2,7 +2,7 @@ language: c
 os: linux
 compiler:
   - gcc
-  - clang
+#  - clang
 branches:
   only:
     - ev
@@ -15,4 +15,4 @@ before_install:
   - sudo make install && sudo ldconfig
   - cd ..
 script:
-  - ./autogen.sh && ./configure && make && make install
+  - ./autogen.sh && ./configure && make V=1 && make install
