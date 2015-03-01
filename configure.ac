@@ -120,7 +120,7 @@ dnl checks for libsodium
 PKG_CHECK_MODULES([libsodium], [libsodium >= 0.6], [], [
     AC_CHECK_HEADERS([sodium.h], [], [AC_MSG_ERROR("sodium.h not found")])
     AC_CHECK_LIB([sodium], [sodium_init], [
-    libsodium_LIBS="-lsodium ${LIBS}"
+    libsodium_LIBS="-lsodium"
     AC_DEFINE([HAVE_LIBSODIUM], [1], [sodium_init in -lsodium])
     ], [AC_MSG_ERROR("libsodium not found")])
 ])
