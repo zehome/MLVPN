@@ -51,7 +51,7 @@
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 
-#define NEXT_KEEPALIVE(now, t) (now + (t->timeout / 3))
+#define NEXT_KEEPALIVE(now, t) (now + 2)
 
 struct mlvpn_options
 {
@@ -110,6 +110,7 @@ typedef struct mlvpn_tunnel_s
     ev_tstamp last_connection_attempt;
     ev_tstamp next_keepalive;
     ev_tstamp last_keepalive_ack;
+    ev_tstamp last_keepalive_ack_sent;
     ev_io io_read;
     ev_io io_write;
     ev_timer io_timeout;

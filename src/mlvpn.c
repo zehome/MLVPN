@@ -230,8 +230,14 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                     tun->name);
             }
         } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
+            log_debug("protocol", "%s keepalive ack", tun->name);
             mlvpn_rtun_tick(tun);
             tun->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
+            /* Avoid flooding the network if multiple packets are queued */
+            if (tun->last_keepalive_ack_sent + 1 < tun->last_keepalive_ack) {
+                tun->last_keepalive_ack_sent = tun->last_keepalive_ack;
+                mlvpn_rtun_send_keepalive(tun->last_keepalive_ack, tun);
+            }
         } else if (decap_pkt.type == MLVPN_PKT_AUTH || decap_pkt.type == MLVPN_PKT_AUTH_OK) {
             mlvpn_rtun_send_auth(tun);
         }
@@ -447,8 +453,7 @@ mlvpn_rtun_new(const char *name,
     new->io_timeout.data = new;
     ev_init(&new->io_read, mlvpn_rtun_read);
     ev_init(&new->io_write, mlvpn_rtun_write);
-    ev_init(&new->io_timeout, mlvpn_rtun_check_timeout);
-    new->io_timeout.repeat = 1.;
+    ev_timer_init(&new->io_timeout, mlvpn_rtun_check_timeout, 1.0, 1.0);
     mlvpn_rtun_tick_connect(new);
     update_process_title();
     return new;
@@ -654,7 +659,7 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     ev_io_set(&t->io_read, fd, EV_READ);
     ev_io_set(&t->io_write, fd, EV_WRITE);
     ev_io_start(EV_A_ &t->io_read);
-    ev_timer_start(EV_A_ &t->io_timeout);
+    ev_timer_again(EV_A_ &t->io_timeout);
     return 0;
 }
 
@@ -667,6 +672,7 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
     t->last_activity = now;
     t->last_keepalive_ack = now;
+    t->last_keepalive_ack_sent = now;
     mlvpn_update_status();
     mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
     priv_run_script(3, cmdargs);
@@ -851,7 +857,6 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
         ev_io_start(EV_A_ &t->io_write);
     }
-    ev_timer_again(EV_A_ w);
 }
 
 static void
