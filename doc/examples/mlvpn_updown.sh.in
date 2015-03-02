@@ -42,7 +42,7 @@ GW="10.42.42.1"
 ROUTES=""
 
 (
-TIMESTAMP=$(date "+%Y-%m-%dT%M:%H:%S")
+TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 ECHO="echo ${TIMESTAMP} "
 [ "$MTU" -gt 1456 ] && (echo "MTU set too high. Fix your command script"; exit 1)
 if [ "$newstatus" = "tuntap_up" ]; then
