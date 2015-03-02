@@ -170,10 +170,16 @@ priv_init(char *argv[], char *username)
 #ifdef HAVE_SETRESGID
                 if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
                     err(1, "setresgid() failed");
+#else
+                if (setregid(pw->pw_gid, pw->pw_gid) == -1)
+                    err(1, "setregid() failed");
 #endif
 #ifdef HAVE_SETRESUID
                 if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
                     err(1, "setresuid() failed");
+#else
+                if (setreuid(pw->pw_uid, pw->pw_uid) == -1)
+                    err(1, "setreuid() failed");
 #endif
             }
         }
