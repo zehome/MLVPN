@@ -2,49 +2,68 @@
 
 error=0 ; trap "error=$((error|1))" ERR
 
-##############################################################################
-# UP/DOWN script for MLVPN.
+# up/down script for MLVPN.
 #
 # MLVPN calls this script with at least 2 arguments:
-# $1 is the interface name
-# $2 is the "command"
-#
+# $1 : interface name
+# $2 : "command"
 # command can be:
 #    - "tuntap_up"
 #    - "tuntap_down"
-#    - "rtun_up" $3 is rtun_name
-#    - "rtun_down" $3 is rtun_name
-#
-# rtun_up is called when successfully connected to the other side.
-# rtun_down is called when disconnected/timedout from the other side.
-#
-##############################################################################
+#    - "rtun_up" $3 : tunnel name
+#    - "rtun_down" $3 : tunnel name
+# tuntap_up is called when at least one tunnel is up
+# tuntap_down is called when at every tunnel is down
+# rtun_up is called when successfully connected
+# rtun_down is called when disconnected
 
 tuntap_intf="$1"
 newstatus="$2"
 
 [ -z "$newstatus" ] && exit 1
 
+# Local IP address of the tunnel
+IP="10.42.42.2/30"
+# MTU must be set properly, mlvpn generates overhead
+# which can be calculated as followed:
+#  - 60 bytes if using encrypted data
+#  - 44 bytes if using cleartext data
+# *NEVER* set the MTU to more than 1456.
+# Don't forget that PPPoE generates 8 bytes of overhead, so:
+# If using cleartext data and pppoe MTU = 1448
+# If using encrypted data and pppoe MTU = 1432
+MTU=1432
+
+# You can add multiple routes using CIDR notation
+# (10.42.0.0/24)
+# You MUST define the IP address of the other end
+# for that in GW.
+GW="10.42.42.1"
+ROUTES=""
+
 (
+TIMESTAMP=$(date "+%Y-%m-%dT%M:%H:%S")
+ECHO="echo ${TIMESTAMP} "
+[ "$MTU" -gt 1456 ] && (echo "MTU set too high. Fix your command script"; exit 1)
 if [ "$newstatus" = "tuntap_up" ]; then
-    echo "Setting up interface $tuntap_intf"
-    # Be carefull with the MTU. MLVPN overhead is:
-    #  - 60 bytes if using encrypted data
-    #  - 44 bytes if using cleartext data
-    # NEVER set it to more than 1456.
-    # If using cleartext data and pppoe MTU = 1448
-    # If using encrypted data and pppoe MTU = 1432
-    /sbin/ip link set dev $tuntap_intf mtu 1448 up
-    /sbin/ip addr add 10.42.42.2/30 dev $tuntap_intf
+    $ECHO "$tuntap_intf up"
+    /sbin/ip link set dev $tuntap_intf mtu ${MTU} up
+    /sbin/ip addr add $IP dev $tuntap_intf
+    for r in $ROUTES; do
+        /sbin/ip route add $r via $GW dev $tuntap_intf
+    done
 elif [ "$newstatus" = "tuntap_down" ]; then
-    echo "Shutting down interface $tuntap_intf"
+    $ECHO "$tuntap_intf down"
+    for r in $ROUTES; do
+        /sbin/ip route del $r via $GW dev $tuntap_intf
+    done
+    /sbin/ip addr del ${IP} dev $tuntap_intf
     /sbin/ip link set dev $tuntap_intf down
 elif [ "$newstatus" = "rtun_up" ]; then
-    echo "MLVPN informed me rtun [$3] is up"
+    $ECHO "tunnel [$3] is up"
 elif [ "$newstatus" = "rtun_down" ]; then
-    echo "MLVPN informed me rtun [$3] is down."
+    $ECHO "tunnel [$3] is down"
 fi
-
 ) >> /var/log/mlvpn_commands.log 2>&1
 
 exit $errors

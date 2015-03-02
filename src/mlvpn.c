@@ -213,7 +213,8 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-        log_debug("net", "< %s recv %d bytes (packet=%d)", tun->name, (int)len, decap_pkt.len);
+        log_debug("net", "< %s recv %d bytes (packet=%d)",
+            tun->name, (int)len, decap_pkt.len);
 
         if (decap_pkt.type == MLVPN_PKT_DATA) {
             if (tun->status == MLVPN_CHAP_AUTHOK) {
@@ -229,8 +230,9 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 log_debug("protocol", "%s ignoring non authenticated packet",
                     tun->name);
             }
-        } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE) {
-            log_debug("protocol", "%s keepalive ack", tun->name);
+        } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE &&
+                tun->status == MLVPN_CHAP_AUTHOK) {
+            log_debug("net", "%s keepalive received", tun->name);
             mlvpn_rtun_tick(tun);
             tun->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
             /* Avoid flooding the network if multiple packets are queued */
@@ -238,7 +240,8 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 tun->last_keepalive_ack_sent = tun->last_keepalive_ack;
                 mlvpn_rtun_send_keepalive(tun->last_keepalive_ack, tun);
             }
-        } else if (decap_pkt.type == MLVPN_PKT_AUTH || decap_pkt.type == MLVPN_PKT_AUTH_OK) {
+        } else if (decap_pkt.type == MLVPN_PKT_AUTH ||
+                decap_pkt.type == MLVPN_PKT_AUTH_OK) {
             mlvpn_rtun_send_auth(tun);
         }
     }
@@ -771,13 +774,12 @@ mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
             if (t->status != MLVPN_CHAP_AUTHOK)
                 t->status = MLVPN_CHAP_AUTHSENT;
             log_debug("protocol", "%s sending 'OK'", t->name);
-            if (!ev_is_active(&t->io_write)) {
-                ev_io_start(EV_A_ &t->io_write);
-            }
-        } else if (t->status == MLVPN_CHAP_AUTHSENT) {
             log_info("protocol", "%s authenticated", t->name);
             mlvpn_rtun_tick(t);
             mlvpn_rtun_status_up(t);
+            if (!ev_is_active(&t->io_write)) {
+                ev_io_start(EV_A_ &t->io_write);
+            }
         }
     } else {
         /* client side */
@@ -830,7 +832,7 @@ mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t)
     if (mlvpn_cb_is_full(t->hpsbuf))
         log_warnx("net", "%s high priority buffer: overflow", t->name);
     else {
-        log_debug("protocol", "%s sending keepalive", t->name);
+        log_debug("net", "%s sending keepalive", t->name);
         pkt = mlvpn_pktbuffer_write(t->hpsbuf);
         pkt->type = MLVPN_PKT_KEEPALIVE;
     }
