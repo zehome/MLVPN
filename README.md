@@ -26,6 +26,8 @@ Quick install
 Install debian package
 ----------------------
 ```sh
+# ONLY VERSION 1.3
+# NOT RECOMMANDED WAY TO INSTALL RIGHT NOW.
 sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
 echo "deb http://debian.mlvpn.fr unstable/" >/etc/apt/sources.list.d/mlvpn.list
 sudo apt-get update
