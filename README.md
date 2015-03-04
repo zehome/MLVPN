@@ -93,7 +93,7 @@ Principle of operations
 
 Compatibility
 =============
-Linux, OpenBSD, FreeBSD (untested)
+Linux, OpenBSD, FreeBSD
 
 Windows is *NOT* supported, but MLVPN runs on routers, so you can
 benefit from MLVPN on *ANY* operating system of course.
@@ -107,7 +107,7 @@ Contributors
 
 LICENCE
 =======
-See LICENCE file.
+See LICENSE file.
 
 Documentation
 =============
