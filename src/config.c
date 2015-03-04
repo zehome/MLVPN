@@ -150,7 +150,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (default_server_mode)
                 {
                     _conf_set_str_from_conf(
-                        config, lastSection, "bindhost", &bindaddr, "0.0.0.0",
+                        config, lastSection, "bindhost", &bindaddr, NULL,
                         NULL, 0);
                     _conf_set_str_from_conf(
                         config, lastSection, "bindport", &bindport, NULL,
@@ -163,7 +163,7 @@ mlvpn_config(int config_file_fd, int first_time)
                         NULL, 0);
                 } else {
                     _conf_set_str_from_conf(
-                        config, lastSection, "bindhost", &bindaddr, "0.0.0.0",
+                        config, lastSection, "bindhost", &bindaddr, NULL,
                         NULL, 0);
                     _conf_set_str_from_conf(
                         config, lastSection, "bindport", &bindport, NULL,

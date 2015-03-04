@@ -403,10 +403,10 @@ mlvpn_rtun_new(const char *name,
     /* Some basic checks */
     if (server_mode)
     {
-        if (bindaddr == NULL || bindport == NULL)
+        if (bindport == NULL)
         {
             log_warnx(NULL,
-                "cannot initialize socket without bindaddress or bindport");
+                "cannot initialize socket without bindport");
             return NULL;
         }
     } else {
@@ -558,7 +558,6 @@ static int
 mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 {
     struct addrinfo hints, *res;
-    char *bindaddr, *bindport;
     int n, fd;
 
     memset(&hints, 0, sizeof(hints));
@@ -568,19 +567,11 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
        return one entry per allowed protocol family containing
        the unspecified address for that family. */
     hints.ai_flags    = AI_PASSIVE;
-    hints.ai_family   = AF_INET; /* TODO IPV6 */
+    hints.ai_family   = AF_UNSPEC;
     fd = t->fd;
     hints.ai_socktype = SOCK_DGRAM;
 
-    bindaddr = t->bindaddr;
-    bindport = t->bindport;
-
-    if (t->bindaddr == NULL)
-        bindaddr = "0.0.0.0";
-    if (t->bindport == NULL)
-        bindport = "0";
-
-    n = priv_getaddrinfo(bindaddr, bindport, &res, &hints);
+    n = priv_getaddrinfo(t->bindaddr, t->bindport, &res, &hints);
     if (n < 0)
     {
         log_warnx(NULL, "%s getaddrinfo error: %s", t->name, gai_strerror(n));
@@ -589,7 +580,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 
     /* Try open socket with each address getaddrinfo returned,
        until getting a valid listening socket. */
-    log_info(NULL, "%s bind to %s", t->name, t->bindaddr);
+    log_info(NULL, "%s bind to %s", t->name, t->bindaddr ? t->bindaddr : "any");
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(res);
     if (n < 0)
@@ -619,7 +610,7 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
 
     /* Initialize hints */
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET; /* TODO IPv6 */
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
 
     ret = priv_getaddrinfo(addr, port, &t->addrinfo, &hints);
@@ -662,7 +653,7 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
         t->fd = -1;
         return -1;
     }
-    if (t->bindaddr)
+    if (t->bindaddr || t->server_mode)
     {
         if (mlvpn_rtun_bind(t) < 0)
         {

@@ -113,6 +113,7 @@ priv_init(char *argv[], char *username)
     struct sigaction sa;
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
+    char *phostname, *pservname;
     char script_path[MAXPATHLEN] = {0};
     char tuntapname[MLVPN_IFNAMSIZ];
     char **script_argv;
@@ -326,20 +327,30 @@ priv_init(char *argv[], char *username)
             must_read(socks[0], &hostname_len, sizeof(hostname_len));
             if (hostname_len > sizeof(hostname))
                 _exit(0);
-            must_read(socks[0], &hostname, hostname_len);
-            hostname[hostname_len - 1] = '\0';
+            else if (hostname_len > 0) {
+                must_read(socks[0], &hostname, hostname_len);
+                hostname[hostname_len - 1] = '\0';
+                phostname = hostname;
+            } else {
+                phostname = NULL;
+            }
 
             must_read(socks[0], &servname_len, sizeof(servname_len));
             if (servname_len > sizeof(servname))
                 _exit(0);
-            must_read(socks[0], &servname, servname_len);
-            servname[servname_len - 1] = '\0';
+            if (servname_len > 0) {
+                must_read(socks[0], &servname, servname_len);
+                servname[servname_len - 1] = '\0';
+                pservname = servname;
+            } else {
+                pservname = NULL;
+            }
 
             memset(&hints, '\0', sizeof(struct addrinfo));
             must_read(socks[0], &hints, sizeof(struct addrinfo));
 
             addrinfo_len = 0;
-            i = getaddrinfo(hostname, servname, &hints, &res0);
+            i = getaddrinfo(phostname, pservname, &hints, &res0);
             if (i != 0 || res0 == NULL) {
                 must_write(socks[0], &addrinfo_len, sizeof(addrinfo_len));
             } else {
@@ -578,17 +589,27 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_getaddrinfo");
 
-    strlcpy(hostcpy, host, sizeof(hostcpy));
-    hostname_len = strlen(hostcpy) + 1;
-    strlcpy(servcpy, serv, sizeof(servcpy));
-    servname_len = strlen(servcpy) + 1;
+    if (host) {
+        strlcpy(hostcpy, host, sizeof(hostcpy));
+        hostname_len = strlen(hostcpy) + 1;
+    } else {
+        hostname_len = 0;
+    }
 
+    if (serv) {
+        strlcpy(servcpy, serv, sizeof(servcpy));
+        servname_len = strlen(servcpy) + 1;
+    } else {
+        servname_len = 0;
+    }
     cmd = PRIV_GETADDRINFO;
     must_write(priv_fd, &cmd, sizeof(cmd));
     must_write(priv_fd, &hostname_len, sizeof(hostname_len));
-    must_write(priv_fd, hostcpy, hostname_len);
+    if (hostname_len)
+        must_write(priv_fd, hostcpy, hostname_len);
     must_write(priv_fd, &servname_len, sizeof(servname_len));
-    must_write(priv_fd, servcpy, servname_len);
+    if (servname_len)
+        must_write(priv_fd, servcpy, servname_len);
     must_write(priv_fd, hints, sizeof(struct addrinfo));
 
     /* How much addrinfo we have */
