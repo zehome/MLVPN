@@ -145,7 +145,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
 
     /* geting the actual tun%d inside devname
      * is required for hooks to work properly */
-    strlcpy(tuntap->devname, devname, MLVPN_IFNAMSIZ-1);
+    strlcpy(tuntap->devname, devname, sizeof(tuntap->devname));
     return tuntap->fd;
 }
 

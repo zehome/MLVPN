@@ -132,7 +132,7 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
         /* Allocate with specified name, otherwise the kernel
          * will find a name for us. */
         if (*devname)
-            strlcpy(ifr.ifr_name, devname, MLVPN_IFNAMSIZ-1);
+            strlcpy(ifr.ifr_name, devname, sizeof(ifr.ifr_name));
 
         /* ioctl to create the if */
         if (ioctl(fd, TUNSETIFF, &ifr) < 0)
@@ -163,7 +163,7 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
     /* The kernel is the only one able to "name" the if.
      * so we reread it to get the real name set by the kernel. */
     if (fd > 0) {
-        strlcpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ-1);
+        strlcpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ);
     }
     return fd;
 }

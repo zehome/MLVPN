@@ -578,9 +578,9 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_getaddrinfo");
 
-    strlcpy(hostcpy, host, sizeof(hostcpy)-1);
+    strlcpy(hostcpy, host, sizeof(hostcpy));
     hostname_len = strlen(hostcpy) + 1;
-    strlcpy(servcpy, serv, sizeof(servcpy)-1);
+    strlcpy(servcpy, serv, sizeof(servcpy));
     servname_len = strlen(servcpy) + 1;
 
     cmd = PRIV_GETADDRINFO;

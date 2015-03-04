@@ -156,7 +156,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
         else {
             memset(&un_addr, 0, sizeof(un_addr));
             un_addr.sun_family = AF_UNIX;
-            strlcpy(un_addr.sun_path, ctrl->fifo_path, strlen(ctrl->fifo_path)+1);
+            strlcpy(un_addr.sun_path, ctrl->fifo_path, sizeof(un_addr.sun_path));
             /* remove existing sock if exists! (bad stop) */
             /* TODO: handle proper "at_exit" removal of this socket */
             unlink(un_addr.sun_path);
@@ -364,10 +364,10 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
     if (ctrl->http)
         mlvpn_control_write(ctrl, HTTP_HEADERS, strlen(HTTP_HEADERS));
 
-    if (strncasecmp(cmd, "status", 6) == 0 || strncasecmp(cmd, "/status", 7) == 0)
+    if (strcasecmp(cmd, "status") == 0 || strcasecmp(cmd, "/status") == 0)
     {
         mlvpn_control_write_status(ctrl);
-    } else if (strncasecmp(cmd, "quit", 4) == 0) {
+    } else if (strcasecmp(cmd, "quit") == 0) {
         mlvpn_control_write(ctrl, "bye.", 4);
         mlvpn_control_close_client(ctrl);
     } else {
