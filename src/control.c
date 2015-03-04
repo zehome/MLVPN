@@ -61,10 +61,10 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl);
     "   \"destaddr\": \"%s\",\n" \
     "   \"destport\": \"%s\",\n" \
     "   \"status\": \"%s\",\n" \
-    "   \"sentpackets\": %llu,\n" \
-    "   \"recvpackets\": %llu,\n" \
-    "   \"sentbytes\": %llu,\n" \
-    "   \"recvbytes\": %llu,\n" \
+    "   \"sentpackets\": %" PRIu64 ",\n" \
+    "   \"recvpackets\": %" PRIu64 ",\n" \
+    "   \"sentbytes\": %" PRIu64 ",\n" \
+    "   \"recvbytes\": %" PRIu64 ",\n" \
     "   \"bandwidth\": %d,\n" \
     "   \"disconnects\": %d,\n" \
     "   \"last_packet\": %u,\n" \
@@ -415,14 +415,14 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
                        t->destaddr ? t->destaddr : "",
                        t->destport ? t->destport : "",
                        status,
-                       (long long unsigned int)t->sentpackets,
-                       (long long unsigned int)t->recvpackets,
-                       (long long unsigned int)t->sentbytes,
-                       (long long unsigned int)t->recvbytes,
+                       t->sentpackets,
+                       t->recvpackets,
+                       t->sentbytes,
+                       t->recvbytes,
                        0,
                        t->disconnects,
-                       (uint32_t) t->last_activity,
-                       (uint32_t) t->timeout,
+                       (uint32_t)t->last_activity,
+                       (uint32_t)t->timeout,
                        (LIST_NEXT(t, entries) ? "," : "")
                       );
         mlvpn_control_write(ctrl, buf, ret);
