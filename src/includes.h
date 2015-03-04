@@ -4,6 +4,7 @@
 #include "config.h"
 #include "defines.h"
 
+#include <inttypes.h>
 #include <sys/param.h>
 #include <sys/types.h>
 

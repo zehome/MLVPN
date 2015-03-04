@@ -3,15 +3,16 @@
 
 #include "includes.h"
 
+#include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/queue.h>
+#include <sys/un.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <time.h>
 #include <ev.h>
-
-#ifdef HAVE_OPENBSD
- #include <netinet/in.h>
-#endif
 
 /* Many thanks Fabien Dupont! */
 #ifdef HAVE_LINUX

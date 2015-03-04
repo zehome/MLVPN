@@ -1,7 +1,6 @@
-/*    $OpenBSD: privsep.c,v 1.34 2008/11/23 04:29:42 brad Exp $    */
-
 /*
  * Copyright (c) 2003 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2015 Laurent Coustet <ed@zehome.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above

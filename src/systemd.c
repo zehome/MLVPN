@@ -17,13 +17,6 @@
 
 #include "mlvpn.h"
 #include "systemd.h"
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stddef.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 
 /**
  * Tell if we have been started by systemd.
