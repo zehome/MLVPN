@@ -39,17 +39,19 @@ bindport = 5080
 #timeout = 25
 
 #[adsl2]
-#bindhost = "0.0.0.0"
+##:: to listen on any interface, any ipv6 address
+#bindhost = "::"
 ## bindport =
 #remotehost = "10.2.3.4"
 #remoteport = 5081
 #bandwidth_upload = 512000
 
 #[adsl3]
+##0.0.0.0 to listen on any interface, any ipv4 address
 #bindhost = "0.0.0.0"
 #remotehost = "10.2.3.4"
 #remoteport = 5082
-#bandwidth_upload = 512000
-# If fallback_only is set, then the tunnel will be connected
-# but not used until all non-fallback tunnels are down.
+## bandwidth_upload = 512000
+## If fallback_only is set, then the tunnel will be connected
+## but not used until all non-fallback tunnels are down.
 #fallback_only = 1
