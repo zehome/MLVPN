@@ -985,7 +985,7 @@ main(int argc, char **argv)
     if (time(&mlvpn_status.last_reload) == -1)
         log_warn(NULL, "last_reload time() failed");
 
-    log_init(0, 2, "mlvpn");
+    log_init(1, 2, "mlvpn");
 
     _progname = strdup(__progname);
     saved_argv = calloc(argc + 1, sizeof(*saved_argv));
