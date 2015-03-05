@@ -111,6 +111,5 @@ See LICENSE file.
 
 Documentation
 =============
-Documentation is available on Read The Docs http://mlvpn.readthedocs.org/en/latest/
-La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
-ronn (http://rtomayko.github.com/ronn/).
+Documentation is available on [Read The Docs](http://mlvpn.readthedocs.org/en/latest/).  
+The manpage is also authored in Markdown, and converted using [ronn](http://rtomayko.github.com/ronn/).
