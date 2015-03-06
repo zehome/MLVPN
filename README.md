@@ -6,7 +6,7 @@ MLVPN - Multi-Link Virtual Public Network
 
 author: Laurent Coustet <ed arobase zehome.com>
 
-Take a look at the official documentation on readthedocs.org: http://mlvpn.readthedocs.org/en/latest/
+Take a look at the official documentation on [Read The Docs](http://mlvpn.readthedocs.org/en/latest/)
 
 Introduction
 ============
@@ -77,14 +77,14 @@ away from the core routing stuff.
 Code running as root is very minimalist and highly readable to
 avoid risks as much as possible.
 
-Read more http://en.wikipedia.org/wiki/Privilege_separation
+Read more about [privilege separation](http://en.wikipedia.org/wiki/Privilege_separation)
 
 Cryptography
 ------------
   * Encryption: Salsa20 stream cipher
   * Authentication: Poly1305 MAC
 
-Read more on http://cr.yp.to/salsa20.html and http://doc.libsodium.org/.
+Read more on [salsa20](http://cr.yp.to/salsa20.html) and [libsodium](http://doc.libsodium.org/).
 
 
 Principle of operations
@@ -105,7 +105,7 @@ Contributors
   * Ghislain Lévèque, contributor (weight round robin)
   * Fabien Dupont, contributor (bugfix)
 
-LICENCE
+LICENSE
 =======
 See LICENSE file.
 
