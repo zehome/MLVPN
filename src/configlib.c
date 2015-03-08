@@ -1,10 +1,27 @@
-/********************************************************
- * cPige2, under GNU/GPL v2. See LICENCE for details
+/*
+ * Copyright (c) 2015, Laurent COUSTET <ed@zehome.com>
  *
- * http://ed.zehome.com/?page=cpige-en
+ * All rights reserved.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * (c) 2007 Laurent Coustet
- ********************************************************/
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE REGENTS AND CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -38,7 +55,7 @@ _conf_parseConfig(int config_fd)
     configFile = fdopen(config_fd, "r");
     if (! configFile)
     {
-        log_warn("Unable to open config file fd: %d",
+        log_warn("config", "cannot open file %d",
             config_fd);
         return NULL;
     }
@@ -58,11 +75,12 @@ _conf_parseConfig(int config_fd)
                 break;
             else
             {
-                log_warn("Error reading config file");
+                log_warn("config", "read error");
                 if (section != NULL)
                     free(section);
                 free(config);
                 free(buf);
+                fclose(configFile);
                 return NULL;
             }
         }
@@ -95,8 +113,9 @@ _conf_parseConfig(int config_fd)
                 {
                     if (section == NULL)
                     {
-                        log_warnx("Parse error near line %d: variables should "
-                                  "always been defined in a section!", linenum);
+                        log_warnx("config",
+                            "error near line %d: variables should "
+                            "always been defined in a section", linenum);
                     } else if (_conf_setValue(config, confObj, section) == NULL) {
                         /* Error there, cleanup memory */
                         if (confObj->var)
@@ -199,7 +218,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
         case '[':
             if (section)
             {
-                errorMsg = "Parse error near line %d: '[' followed by another '['.";
+                errorMsg = "parse error near line %d: '[' followed by another '['";
                 goto error;
             }
             section = (char *)malloc(linelen+1-i);
@@ -207,7 +226,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
         case ']':
             if (! section)
             {
-                errorMsg = "Parse error near line %d: ']' found, without '['.";
+                errorMsg = "parse error near line %d: ']' found, without '['";
                 goto error;
             }
             found_terminator = 1;
@@ -222,7 +241,7 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
 
     if (section && ! found_terminator)
     {
-        errorMsg = "Parse error near line %d: Terminator ']' not found.";
+        errorMsg = "parse error near line %d: ending ']' not found";
         goto error;
     }
 
@@ -231,7 +250,7 @@ error:
     if (section)
         free(section);
     if (errorMsg)
-        log_warnx(errorMsg, linenum);
+        log_warnx("config", errorMsg, linenum);
     return NULL;
 }
 
@@ -277,7 +296,8 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
             }
             if (j == 0)
             {
-                log_warnx("Parse error near line %d: line should not start with '='.",
+                log_warnx("config",
+                    "parse error near line %d: line should not start with '='",
                     linenum);
                 free(confObj);
                 free(buf);
@@ -286,7 +306,9 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
             if (confObj->var != NULL)
             {
-                log_warnx("Parse error near line %d: two '=' detected.", linenum);
+                log_warnx("config",
+                    "parse error near line %d: two '=' are not permitted",
+                    linenum);
                 free(confObj->var);
                 free(confObj);
                 free(buf);
@@ -317,9 +339,10 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
             if (! isascii(c))
             {
-                log_warnx("Parse error near line %d: "
-                          "variable/value must be *ASCII ONLY*",
-                          linenum);
+                log_warnx("config",
+                    "parse error near line %d: "
+                    "variable/value must be ASCII",
+                    linenum);
                 free(buf);
                 if (confObj->var)
                     free(confObj->var);
@@ -353,7 +376,9 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
 
     if (! *buf)
     {
-        log_warnx("Parse error near line %d: Value not found.", linenum);
+        log_warnx("config",
+            "parse error near line %d: no value",
+            linenum);
         free(ptr);
         free(confObj->var);
         free(confObj);
@@ -379,13 +404,15 @@ _conf_setValue(config_t *start,
 
     if (start == NULL)
     {
-        log_warnx("Error in setValue: config start is NULL.");
+        log_warnx("config",
+            "unable to set value: no sections");
         return NULL;
     }
 
     if (section == NULL)
     {
-        log_warnx("Error in setValue: section is NULL.");
+        log_warnx("config",
+            "unable to set value: no sections");
         return NULL;
     }
 
@@ -421,7 +448,7 @@ conf_setValue( config_t **start,
 
     if ((var == NULL) || (val == NULL))
     {
-        log_warnx("var = NULL or val = NULL");
+        log_warnx("config", "cannot set value: no variable or no value");
         return;
     }
 

@@ -10,11 +10,6 @@ statuscommand = "@sysconfdir@/mlvpn/mlvpn_updown.sh"
 # tap provides ethernet layer2 tunnel.
 tuntap = "tun"
 
-# Log levels:
-# 0 : Errors
-# 1 : Info
-# 2 : Debug (very verbose)
-loglevel = 1
 mode = "client"
 # Only available on Linux
 interface_name = "mlvpn0"
@@ -40,21 +35,23 @@ bindhost = "0.0.0.0"
 bindport = 5080
 #remotehost = "10.2.3.4"
 #remoteport = 5080
-# bandwidth_upload = 61440
-# timeout = 25
+#bandwidth_upload = 61440
+#timeout = 25
 
 #[adsl2]
-#bindhost = "0.0.0.0"
+##:: to listen on any interface, any ipv6 address
+#bindhost = "::"
 ## bindport =
 #remotehost = "10.2.3.4"
 #remoteport = 5081
 #bandwidth_upload = 512000
 
 #[adsl3]
+##0.0.0.0 to listen on any interface, any ipv4 address
 #bindhost = "0.0.0.0"
 #remotehost = "10.2.3.4"
 #remoteport = 5082
-#bandwidth_upload = 512000
-# If fallback_only is set, then the tunnel will be connected
-# but not used until all non-fallback tunnels are down.
+## bandwidth_upload = 512000
+## If fallback_only is set, then the tunnel will be connected
+## but not used until all non-fallback tunnels are down.
 #fallback_only = 1

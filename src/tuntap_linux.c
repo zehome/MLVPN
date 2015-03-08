@@ -32,7 +32,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     /* Buffer checking / reset in case of overflow */
     sbuf = rtun->sbuf;
     if (mlvpn_cb_is_full(sbuf))
-        log_warnx("[rtun %s] buffer overflow", rtun->name);
+        log_warnx("tuntap", "%s buffer: overflow", rtun->name);
 
     /* Ask for a free buffer */
     pkt = mlvpn_pktbuffer_write(sbuf);
@@ -40,7 +40,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     if (ret < 0)
     {
         /* read error on tuntap is not recoverable. We must die. */
-        fatal("tuntap unrecoverable read error");
+        fatal("tuntap", "unrecoverable read error");
     } else if (ret == 0) {
         /* End of file */
         fatalx("tuntap device closed");
@@ -48,7 +48,8 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     pkt->len = ret;
     if (pkt->len > tuntap->maxmtu)
     {
-        log_warnx("Packet too big %d > max MTU %d will be corrupted",
+        log_warnx("tuntap",
+            "cannot send packet: too big %d/%d",
             pkt->len, tuntap->maxmtu);
         pkt->len = tuntap->maxmtu;
     }
@@ -75,14 +76,14 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
     len = write(tuntap->fd, pkt->data, pkt->len);
     if (len < 0)
     {
-        log_warn("[tuntap %s] write error", tuntap->devname);
+        log_warn("tuntap", "%s write error", tuntap->devname);
     } else {
         if (len != pkt->len)
         {
-            log_warnx("[tuntap %s] write error: only %d/%d bytes sent",
+            log_warnx("tuntap", "%s write error: %d/%d bytes sent",
                tuntap->devname, len, pkt->len);
         } else {
-            log_debug("[tuntap %s] >> wrote %d bytes",
+            log_debug("tuntap", "%s > sent %d bytes",
                tuntap->devname, len);
         }
     }
@@ -131,7 +132,7 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
         /* Allocate with specified name, otherwise the kernel
          * will find a name for us. */
         if (*devname)
-            strlcpy(ifr.ifr_name, devname, MLVPN_IFNAMSIZ-1);
+            strlcpy(ifr.ifr_name, devname, sizeof(ifr.ifr_name));
 
         /* ioctl to create the if */
         if (ioctl(fd, TUNSETIFF, &ifr) < 0)
@@ -141,7 +142,7 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
              */
             warn("open tun %s ioctl failed", devname);
             close(fd);
-            fd = -1;
+            return -1;
         }
 
         /* set tun MTU */
@@ -153,7 +154,8 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
             {
                 warn("unable to set tun %s mtu=%d", devname, mtu);
                 close(fd);
-                fd = -1;
+                close(sockfd);
+                return -1;
             }
             close(sockfd);
         }
@@ -161,7 +163,7 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
     /* The kernel is the only one able to "name" the if.
      * so we reread it to get the real name set by the kernel. */
     if (fd > 0) {
-        strlcpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ-1);
+        strlcpy(devname, ifr.ifr_name, MLVPN_IFNAMSIZ);
     }
     return fd;
 }

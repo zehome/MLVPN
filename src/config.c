@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 2015, Laurent COUSTET <ed@zehome.com>
+ *
+ * All rights reserved.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE REGENTS AND CONTRIBUTORS BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include "includes.h"
 #include "mlvpn.h"
 #include "configlib.h"
@@ -26,7 +51,6 @@ mlvpn_config(int config_file_fd, int first_time)
 
     int default_timeout = 60;
     int default_server_mode = 0; /* 0 => client */
-    int logverbose = 0;
     int cleartext_data = 0;
     int fallback_only = 0;
 
@@ -84,15 +108,10 @@ mlvpn_config(int config_file_fd, int first_time)
                     free(mode);
 
                 _conf_set_int_from_conf(
-                    config, lastSection, "loglevel", &logverbose, 0,
-                    NULL, 0);
-                if (! mlvpn_options.debug)
-                    log_verbose(logverbose);
-                _conf_set_int_from_conf(
                     config, lastSection, "timeout", &default_timeout, 60,
                     NULL, 0);
                 if (default_timeout < 5) {
-                    log_warnx("timeout can't be less than 5 seconds.");
+                    log_warnx("config", "timeout capped to 5 seconds");
                     default_timeout = 5;
                 }
                 _conf_set_str_from_conf(
@@ -131,7 +150,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (default_server_mode)
                 {
                     _conf_set_str_from_conf(
-                        config, lastSection, "bindhost", &bindaddr, "0.0.0.0",
+                        config, lastSection, "bindhost", &bindaddr, NULL,
                         NULL, 0);
                     _conf_set_str_from_conf(
                         config, lastSection, "bindport", &bindport, NULL,
@@ -144,7 +163,7 @@ mlvpn_config(int config_file_fd, int first_time)
                         NULL, 0);
                 } else {
                     _conf_set_str_from_conf(
-                        config, lastSection, "bindhost", &bindaddr, "0.0.0.0",
+                        config, lastSection, "bindhost", &bindaddr, NULL,
                         NULL, 0);
                     _conf_set_str_from_conf(
                         config, lastSection, "bindport", &bindport, NULL,
@@ -163,7 +182,7 @@ mlvpn_config(int config_file_fd, int first_time)
                     config, lastSection, "timeout", &timeout, default_timeout,
                     NULL, 0);
                 if (timeout < 5) {
-                    log_warnx("timeout can't be less than 5 seconds.");
+                    log_warnx("config", "timeout capped to 5 seconds");
                     timeout = 5;
                 }
                 _conf_set_int_from_conf(
@@ -175,7 +194,8 @@ mlvpn_config(int config_file_fd, int first_time)
                     {
                         if (mystr_eq(lastSection, tmptun->name))
                         {
-                            log_info("Updating tunnel %s during config reload.",
+                            log_info("config",
+                                "%s tunnel restarted during config reload",
                                   tmptun->name);
                             if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
                                     (! mystr_eq(tmptun->bindport, bindport)) ||
@@ -189,28 +209,24 @@ mlvpn_config(int config_file_fd, int first_time)
                                 if (! tmptun->bindaddr)
                                     tmptun->bindaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
                                 strlcpy(tmptun->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
-                                free(bindaddr);
                             }
                             if (bindport)
                             {
                                 if (! tmptun->bindport)
                                     tmptun->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
                                 strlcpy(tmptun->bindport, bindport, MLVPN_MAXPORTSTR);
-                                free(bindport);
                             }
                             if (dstaddr)
                             {
                                 if (! tmptun->destaddr)
                                     tmptun->destaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
                                 strlcpy(tmptun->destaddr, dstaddr, MLVPN_MAXHNAMSTR);
-                                free(dstaddr);
                             }
                             if (dstport)
                             {
                                 if (! tmptun->destport)
                                     tmptun->destport = calloc(1, MLVPN_MAXPORTSTR+1);
                                 strlcpy(tmptun->destport, dstport, MLVPN_MAXPORTSTR);
-                                free(dstport);
                             }
                             tmptun->fallback_only = fallback_only;
                             create_tunnel = 0;
@@ -221,11 +237,19 @@ mlvpn_config(int config_file_fd, int first_time)
 
                 if (create_tunnel)
                 {
-                    log_info("Adding tunnel %s.", lastSection);
+                    log_info("config", "%s tunnel added", lastSection);
                     mlvpn_rtun_new(
                         lastSection, bindaddr, bindport, dstaddr, dstport,
                         default_server_mode, timeout, fallback_only);
                 }
+                if (bindaddr)
+                    free(bindaddr);
+                if (bindport)
+                    free(bindport);
+                if (dstaddr)
+                    free(dstaddr);
+                if (dstport)
+                    free(dstport);
             }
         } else if (lastSection == NULL)
             lastSection = work->section;
@@ -254,7 +278,7 @@ mlvpn_config(int config_file_fd, int first_time)
 
             if (! found_in_config)
             {
-                log_info("Deleting tunnel %s.", tmptun->name);
+                log_info("config", "%s tunnel removed", tmptun->name);
                 mlvpn_rtun_drop(tmptun);
             }
         }
@@ -266,6 +290,6 @@ mlvpn_config(int config_file_fd, int first_time)
         priv_init_script(status_command);
     return 0;
 error:
-    log_warnx("Error parsing config file.");
+    log_warnx("config", "parse error");
     return 1;
 }

@@ -1,7 +1,6 @@
-/*    $OpenBSD: privsep.c,v 1.34 2008/11/23 04:29:42 brad Exp $    */
-
 /*
  * Copyright (c) 2003 Anil Madhavapeddy <anil@recoil.org>
+ * Copyright (c) 2015 Laurent Coustet <ed@zehome.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -114,6 +113,7 @@ priv_init(char *argv[], char *username)
     struct sigaction sa;
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
+    char *phostname, *pservname;
     char script_path[MAXPATHLEN] = {0};
     char tuntapname[MLVPN_IFNAMSIZ];
     char **script_argv;
@@ -170,10 +170,16 @@ priv_init(char *argv[], char *username)
 #ifdef HAVE_SETRESGID
                 if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1)
                     err(1, "setresgid() failed");
+#else
+                if (setregid(pw->pw_gid, pw->pw_gid) == -1)
+                    err(1, "setregid() failed");
 #endif
 #ifdef HAVE_SETRESUID
                 if (setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) == -1)
                     err(1, "setresuid() failed");
+#else
+                if (setreuid(pw->pw_uid, pw->pw_uid) == -1)
+                    err(1, "setreuid() failed");
 #endif
             }
         }
@@ -226,12 +232,13 @@ priv_init(char *argv[], char *username)
             if (cur_state == STATE_CONFIG)
                 strlcpy(allowed_configfile, path, len);
             if (! *allowed_configfile)
-                fatalx("empty configuration file path.");
+                fatalx("empty configuration file path");
 
             fd = root_open_file(allowed_configfile, O_RDONLY|O_NONBLOCK);
             send_fd(socks[0], fd);
             if (fd < 0)
-                log_warnx("priv_open_config `%s' failed", allowed_configfile);
+                log_warnx("privsep", "priv_open_config `%s' failed",
+                    allowed_configfile);
             else
                 close(fd);
             break;
@@ -320,20 +327,30 @@ priv_init(char *argv[], char *username)
             must_read(socks[0], &hostname_len, sizeof(hostname_len));
             if (hostname_len > sizeof(hostname))
                 _exit(0);
-            must_read(socks[0], &hostname, hostname_len);
-            hostname[hostname_len - 1] = '\0';
+            else if (hostname_len > 0) {
+                must_read(socks[0], &hostname, hostname_len);
+                hostname[hostname_len - 1] = '\0';
+                phostname = hostname;
+            } else {
+                phostname = NULL;
+            }
 
             must_read(socks[0], &servname_len, sizeof(servname_len));
             if (servname_len > sizeof(servname))
                 _exit(0);
-            must_read(socks[0], &servname, servname_len);
-            servname[servname_len - 1] = '\0';
+            if (servname_len > 0) {
+                must_read(socks[0], &servname, servname_len);
+                servname[servname_len - 1] = '\0';
+                pservname = servname;
+            } else {
+                pservname = NULL;
+            }
 
             memset(&hints, '\0', sizeof(struct addrinfo));
             must_read(socks[0], &hints, sizeof(struct addrinfo));
 
             addrinfo_len = 0;
-            i = getaddrinfo(hostname, servname, &hints, &res0);
+            i = getaddrinfo(phostname, pservname, &hints, &res0);
             if (i != 0 || res0 == NULL) {
                 must_write(socks[0], &addrinfo_len, sizeof(addrinfo_len));
             } else {
@@ -468,16 +485,17 @@ root_launch_script(char *setup_script, int argc, char **argv)
         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
             return status;
         } else if (WIFSIGNALED(status)) {
-            log_warnx("network script %s killed by signal %d",
+            log_warnx("privsep", "network script %s killed by signal %d",
                 setup_script,
                 WTERMSIG(status));
         } else {
-            log_warnx("network script %s exit status %d",
+            log_warnx("privsep", "network script %s exit status %d",
                 setup_script,
                 WEXITSTATUS(status));
         }
     } else
-        log_warn("%s: could not launch network script", setup_script);
+        log_warn("privsep",
+            "%s: could not launch network script", setup_script);
     return status;
 }
 
@@ -571,17 +589,27 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
     if (priv_fd < 0)
         errx(1, "%s: called from privileged portion", "priv_getaddrinfo");
 
-    strlcpy(hostcpy, host, sizeof(hostcpy)-1);
-    hostname_len = strlen(hostcpy) + 1;
-    strlcpy(servcpy, serv, sizeof(servcpy)-1);
-    servname_len = strlen(servcpy) + 1;
+    if (host) {
+        strlcpy(hostcpy, host, sizeof(hostcpy));
+        hostname_len = strlen(hostcpy) + 1;
+    } else {
+        hostname_len = 0;
+    }
 
+    if (serv) {
+        strlcpy(servcpy, serv, sizeof(servcpy));
+        servname_len = strlen(servcpy) + 1;
+    } else {
+        servname_len = 0;
+    }
     cmd = PRIV_GETADDRINFO;
     must_write(priv_fd, &cmd, sizeof(cmd));
     must_write(priv_fd, &hostname_len, sizeof(hostname_len));
-    must_write(priv_fd, hostcpy, hostname_len);
+    if (hostname_len)
+        must_write(priv_fd, hostcpy, hostname_len);
     must_write(priv_fd, &servname_len, sizeof(servname_len));
-    must_write(priv_fd, servcpy, servname_len);
+    if (servname_len)
+        must_write(priv_fd, servcpy, servname_len);
     must_write(priv_fd, hints, sizeof(struct addrinfo));
 
     /* How much addrinfo we have */
@@ -636,9 +664,9 @@ priv_init_script(char *path)
 
     if (len <= 0)
     {
-        errx(1, "priv_init_script: invalid answer from server.");
+        errx(1, "priv_init_script: invalid answer from server");
     } else if (len > ERRMSGSIZ) {
-        log_warnx("priv_init_script: error message truncated.");
+        log_warnx("privsep", "priv_init_script: error message truncated");
         len = ERRMSGSIZ;
     }
     must_read(priv_fd, errormessage, len);
@@ -646,7 +674,8 @@ priv_init_script(char *path)
 
     if (*errormessage)
     {
-        log_warnx("Error from priv server: %s", errormessage);
+        log_warnx("privsep", "error from priv server: %s",
+            errormessage);
         return -1;
     }
     return 0;

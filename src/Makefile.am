@@ -16,7 +16,7 @@ mlvpn_SOURCES = \
     privsep.c privsep_fdpass.c privsep.h \
     wrr.c \
     crypto.c crypto.h \
-    log.c \
+    log.c log.h \
     tuntap_generic.h \
     mlvpn.c mlvpn.h
 
@@ -62,5 +62,5 @@ EXTRA_DIST = \
     systemd.c systemd.h \
     control.c control.h
 
-mlvpn_LDFLAGS=-lm $(libsodium_LIBS) $(libev_LIBS)
+mlvpn_LDADD=-lm $(libsodium_LIBS) $(libev_LIBS)
 mlvpn_CFLAGS=$(CFLAGS) $(libsodium_CFLAGS) $(libev_CFLAGS)

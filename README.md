@@ -1,6 +1,8 @@
 =========================================
 MLVPN - Multi-Link Virtual Public Network
 =========================================
+[![Build Status](https://travis-ci.org/zehome/MLVPN.svg?branch=ev)](https://travis-ci.org/zehome/MLVPN)
+[![Coverity Status](https://scan.coverity.com/projects/4405/badge.svg)](https://scan.coverity.com/projects/4405)
 
 author: Laurent Coustet <ed arobase zehome.com>
 
@@ -24,6 +26,8 @@ Quick install
 Install debian package
 ----------------------
 ```sh
+# ONLY VERSION 1.3
+# NOT RECOMMANDED WAY TO INSTALL RIGHT NOW.
 sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
 echo "deb http://debian.mlvpn.fr unstable/" >/etc/apt/sources.list.d/mlvpn.list
 sudo apt-get update
@@ -89,7 +93,7 @@ Principle of operations
 
 Compatibility
 =============
-Linux, OpenBSD, FreeBSD (untested)
+Linux, OpenBSD, FreeBSD
 
 Windows is *NOT* supported, but MLVPN runs on routers, so you can
 benefit from MLVPN on *ANY* operating system of course.
@@ -98,15 +102,15 @@ Contributors
 ============
   * Laurent Coustet, author and maintainer
   * Philippe Pepiot, contributor (privilege separation, bugfix)
-  * Ghislain Lévèque, contributor (weight round robin)
+  * Ghislain LÃ©vÃ¨que, contributor (weight round robin)
   * Fabien Dupont, contributor (bugfix)
 
 LICENCE
 =======
-See LICENCE file.
+See LICENSE file.
 
 Documentation
 =============
 Documentation is available on Read The Docs http://mlvpn.readthedocs.org/en/latest/
-La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
+La page de manuel est aussi Ã©crite en markdown. La conversion est rÃ©alisÃ©e grace a l'outil
 ronn (http://rtomayko.github.com/ronn/).

@@ -3,15 +3,16 @@
 
 #include "includes.h"
 
+#include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/queue.h>
+#include <sys/un.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <time.h>
 #include <ev.h>
-
-#ifdef HAVE_OPENBSD
- #include <netinet/in.h>
-#endif
 
 /* Many thanks Fabien Dupont! */
 #ifdef HAVE_LINUX
@@ -51,7 +52,7 @@
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 
-#define NEXT_KEEPALIVE(now, t) (now + (t->timeout / 3))
+#define NEXT_KEEPALIVE(now, t) (now + 2)
 
 struct mlvpn_options
 {
@@ -66,8 +67,8 @@ struct mlvpn_options
     char config_path[MAXPATHLEN];
     int config_fd;
     /* log verbosity */
-    int debug;
     int verbose;
+    int debug;
     /* User change if running as root */
     char unpriv_user[128];
     int cleartext_data;
@@ -110,6 +111,7 @@ typedef struct mlvpn_tunnel_s
     ev_tstamp last_connection_attempt;
     ev_tstamp next_keepalive;
     ev_tstamp last_keepalive_ack;
+    ev_tstamp last_keepalive_ack_sent;
     ev_io io_read;
     ev_io io_write;
     ev_timer io_timeout;
@@ -139,19 +141,7 @@ mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 
-/* privsep */
 #include "privsep.h"
-
-/* log.c */
-void log_init(int);
-void log_verbose(int);
-void log_warn(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void log_warnx(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void log_info(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void log_debug(const char *, ...) __attribute__((__format__ (printf, 1, 2)));
-void logit(int, const char *, ...) __attribute__((__format__ (printf, 2, 3)));
-void vlog(int, const char *, va_list) __attribute__((__format__ (printf, 2, 0)));
-__attribute__((noreturn)) void fatal(const char *);
-__attribute__((noreturn)) void fatalx(const char *);
+#include "log.h"
 
 #endif
