@@ -51,7 +51,6 @@ start_vpn () {
 stop_vpn () {
   kill `cat $PIDFILE` || true
   rm -f $PIDFILE
-  rm -f @localstatedir@/mlvpn.$NAME.status 2> /dev/null
 }
 
 case "$1" in
@@ -128,7 +127,7 @@ stop)
 reload|force-reload)
  log_daemon_msg "Reloading $DESC"
   if test -z "$2" ; then
-    for PIDFILE in `ls @localstatedir@/mlvpn.*.pid 2> /dev/null`; do
+    for PIDFILE in `ls @localstatedir@/run/mlvpn.*.pid 2> /dev/null`; do
       NAME=$(basename $PIDFILE | cut -f2- -d'.')
       NAME=${NAME%%.pid}
       kill -HUP $(cat $PIDFILE)
@@ -137,8 +136,8 @@ reload|force-reload)
     else
       while shift ; do
         [ -z "$1" ] && break
-        if test -e @localstatedir@/mlvpn.$1.pid ; then
-          PIDFILE=`ls /var/run/mlvpn.$1.pid 2> /dev/null`
+        if test -e @localstatedir@/run/mlvpn.$1.pid ; then
+          PIDFILE=`ls @localstatedir@/run/mlvpn.$1.pid 2> /dev/null`
           NAME=$(basename $PIDFILE | cut -f2- -d'.')
           NAME=${NAME%%.pid}
           kill -HUP $(cat $PIDFILE)
