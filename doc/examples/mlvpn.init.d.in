@@ -103,7 +103,7 @@ stop)
 
   if test -z "$2" ; then
     for PIDFILE in `ls @localstatedir@/run/mlvpn.*.pid 2> /dev/null`; do
-      NAME=`echo $PIDFILE | cut -c18-`
+      NAME=$(basename $PIDFILE | cut -f2- -d'.')
       NAME=${NAME%%.pid}
       stop_vpn
       log_progress_msg "$NAME"
@@ -113,7 +113,7 @@ stop)
       [ -z "$1" ] && break
       if test -e @localstatedir@/run/mlvpn.$1.pid ; then
         PIDFILE=`ls @localstatedir@/run/mlvpn.$1.pid 2> /dev/null`
-        NAME=`echo $PIDFILE | cut -c18-`
+        NAME=$(basename $PIDFILE | cut -f2- -d'.')
         NAME=${NAME%%.pid}
         stop_vpn
         log_progress_msg "$NAME"
@@ -127,14 +127,25 @@ stop)
 # Only 'reload' running VPNs. New ones will only start with 'start' or 'restart'.
 reload|force-reload)
  log_daemon_msg "Reloading $DESC"
-  for PIDFILE in `ls @localstatedir@/run/mlvpn.*.pid 2> /dev/null`; do
-    NAME=`echo $PIDFILE | cut -c18-`
-    NAME=${NAME%%.pid}
-    stop_vpn
-    sleep 1
-    start_vpn
-    log_progress_msg "(restarted)"
-  done
+  if test -z "$2" ; then
+    for PIDFILE in `ls @localstatedir@/mlvpn.*.pid 2> /dev/null`; do
+      NAME=$(basename $PIDFILE | cut -f2- -d'.')
+      NAME=${NAME%%.pid}
+      kill -HUP $(cat $PIDFILE)
+      log_progress_msg "$NAME (reloaded)"
+    done
+    else
+      while shift ; do
+        [ -z "$1" ] && break
+        if test -e @localstatedir@/mlvpn.$1.pid ; then
+          PIDFILE=`ls /var/run/mlvpn.$1.pid 2> /dev/null`
+          NAME=$(basename $PIDFILE | cut -f2- -d'.')
+          NAME=${NAME%%.pid}
+          kill -HUP $(cat $PIDFILE)
+          log_progress_msg "$NAME (reloaded)"
+        fi
+      done
+    fi
   log_end_msg 0
   ;;
 
@@ -143,17 +154,6 @@ restart)
   $0 stop ${@}
   sleep 1
   $0 start ${@}
-  ;;
-cond-restart)
-  log_daemon_msg "Restarting $DESC."
-  for PIDFILE in `ls @localstatedir@/run/mlvpn.*.pid 2> /dev/null`; do
-    NAME=`echo $PIDFILE | cut -c18-`
-    NAME=${NAME%%.pid}
-    stop_vpn
-    sleep 1
-    start_vpn
-  done
-  log_end_msg 0
   ;;
 status)
   GLOBAL_STATUS=0
@@ -218,7 +218,7 @@ status)
   exit $GLOBAL_STATUS
   ;;
 *)
-  echo "Usage: $0 {start|stop|reload|restart|force-reload|cond-restart|soft-restart|status}" >&2
+  echo "Usage: $0 {start|stop|reload|restart|status}" >&2
   exit 1
   ;;
 esac
