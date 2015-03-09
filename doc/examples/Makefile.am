@@ -6,9 +6,9 @@ if INSTALL_EXAMPLES
 dist_doc_DATA = mlvpn.conf \
     mlvpn_updown.sh mlvpn.init.d mlvpn.default \
     mlvpn_updown_openbsd.sh
+else
+nodist_doc_DATA = mlvpn.conf mlvpn_updown.sh mlvpn.init.d 
 endif
-# Force generation of the configuration files for debian package.
-nodist_doc_DATA = mlvpn.conf mlvpn_updown.sh
 
 mlvpn.conf: mlvpn.conf.in
 mlvpn_updown.sh: mlvpn_updown.sh.in
