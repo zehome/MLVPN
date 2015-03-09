@@ -24,20 +24,20 @@ newstatus="$2"
 
 # Local IP address of the tunnel
 IP="10.42.42.2/30"
-# MTU must be set properly, mlvpn generates overhead
+# MTU must be set properly, mlvpn generates overhead
 # which can be calculated as followed:
 #  - 60 bytes if using encrypted data
 #  - 44 bytes if using cleartext data
-# *NEVER* set the MTU to more than 1456.
+# *NEVER* set the MTU to more than 1456.
 # Don't forget that PPPoE generates 8 bytes of overhead, so:
-# If using cleartext data and pppoe MTU = 1448
+# If using cleartext data and pppoe MTU = 1448
 # If using encrypted data and pppoe MTU = 1432
 MTU=1432
 
 # You can add multiple routes using CIDR notation
 # (10.42.0.0/24)
-# You MUST define the IP address of the other end
-# for that in GW.
+# You MUST define the IP address of the other end
+# for that in GW.
 GW="10.42.42.1"
 ROUTES=""
 
