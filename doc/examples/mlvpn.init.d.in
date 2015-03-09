@@ -148,7 +148,9 @@ reload|force-reload)
     fi
   log_end_msg 0
   ;;
-
+cond-restart)
+  # Do nothing. This is used in apt-get upgrade for example.
+  ;;
 restart)
   shift
   $0 stop ${@}
