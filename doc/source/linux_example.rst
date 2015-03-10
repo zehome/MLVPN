@@ -1,14 +1,12 @@
 =======================================================
-Configuring Linux routing for use with multi link MLVPN
+Linux with two ADSL uplinks for agregation and failover
 =======================================================
 
 Introduction
 ============
 This short guide will try to help you configure linux for
-multi-link routing.
-
-MLVPN will need to have a way to communicate from one end
-to the other using multiple links in order to aggregate them.
+policyrouting in order to automatically use the two
+adsl links at the same time.
 
 Example case
 ============
@@ -31,7 +29,7 @@ Example case
                        ^             | A  G |             ^
                        |             | P  A |             |
                        |             |    T |             |
-                       |             |    E |             | 
+                       |             |    E |             |
             internet 1 |             |    D |             | internet 2
                        |             v      v             |
                        |         +---+------+---+         |
@@ -42,31 +40,24 @@ Example case
         +------+                        |
         | LAN  |------------------------+
         +------+
-     192.168.0.0/24 
+     192.168.0.0/24
 
 
 In this setup we have multiple machines:
 
-  * MLVPN server which has a fast internet connection (100Mbps).
+  * MLVPN server which has a fast internet connection (100Mbps)
 
     - Public IP Address: 128.128.128.128/32
-
     - Private mlvpn IP address: 10.42.42.1/30
 
   * ADSL 1 router LOCAL IP address 192.168.1.1/24
-
   * ADSL 2 router LOCAL IP address 192.168.2.1/24
-
   * Local AREA network (where your standard "clients" are) on 192.168.0.0/24
-
   * And finally our MLVPN client router:
 
     - Private IP address 192.168.1.2/24 to join ADSL1
-
     - Private IP address 192.168.2.2/24 to join ADSL2
-
     - Private IP address 192.168.0.1/24 for LAN clients
-
     - Private IP address 10.42.42.2/30 on mlvpn0.
 
 Yeah seems a bit complicated, but that's not that hard after all, we just have 4 routers.
@@ -85,10 +76,10 @@ Before we do anything: (Note: you may require installing iproute2)
 .. code-block:: sh
 
     root@mlvpnclient:~# ip route show
-    default via 192.168.1.1 dev eth0 
+    default via 192.168.1.1 dev eth0
     192.168.0.0/24 dev eth0  proto kernel  scope link  src 192.168.0.1
     192.168.1.0/24 dev eth0  proto kernel  scope link  src 192.168.1.2
-    192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2 
+    192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2
 
 This routing table means every packet to the internet will go thru 192.168.1.1.
 We can test it:
@@ -99,7 +90,7 @@ We can test it:
     PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
     64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=42.1 ms
     64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=41.7 ms
-    
+
 Ok I started to use "-I192.168.1.2" here. That's not mandatory in this
 example, but this will become handy later.
 
@@ -114,11 +105,11 @@ Testing the second link will need us to modify the routing table.
 
     root@mlvpnclient:~# ip route add 213.186.33.13 via 192.168.2.1
     root@mlvpnclient:~# ip route show
-    default via 192.168.1.1 dev eth0 
+    default via 192.168.1.1 dev eth0
     213.186.33.13 via 192.168.2.2 dev eth0
     192.168.0.0/24 dev eth0  proto kernel  scope link  src 192.168.0.1
     192.168.1.0/24 dev eth0  proto kernel  scope link  src 192.168.1.2
-    192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2 
+    192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2
 
 
 Notice the new 213.186.33.13 (ping.ovh.net) added to the routing table.
@@ -198,11 +189,11 @@ We must add some routes to each table to activate them.
     # Inserting routes in the adsl1 table
     ip route add 192.168.1.0/24 dev eth0 scope link table adsl1
     ip route add default via 192.168.1.1 dev eth0 table adsl1
-    
+
     # Inserting routes in the adsl2 table
     ip route add 192.168.2.0/24 dev eth0 scope link table adsl2
     ip route add default via 192.168.2.1 dev eth0 table adsl2
-    
+
     # ip rule is the source routing magic. This will redirect
     # packets coming from source "X" to table "adsl1", "adsl2" or "default".
     ip rule add from 192.168.1.0/24 table adsl1
@@ -239,11 +230,11 @@ Then the routing tables:
       192.168.2.0/24 dev eth0  scope link
       default via 192.168.2.1 dev eth0
     root@mlvpnclient:~# ip route show table main
-      default via 192.168.1.1 dev eth0 
+      default via 192.168.1.1 dev eth0
       213.186.33.13 via 192.168.2.2 dev eth0
       192.168.0.0/24 dev eth0  proto kernel  scope link  src 192.168.0.1
       192.168.1.0/24 dev eth0  proto kernel  scope link  src 192.168.1.2
-      192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2 
+      192.168.2.0/24 dev eth0  proto kernel  scope link  src 192.168.2.2
 
 
 Ping test
@@ -254,7 +245,7 @@ Ping test
     PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
     64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=40.6 ms
     64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=41.5 ms
-    
+
     root@mlvpnclient:~# ping -c2 -n -I192.168.2.1 ping.ovh.net
     PING ping.ovh.net (213.186.33.13) 56(84) bytes of data.
     64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=62.0 ms
@@ -270,15 +261,15 @@ On Debian GNU/Linux that's pretty easy, just copy this script to
 .. code-block:: sh
 
     #!/bin/sh
-    
+
     # Inserting routes in the adsl1 table
     /sbin/ip route add 192.168.1.0/24 dev eth0 scope link table adsl1
     /sbin/ip route add default via 192.168.1.1 dev eth0 table adsl1
-    
+
     # Inserting routes in the adsl2 table
     /sbin/ip route add 192.168.2.0/24 dev eth0 scope link table adsl2
     /sbin/ip route add default via 192.168.2.1 dev eth0 table adsl2
-    
+
     # ip rule is the source routing magic. This will redirect
     # packets coming from source "X" to table "adsl1", "adsl2" or "default".
     /sbin/ip rule add from 192.168.1.0/24 table adsl1
@@ -298,13 +289,13 @@ You can use post-up scripts of /etc/network/interfaces to run this script.
         address 192.168.0.1
         netmask 255.255.255.0
         post-up /usr/local/sbin/source_routing
-    
+
     auto eth0:adsl1
     iface eth0:adsl1 inet static
         address 192.168.1.2
         netmask 255.255.255.0
         gateway 192.168.1.1
-    
+
     auto eth0:adsl2
     iface eth0:adsl2 inet static
         address 192.168.2.2
@@ -337,13 +328,13 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     interface_name = "mlvpn0"
     timeout = 30
     password = "pleasechangeme!"
-    
+
     [adsl1]
     bindhost = "192.168.1.2"
     remotehost = "128.128.128.128"
     remoteport = 5080
     bandwidth_upload = 61440
-    
+
     [adsl2]
     bindhost = "192.168.2.2"
     remotehost = "128.128.128.128"
@@ -370,15 +361,15 @@ Again I stripped the script to the minimum.
 .. code-block:: sh
 
     #!/bin/bash
-    
+
     error=0; trap "error=$((error|1))" ERR
-    
+
     tuntap_intf="$1"
     newstatus="$2"
     rtun="$3"
-    
+
     [ -z "$newstatus" ] && exit 1
-    
+
     (
     if [ "$newstatus" = "tuntap_up" ]; then
         echo "$tuntap_intf setup"
@@ -394,7 +385,7 @@ Again I stripped the script to the minimum.
         echo "rtun [${rtun}] is down"
     fi
     ) >> /var/log/mlvpn_commands.log 2>&1
-    
+
     exit $errors
 
 Again ensure permissions are correct or mlvpn will *NOT* execute the script.
@@ -415,11 +406,11 @@ mlvpn0.conf
     interface_name = "mlvpn0"
     timeout = 30
     password = "pleasechangeme!"
-    
+
     [adsl1]
     bindport = 5080
     bandwidth_upload = 512000
-    
+
     [adsl2]
     bindport = 5081
     bandwidth_upload = 512000
@@ -430,7 +421,7 @@ mlvpn0_updown.sh
 .. code-block:: sh
 
     #!/bin/bash
-    
+
     error=0; trap "error=$((error|1))" ERR
     tuntap_intf="$1"
     newstatus="$2"
