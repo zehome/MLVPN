@@ -1,51 +1,44 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8">
+    <meta charset='utf-8'>
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
+
     <title>MLVPN - MultiLink Virtual Public Network by zehome</title>
-    <link rel="stylesheet" href="stylesheets/styles.css">
-    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-    <script src="javascripts/respond.js"></script>
-    <!--[if lt IE 9]>
-      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
-    <!--[if lt IE 8]>
-    <link rel="stylesheet" href="stylesheets/ie.css">
-    <![endif]-->
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-
   </head>
+
   <body>
-      <div id="header">
-        <nav>
-          <li class="fork"><a href="https://github.com/zehome/MLVPN">View On GitHub</a></li>
-          <li class="downloads"><a href="https://github.com/zehome/MLVPN/zipball/master">ZIP</a></li>
-          <li class="downloads"><a href="https://github.com/zehome/MLVPN/tarball/master">TAR</a></li>
-          <li class="title">DOWNLOADS</li>
-        </nav>
-      </div><!-- end header -->
 
-    <div class="wrapper">
+    <header>
+      <div class="container">
+        <h1>MLVPN - MultiLink Virtual Public Network</h1>
+        <h2>Multi-link VPN (ADSL/SDSL/xDSL/Network aggregator)</h2>
 
-      <section>
-        <div id="title">
-          <h1>MLVPN - MultiLink Virtual Public Network</h1>
-          <p>Multi-link VPN (ADSL/SDSL/xDSL/Network aggregator)</p>
-          <hr>
-          <span class="credits left">Project maintained by <a href="https://github.com/zehome">zehome</a></span>
-          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
-        </div>
+        <section id="downloads">
+          <a href="https://github.com/zehome/MLVPN/zipball/master" class="btn">Download as .zip</a>
+          <a href="https://github.com/zehome/MLVPN/tarball/master" class="btn">Download as .tar.gz</a>
+          <a href="https://github.com/zehome/MLVPN" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
+        </section>
+      </div>
+    </header>
 
+    <div class="container">
+      <section id="main_content">
         <h1></h1>
 
 <h1>
 <a id="mlvpn---multi-link-virtual-public-network" class="anchor" href="#mlvpn---multi-link-virtual-public-network" aria-hidden="true"><span class="octicon octicon-link"></span></a>MLVPN - Multi-Link Virtual Public Network</h1>
 
+<p><a href="https://travis-ci.org/zehome/MLVPN"><img src="https://travis-ci.org/zehome/MLVPN.svg?branch=ev" alt="Build Status"></a>
+<a href="https://scan.coverity.com/projects/4405"><img src="https://scan.coverity.com/projects/4405/badge.svg" alt="Coverity Status"></a></p>
+
 <p>author: Laurent Coustet </p>
 
-<p>Take a look at the official documentation on readthedocs.org: <a href="http://mlvpn.readthedocs.org/en/latest/">http://mlvpn.readthedocs.org/en/latest/</a></p>
+<p>Take a look at the official documentation on <a href="http://mlvpn.readthedocs.org/en/latest/">Read The Docs</a></p>
 
 <h1>
 <a id="introduction" class="anchor" href="#introduction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Introduction</h1>
@@ -68,10 +61,18 @@ strong cryptography.</li>
 <h2>
 <a id="install-debian-package" class="anchor" href="#install-debian-package" aria-hidden="true"><span class="octicon octicon-link"></span></a>Install debian package</h2>
 
-<div class="highlight highlight-sh"><pre><span class="pl-s3">echo</span> <span class="pl-s1"><span class="pl-pds">"</span>deb http://debian.mlvpn.fr mlvpn-unstable/<span class="pl-pds">"</span></span> <span class="pl-k">&gt;</span>/etc/apt/sources.list.d/mlvpn.list
-sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
+<div class="highlight highlight-sh"><pre>sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
+<span class="pl-s3">echo</span> <span class="pl-s1"><span class="pl-pds">"</span>deb http://debian.mlvpn.fr unstable/<span class="pl-pds">"</span></span> <span class="pl-k">&gt;</span>/etc/apt/sources.list.d/mlvpn.list
 sudo apt-get update
 sudo apt-get install mlvpn</pre></div>
+
+<h2>
+<a id="install-freebsd-port" class="anchor" href="#install-freebsd-port" aria-hidden="true"><span class="octicon octicon-link"></span></a>Install FreeBSD port</h2>
+
+<div class="highlight highlight-sh"><pre>pkg install git libev libsodium
+git clone --branch freebsd https://github.com/zehome/MLVPN mlvpn
+<span class="pl-s3">cd</span> mlvpn
+make</pre></div>
 
 <h2>
 <a id="build-from-source" class="anchor" href="#build-from-source" aria-hidden="true"><span class="octicon octicon-link"></span></a>Build from source</h2>
@@ -86,9 +87,7 @@ $ make install</pre></div>
 <a id="build-debian-package" class="anchor" href="#build-debian-package" aria-hidden="true"><span class="octicon octicon-link"></span></a>Build debian package</h2>
 
 <div class="highlight highlight-sh"><pre>$ sudo apt-get install build-essential make autoconf
-$ dpkg-buildpackage -us -uc -rfakeroot
-OR
-<span class="pl-c"># dpkg-buildpackage -us -uc</span></pre></div>
+$ dpkg-buildpackage -us -uc -rfakeroot</pre></div>
 
 <h1>
 <a id="dependencies" class="anchor" href="#dependencies" aria-hidden="true"><span class="octicon octicon-link"></span></a>Dependencies</h1>
@@ -110,17 +109,17 @@ away from the core routing stuff.</p>
 <p>Code running as root is very minimalist and highly readable to
 avoid risks as much as possible.</p>
 
-<p>Read more <a href="http://en.wikipedia.org/wiki/Privilege_separation">http://en.wikipedia.org/wiki/Privilege_separation</a></p>
+<p>Read more about <a href="http://en.wikipedia.org/wiki/Privilege_separation">privilege separation</a></p>
 
 <h2>
 <a id="cryptography" class="anchor" href="#cryptography" aria-hidden="true"><span class="octicon octicon-link"></span></a>Cryptography</h2>
 
 <ul>
-<li>Encryption: ChaCha20 stream cipher</li>
+<li>Encryption: Salsa20 stream cipher</li>
 <li>Authentication: Poly1305 MAC</li>
 </ul>
 
-<p>Read more on <a href="http://cr.yp.to/chacha.html">http://cr.yp.to/chacha.html</a> and <a href="http://doc.libsodium.org/">http://doc.libsodium.org/</a>.</p>
+<p>Read more on <a href="http://cr.yp.to/salsa20.html">salsa20</a> and <a href="http://doc.libsodium.org/">libsodium</a>.</p>
 
 <h1>
 <a id="principle-of-operations" class="anchor" href="#principle-of-operations" aria-hidden="true"><span class="octicon octicon-link"></span></a>Principle of operations</h1>
@@ -130,7 +129,7 @@ avoid risks as much as possible.</p>
 <h1>
 <a id="compatibility" class="anchor" href="#compatibility" aria-hidden="true"><span class="octicon octicon-link"></span></a>Compatibility</h1>
 
-<p>Linux, OpenBSD, FreeBSD (untested)</p>
+<p>Linux, OpenBSD, FreeBSD</p>
 
 <p>Windows is <em>NOT</em> supported, but MLVPN runs on routers, so you can
 benefit from MLVPN on <em>ANY</em> operating system of course.</p>
@@ -146,20 +145,18 @@ benefit from MLVPN on <em>ANY</em> operating system of course.</p>
 </ul>
 
 <h1>
-<a id="licence" class="anchor" href="#licence" aria-hidden="true"><span class="octicon octicon-link"></span></a>LICENCE</h1>
+<a id="license" class="anchor" href="#license" aria-hidden="true"><span class="octicon octicon-link"></span></a>LICENSE</h1>
 
-<p>See LICENCE file.</p>
+<p>See LICENSE file.</p>
 
 <h1>
 <a id="documentation" class="anchor" href="#documentation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Documentation</h1>
 
-<p>Documentation is available on Read The Docs <a href="http://mlvpn.readthedocs.org/en/latest/">http://mlvpn.readthedocs.org/en/latest/</a>
-La page de manuel est aussi écrite en markdown. La conversion est réalisée grace a l'outil
-ronn (<a href="http://rtomayko.github.com/ronn/">http://rtomayko.github.com/ronn/</a>).</p>
+<p>Documentation is available on <a href="http://mlvpn.readthedocs.org/en/latest/">Read The Docs</a>.<br>
+The manpage is also authored in Markdown, and converted using <a href="http://rtomayko.github.com/ronn/">ronn</a>.</p>
       </section>
-
     </div>
-    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+
     
   </body>
 </html>
