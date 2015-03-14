@@ -26,4 +26,4 @@ Building mlvpn
 
 Configuration
 =============
-Example configuration files for OpenBSD are located in **examples/mlvpn_updown_openbsd.sh**.
+Example configuration files for OpenBSD are located in **examples/mlvpn_updown.sh**.

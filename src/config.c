@@ -48,6 +48,7 @@ mlvpn_config(int config_file_fd, int first_time)
     char *lastSection = NULL;
     char *tundevname = NULL;
     char *password = NULL;
+    int tun_mtu = 0;
 
     int default_timeout = 60;
     int default_server_mode = 0; /* 0 => client */
@@ -60,12 +61,12 @@ mlvpn_config(int config_file_fd, int first_time)
 
     while (work)
     {
-        if ((work->section != NULL) &&
-                (mystr_eq(work->section, lastSection) == 0))
+        if ((work->section != NULL) && !mystr_eq(work->section, lastSection))
         {
             lastSection = work->section;
             if (mystr_eq(lastSection, "general"))
             {
+                /* Thoses settings can only by set at start time */
                 if (first_time)
                 {
                     _conf_set_str_from_conf(
@@ -74,17 +75,51 @@ mlvpn_config(int config_file_fd, int first_time)
                     _conf_set_str_from_conf(
                         config, lastSection, "interface_name", &tundevname, "mlvpn0",
                         NULL, 0);
-                    strlcpy(tuntap.devname, tundevname, sizeof(tuntap.devname));
-                    if (tundevname)
+                    if (tundevname) {
+                        strlcpy(tuntap.devname, tundevname, sizeof(tuntap.devname));
                         free(tundevname);
+                    }
                     _conf_set_str_from_conf(
                         config, lastSection, "tuntap", &tmp, "tun", NULL, 0);
-                    if (mystr_eq(tmp, "tun"))
-                        tuntap.type = MLVPN_TUNTAPMODE_TUN;
-                    else
-                        tuntap.type = MLVPN_TUNTAPMODE_TAP;
-                    if (tmp)
+                    if (tmp) {
+                        if (mystr_eq(tmp, "tun"))
+                            tuntap.type = MLVPN_TUNTAPMODE_TUN;
+                        else
+                            tuntap.type = MLVPN_TUNTAPMODE_TAP;
                         free(tmp);
+                    }
+                    /* Control configuration */
+                    _conf_set_str_from_conf(
+                        config, lastSection, "control_unix_path", &tmp, NULL,
+                        NULL, 0);
+                    if (tmp) {
+                        strlcpy(mlvpn_options.control_unix_path, tmp,
+                            sizeof(mlvpn_options.control_unix_path));
+                        free(tmp);
+                    }
+                    _conf_set_str_from_conf(
+                        config, lastSection, "control_bind_host", &tmp, NULL,
+                        NULL, 0);
+                    if (tmp) {
+                        strlcpy(mlvpn_options.control_bind_host, tmp,
+                            sizeof(mlvpn_options.control_bind_host));
+                        free(tmp);
+                    }
+                    _conf_set_str_from_conf(
+                        config, lastSection, "control_bind_port", &tmp, NULL,
+                        NULL, 0);
+                    if (tmp) {
+                        strlcpy(mlvpn_options.control_bind_port, tmp,
+                            sizeof(mlvpn_options.control_bind_port));
+                        free(tmp);
+                    }
+                    _conf_set_str_from_conf(
+                        config, lastSection, "mode", &mode, NULL,
+                        "Operation mode is mandatory.", 1);
+                    if (mystr_eq(mode, "server"))
+                        default_server_mode = 1;
+                    if (mode)
+                        free(mode);
                 }
 
                 _conf_set_str_from_conf(
@@ -99,13 +134,7 @@ mlvpn_config(int config_file_fd, int first_time)
                     config, lastSection, "cleartext_data", &cleartext_data, 0,
                     NULL, 0);
                 mlvpn_options.cleartext_data = cleartext_data;
-                _conf_set_str_from_conf(
-                    config, lastSection, "mode", &mode, NULL,
-                    "Operation mode is mandatory.", 1);
-                if (mystr_eq(mode, "server"))
-                    default_server_mode = 1;
-                if (mode)
-                    free(mode);
+
 
                 _conf_set_int_from_conf(
                     config, lastSection, "timeout", &default_timeout, 60,
@@ -114,29 +143,76 @@ mlvpn_config(int config_file_fd, int first_time)
                     log_warnx("config", "timeout capped to 5 seconds");
                     default_timeout = 5;
                 }
+
+                /* Tunnel configuration */
                 _conf_set_str_from_conf(
-                    config, lastSection, "control_unix_path", &tmp, NULL,
-                    NULL, 0);
+                    config, lastSection, "ip4", &tmp, NULL, NULL, 0);
                 if (tmp) {
-                    strlcpy(mlvpn_options.control_unix_path, tmp,
-                        sizeof(mlvpn_options.control_unix_path));
+                    strlcpy(mlvpn_options.ip4, tmp, sizeof(mlvpn_options.ip4));
                     free(tmp);
+                } else {
+                    memset(mlvpn_options.ip4_gateway, 0,
+                        sizeof(mlvpn_options.ip4_gateway));
                 }
+
                 _conf_set_str_from_conf(
-                    config, lastSection, "control_bind_host", &tmp, NULL,
-                    NULL, 0);
+                    config, lastSection, "ip6", &tmp, NULL, NULL, 0);
                 if (tmp) {
-                    strlcpy(mlvpn_options.control_bind_host, tmp,
-                        sizeof(mlvpn_options.control_bind_host));
+                    strlcpy(mlvpn_options.ip6, tmp, sizeof(mlvpn_options.ip6));
                     free(tmp);
+                } else {
+                    memset(mlvpn_options.ip4_gateway, 0,
+                        sizeof(mlvpn_options.ip4_gateway));
                 }
+
                 _conf_set_str_from_conf(
-                    config, lastSection, "control_bind_port", &tmp, NULL,
-                    NULL, 0);
+                    config, lastSection, "ip4_gateway", &tmp, NULL, NULL, 0);
                 if (tmp) {
-                    strlcpy(mlvpn_options.control_bind_port, tmp,
-                        sizeof(mlvpn_options.control_bind_port));
+                    strlcpy(mlvpn_options.ip4_gateway, tmp,
+                        sizeof(mlvpn_options.ip4_gateway));
                     free(tmp);
+                } else {
+                    memset(mlvpn_options.ip4_gateway, 0,
+                        sizeof(mlvpn_options.ip4_gateway));
+                }
+
+                _conf_set_str_from_conf(
+                    config, lastSection, "ip6_gateway", &tmp, NULL, NULL, 0);
+                if (tmp) {
+                    strlcpy(mlvpn_options.ip6_gateway, tmp,
+                        sizeof(mlvpn_options.ip6_gateway));
+                    free(tmp);
+                } else {
+                    memset(mlvpn_options.ip6_gateway, 0,
+                        sizeof(mlvpn_options.ip6_gateway));
+                }
+
+                _conf_set_str_from_conf(
+                    config, lastSection, "ip4_routes", &tmp, NULL, NULL, 0);
+                if (tmp) {
+                    strlcpy(mlvpn_options.ip4_routes, tmp,
+                        sizeof(mlvpn_options.ip4_routes));
+                    free(tmp);
+                } else {
+                    memset(mlvpn_options.ip4_routes, 0,
+                        sizeof(mlvpn_options.ip4_routes));
+                }
+
+                _conf_set_str_from_conf(
+                    config, lastSection, "ip6_routes", &tmp, NULL, NULL, 0);
+                if (tmp) {
+                    strlcpy(mlvpn_options.ip6_routes, tmp,
+                        sizeof(mlvpn_options.ip6_routes));
+                    free(tmp);
+                } else {
+                    memset(mlvpn_options.ip6_routes, 0,
+                        sizeof(mlvpn_options.ip6_routes));
+                }
+
+                _conf_set_int_from_conf(
+                    config, lastSection, "mtu", &tun_mtu, 1432, NULL, 0);
+                if (tun_mtu != 0) {
+                    mlvpn_options.mtu = tun_mtu;
                 }
             } else {
                 char *bindaddr;

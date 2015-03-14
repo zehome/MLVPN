@@ -87,6 +87,13 @@ struct mlvpn_options mlvpn_options = {
     .control_unix_path = "",
     .control_bind_host = "",
     .control_bind_port = "",
+    .ip4 = "",
+    .ip6 = "",
+    .ip4_gateway = "",
+    .ip6_gateway = "",
+    .ip4_routes = "",
+    .ip6_routes = "",
+    .mtu = 0,
     .config_path = "mlvpn.conf",
     .config_fd = -1,
     .debug = 0,
@@ -115,6 +122,7 @@ static void mlvpn_rtun_read(EV_P_ ev_io *w, int revents);
 static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
 static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t);
+static void mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t);
 static int mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
 static void mlvpn_rtun_send_auth(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_status_up(mlvpn_tunnel_t *t);
@@ -229,8 +237,8 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-        log_debug("net", "< %s recv %d bytes (packet=%d)",
-            tun->name, (int)len, decap_pkt.len);
+        log_debug("net", "< %s recv %d bytes (type=%d)",
+            tun->name, (int)len, decap_pkt.type);
 
         if (decap_pkt.type == MLVPN_PKT_DATA) {
             if (tun->status == MLVPN_CHAP_AUTHOK) {
@@ -248,7 +256,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
             }
         } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE &&
                 tun->status == MLVPN_CHAP_AUTHOK) {
-            log_debug("net", "%s keepalive received", tun->name);
+            log_debug("protocol", "%s keepalive received", tun->name);
             mlvpn_rtun_tick(tun);
             tun->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
             /* Avoid flooding the network if multiple packets are queued */
@@ -256,6 +264,10 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 tun->last_keepalive_ack_sent = tun->last_keepalive_ack;
                 mlvpn_rtun_send_keepalive(tun->last_keepalive_ack, tun);
             }
+        } else if (decap_pkt.type == MLVPN_PKT_DISCONNECT &&
+                tun->status == MLVPN_CHAP_AUTHOK) {
+            log_info("protocol", "%s disconnect received", tun->name);
+            mlvpn_rtun_status_down(tun);
         } else if (decap_pkt.type == MLVPN_PKT_AUTH ||
                 decap_pkt.type == MLVPN_PKT_AUTH_OK) {
             mlvpn_rtun_send_auth(tun);
@@ -482,6 +494,7 @@ void
 mlvpn_rtun_drop(mlvpn_tunnel_t *t)
 {
     mlvpn_tunnel_t *tmp;
+    mlvpn_rtun_send_disconnect(t);
     mlvpn_rtun_status_down(t);
     ev_timer_stop(EV_A_ &t->io_timeout);
     ev_io_stop(EV_A_ &t->io_read);
@@ -674,9 +687,72 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
 }
 
 static void
+mlvpn_script_get_env(int *env_len, char ***env) {
+    char **envp;
+    int arglen;
+    *env_len = 8;
+    *env = (char **)calloc(*env_len + 1, sizeof(char *));
+    if (! *env)
+        fatal(NULL, "out of memory");
+    envp = *env;
+    arglen = sizeof(mlvpn_options.ip4) + 4;
+    envp[0] = calloc(1, arglen + 1);
+    if (snprintf(envp[0], arglen, "IP4=%s", mlvpn_options.ip4) < 0)
+        log_warn(NULL, "snprintf IP4= failed");
+
+    arglen = sizeof(mlvpn_options.ip6) + 4;
+    envp[1] = calloc(1, arglen + 1);
+    if (snprintf(envp[1], arglen, "IP6=%s", mlvpn_options.ip6) < 0)
+        log_warn(NULL, "snprintf IP6= failed");
+
+    arglen = sizeof(mlvpn_options.ip4_gateway) + 12;
+    envp[2] = calloc(1, arglen + 1);
+    if (snprintf(envp[2], arglen, "IP4_GATEWAY=%s", mlvpn_options.ip4_gateway) < 0)
+        log_warn(NULL, "snprintf IP4_GATEWAY= failed");
+
+    arglen = sizeof(mlvpn_options.ip6_gateway) + 12;
+    envp[3] = calloc(1, arglen + 1);
+    if (snprintf(envp[3], arglen, "IP6_GATEWAY=%s", mlvpn_options.ip6_gateway) < 0)
+        log_warn(NULL, "snprintf IP6_GATEWAY= failed");
+
+    arglen = sizeof(mlvpn_options.ip4_routes) + 11;
+    envp[4] = calloc(1, arglen + 1);
+    if (snprintf(envp[4], arglen, "IP4_ROUTES=%s", mlvpn_options.ip4_routes) < 0)
+        log_warn(NULL, "snprintf IP4_ROUTES= failed");
+
+    arglen = sizeof(mlvpn_options.ip6_routes) + 11;
+    envp[5] = calloc(1, arglen + 1);
+    if (snprintf(envp[5], arglen, "IP6_ROUTES=%s", mlvpn_options.ip6_routes) < 0)
+        log_warn(NULL, "snprintf IP6_ROUTES= failed");
+
+    arglen = sizeof(tuntap.devname) + 7;
+    envp[6] = calloc(1, arglen + 1);
+    if (snprintf(envp[6], arglen, "DEVICE=%s", tuntap.devname) < 0)
+        log_warn(NULL, "snprintf DEVICE= failed");
+
+    envp[7] = calloc(1, 16);
+    if (snprintf(envp[7], 15, "MTU=%d", mlvpn_options.mtu) < 0)
+        log_warn(NULL, "snprintf MTU= failed");
+    envp[8] = NULL;
+}
+
+static void
+mlvpn_free_script_env(char **env)
+{
+    char **envp = env;
+    while (*envp) {
+        free(*envp);
+        envp++;
+    }
+    free(env);
+}
+
+static void
 mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
 {
     char *cmdargs[4] = {tuntap.devname, "rtun_up", t->name, NULL};
+    char **env;
+    int env_len;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
     t->status = MLVPN_CHAP_AUTHOK;
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
@@ -685,20 +761,25 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     t->last_keepalive_ack_sent = now;
     mlvpn_update_status();
     mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
-    priv_run_script(3, cmdargs);
+    mlvpn_script_get_env(&env_len, &env);
+    priv_run_script(3, cmdargs, env_len, env);
     if (mlvpn_status.connected > 0 && mlvpn_status.initialized == 0) {
         cmdargs[0] = tuntap.devname;
         cmdargs[1] = "tuntap_up";
-        cmdargs[3] = NULL;
-        priv_run_script(2, cmdargs);
+        cmdargs[2] = NULL;
+        priv_run_script(2, cmdargs, env_len, env);
         mlvpn_status.initialized = 1;
     }
+    mlvpn_free_script_env(env);
     update_process_title();
 }
 
 void
 mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
 {
+    char *cmdargs[4] = {tuntap.devname, "rtun_down", t->name, NULL};
+    char **env;
+    int env_len;
     enum chap_status old_status = t->status;
     t->status = MLVPN_CHAP_DISCONNECTED;
     t->disconnects++;
@@ -711,17 +792,18 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     mlvpn_update_status();
     if (old_status >= MLVPN_CHAP_AUTHOK)
     {
-        char *cmdargs[4] = {tuntap.devname, "rtun_down", t->name, NULL};
-        priv_run_script(3, cmdargs);
+        mlvpn_script_get_env(&env_len, &env);
+        priv_run_script(3, cmdargs, env_len, env);
         /* Re-initialize weight round robin */
         mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
         if (mlvpn_status.connected == 0 && mlvpn_status.initialized == 1) {
             cmdargs[0] = tuntap.devname;
             cmdargs[1] = "tuntap_down";
             cmdargs[2] = NULL;
-            priv_run_script(2, cmdargs);
+            priv_run_script(2, cmdargs, env_len, env);
             mlvpn_status.initialized = 0;
         }
+        mlvpn_free_script_env(env);
     }
     update_process_title();
 }
@@ -839,11 +921,25 @@ mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t)
     if (mlvpn_cb_is_full(t->hpsbuf))
         log_warnx("net", "%s high priority buffer: overflow", t->name);
     else {
-        log_debug("net", "%s sending keepalive", t->name);
+        log_debug("protocol", "%s sending keepalive", t->name);
         pkt = mlvpn_pktbuffer_write(t->hpsbuf);
         pkt->type = MLVPN_PKT_KEEPALIVE;
     }
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
+}
+
+static void
+mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t)
+{
+    mlvpn_pkt_t *pkt;
+    if (mlvpn_cb_is_full(t->hpsbuf))
+        log_warnx("net", "%s high priority buffer: overflow", t->name);
+    else {
+        log_debug("protocol", "%s sending disconnect", t->name);
+        pkt = mlvpn_pktbuffer_write(t->hpsbuf);
+        pkt->type = MLVPN_PKT_DISCONNECT;
+    }
+    mlvpn_rtun_send(t, t->hpsbuf);
 }
 
 static void
@@ -954,10 +1050,18 @@ mlvpn_config_reload(EV_P_ ev_signal *w, int revents)
 static void
 mlvpn_quit(EV_P_ ev_signal *w, int revents)
 {
+    mlvpn_tunnel_t *t;
     log_info(NULL, "killed by signal SIGTERM, SIGQUIT or SIGINT");
-    ev_break(loop, EVBREAK_ALL);
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+        ev_timer_stop(EV_A_ &t->io_timeout);
+        ev_io_stop(EV_A_ &t->io_read);
+        if (t->status == MLVPN_CHAP_AUTHOK) {
+            mlvpn_rtun_send_disconnect(t);
+        }
+    }
+    ev_break(EV_A_ EVBREAK_ALL);
 }
-
 
 int
 main(int argc, char **argv)
@@ -965,7 +1069,7 @@ main(int argc, char **argv)
     int i, c, option_index, config_fd;
     struct stat st;
     ev_signal signal_hup;
-    ev_signal signal_quit;
+    ev_signal signal_sigquit, signal_sigint, signal_sigterm;
     extern char *__progname;
 #ifdef ENABLE_CONTROL
     struct mlvpn_control control;
@@ -1144,16 +1248,15 @@ main(int argc, char **argv)
         fatalx("Privileged process died");
 
     ev_signal_init(&signal_hup, mlvpn_config_reload, SIGHUP);
-    ev_signal_init(&signal_quit, mlvpn_quit, SIGINT);
-    ev_signal_init(&signal_quit, mlvpn_quit, SIGQUIT);
-    ev_signal_init(&signal_quit, mlvpn_quit, SIGTERM);
+    ev_signal_init(&signal_sigint, mlvpn_quit, SIGINT);
+    ev_signal_init(&signal_sigquit, mlvpn_quit, SIGQUIT);
+    ev_signal_init(&signal_sigterm, mlvpn_quit, SIGTERM);
     ev_signal_start(loop, &signal_hup);
-    ev_signal_start(loop, &signal_quit);
+    ev_signal_start(loop, &signal_sigint);
+    ev_signal_start(loop, &signal_sigquit);
+    ev_signal_start(loop, &signal_sigterm);
 
     ev_run(loop, 0);
-
-    char *cmdargs[3] = {tuntap.devname, "tuntap_down", NULL};
-    priv_run_script(2, cmdargs);
 
     free(_progname);
     return 0;

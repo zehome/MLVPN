@@ -65,6 +65,14 @@ struct mlvpn_options
     char control_bind_host[MLVPN_MAXHNAMSTR];
     char control_bind_port[MLVPN_MAXHNAMSTR];
     char config_path[MAXPATHLEN];
+    /* tunnel configuration for the status command script */
+    char ip4[24];
+    char ip6[128]; /* Should not exceed 45 + 3 + 1 bytes */
+    char ip4_gateway[16];
+    char ip6_gateway[128];
+    char ip4_routes[4096]; /* Allow about 200 routes minimum */
+    char ip6_routes[8192]; /* Allow about 80 routes minimum */
+    int mtu;
     int config_fd;
     /* log verbosity */
     int verbose;

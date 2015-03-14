@@ -11,7 +11,8 @@ enum {
     MLVPN_PKT_AUTH,
     MLVPN_PKT_AUTH_OK,
     MLVPN_PKT_KEEPALIVE,
-    MLVPN_PKT_DATA
+    MLVPN_PKT_DATA,
+    MLVPN_PKT_DISCONNECT
 };
 
 typedef struct {

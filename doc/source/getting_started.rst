@@ -59,10 +59,10 @@ file inside the mlvpn repository for OpenBSD build instructions.
     sudo make install
     sudo mkdir /etc/mlvpn
     sudo cp /usr/local/share/doc/mlvpn/mlvpn.conf /etc/mlvpn/
-    sudo cp /usr/local/share/doc/mlvpn/mlvpn_updown_openbsd.sh /etc/mlvpn/
+    sudo cp /usr/local/share/doc/mlvpn/mlvpn_updown.sh /etc/mlvpn/
     sudo chown -R root /etc/mlvpn
     sudo chmod 660 /etc/mlvpn/mlvpn.conf
-    sudo chmod 700 /etc/mlvpn/mlvpn_updown_openbsd.sh
+    sudo chmod 700 /etc/mlvpn/mlvpn_updown.sh
     # Create a system user for mlvpn (unprivileged)
     sudo groupadd _mlvpn
     sudo useradd -c "mlvpn Daemon" -d /var/empty -s /sbin/nologin -L daemon -g _mlvpn _mlvpn

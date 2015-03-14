@@ -31,10 +31,10 @@ Install
 sudo make install
 sudo mkdir /etc/mlvpn
 sudo cp /usr/local/share/doc/mlvpn/mlvpn.conf /etc/mlvpn/
-sudo cp /usr/local/share/doc/mlvpn/mlvpn_updown_openbsd.sh /etc/mlvpn/
+sudo cp /usr/local/share/doc/mlvpn/mlvpn_updown.sh /etc/mlvpn/
 sudo chown -R root:wheel /etc/mlvpn
 sudo chmod 660 /etc/mlvpn/mlvpn.conf
-sudo chmod 700 /etc/mlvpn/mlvpn_updown_openbsd.sh
+sudo chmod 700 /etc/mlvpn/mlvpn_updown.sh
 
 # Create a system user for mlvpn
 sudo groupadd _mlvpn
