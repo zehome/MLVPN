@@ -468,11 +468,14 @@ root_launch_script(char *setup_script, int argc, char **argv)
          */
         reset_default_signals();
         closefrom(3);
-        newargs = (char **)malloc((argc+2)*sizeof(char *));
+        newargs = (char **)calloc(argc + 2, sizeof(char *));
+        if (! newargs)
+            err(1, "memory allocation failed");
         newargs[0] = setup_script;
-        for(i = 0; i < argc; i++)
-            newargs[i+1] = argv[i];
-        newargs[i+1] = NULL;
+        for(i = 1; i <= argc; i++)
+            newargs[i] = argv[i];
+        newargs[i] = NULL;
+
         if(chdir("/") != 0)
             errx(1, "chdir failed.");
         execv(setup_script, newargs);
