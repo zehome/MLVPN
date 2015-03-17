@@ -1,3 +1,9 @@
+mlvpn (2.1.2) unstable; urgency=medium
+
+  * Update to 2.1.2 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Tue, 17 Mar 2015 13:27:54 +0100
+
 mlvpn (2.1.0) unstable; urgency=medium
   * Update to 2.1.0 release.
 
