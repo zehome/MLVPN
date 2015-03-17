@@ -90,7 +90,7 @@ static char allowed_configfile[MAXPATHLEN] = {0};
 
 static int root_open_file(char *, int);
 int root_tuntap_open(int tuntapmode, char *devname, int mtu);
-static int root_launch_script(char *, int, char **);
+static int root_launch_script(char *, int, char **, char **);
 static void increase_state(int);
 static void sig_got_chld(int);
 static void sig_pass_to_chld(int);
@@ -106,6 +106,7 @@ priv_init(char *argv[], char *username)
     int nullfd;
     int mtu;
     int tuntapmode;
+    int env_len;
     size_t len;
     size_t hostname_len, servname_len, addrinfo_len;
     char path[MAXPATHLEN];
@@ -117,6 +118,7 @@ priv_init(char *argv[], char *username)
     char script_path[MAXPATHLEN] = {0};
     char tuntapname[MLVPN_IFNAMSIZ];
     char **script_argv;
+    char **script_env;
     char errormessage[ERRMSGSIZ];
     int script_argc;
     struct stat st;
@@ -382,40 +384,49 @@ priv_init(char *argv[], char *username)
             if (script_argc <= 0)
                 _exit(0);
 
-            if ( (script_argv = (char **)malloc((script_argc+1)*sizeof(char *))) == NULL)
+            if ((script_argv = (char **)calloc(script_argc + 1, sizeof(char *))) == NULL)
                 _exit(0);
 
-            /* Yeah, we must read it, even if not correctly used (no script path) */
-            for(i = 0; i < script_argc; i++)
-            {
+            /* read script argumuments */
+            for(i = 0; i < script_argc; i++) {
                 must_read(socks[0], &len, sizeof(len));
                 if (len <= 0)
-                {
-                    script_argv[i] = NULL;
-                    break;
-                }
+                    _exit(0);
                 if ((script_argv[i] = (char *)malloc(len)) == NULL)
                     _exit(0);
-
                 must_read(socks[0], script_argv[i], len);
                 script_argv[i][len-1] = '\0';
             }
             script_argv[i] = NULL;
 
+            /* Read environment */
+            must_read(socks[0], &env_len, sizeof(env_len));
+            if (env_len <= 0)
+                _exit(0);
+            if ((script_env = (char **)calloc(env_len + 1, sizeof(char *))) == NULL)
+                _exit(0);
+            for(i = 0; i < env_len; i++) {
+                must_read(socks[0], &len, sizeof(len));
+                if (len <= 0)
+                    _exit(0);
+                if ((script_env[i] = (char *)malloc(len)) == NULL)
+                    _exit(0);
+                must_read(socks[0], script_env[i], len);
+                script_env[i][len - 1] = '\0';
+            }
+
             if (! *script_path)
-            {
                 i = -1;
-            } else {
-                i = root_launch_script(script_path, script_argc, script_argv);
-            }
+            else
+                i = root_launch_script(script_path,
+                    script_argc, script_argv, script_env);
             must_write(socks[0], &i, sizeof(i));
-            for(i = 0; i < script_argc; i++)
-            {
-                if (! script_argv[i])
-                    break;
+            for(i = 0; i < script_argc && script_argv[i]; i++)
                 free(script_argv[i]);
-            }
             free(script_argv);
+            for(i = 0; i < env_len && script_env[i]; i++)
+                free(script_env[i]);
+            free(script_env);
             break;
         case PRIV_RELOAD_RESOLVER:
 #ifdef HAVE_DECL_RES_INIT
@@ -447,12 +458,13 @@ root_open_file(char *path, int flags)
 }
 
 static int
-root_launch_script(char *setup_script, int argc, char **argv)
+root_launch_script(char *setup_script, int argc, char **argv, char **env)
 {
     sigset_t oldmask, mask;
     int pid, status = -1;
     int i;
     char **newargs;
+    char **envp = env;
 
     sigemptyset(&mask);
     sigaddset(&mask, SIGCHLD);
@@ -468,11 +480,19 @@ root_launch_script(char *setup_script, int argc, char **argv)
          */
         reset_default_signals();
         closefrom(3);
-        newargs = (char **)malloc((argc+2)*sizeof(char *));
+        newargs = (char **)calloc(argc + 2, sizeof(char *));
+        if (! newargs)
+            err(1, "memory allocation failed");
         newargs[0] = setup_script;
         for(i = 0; i < argc; i++)
             newargs[i+1] = argv[i];
         newargs[i+1] = NULL;
+
+        while (*envp) {
+            putenv(*envp);
+            envp++;
+        }
+
         if(chdir("/") != 0)
             errx(1, "chdir failed.");
         execv(setup_script, newargs);
@@ -683,7 +703,7 @@ priv_init_script(char *path)
 
 /* run script */
 int
-priv_run_script(int argc, char **argv)
+priv_run_script(int argc, char **argv, int env_len, char **env)
 {
     int cmd, retval;
     int i;
@@ -699,9 +719,15 @@ priv_run_script(int argc, char **argv)
     must_write(priv_fd, &argc, sizeof(argc));
     for (i=0; i < argc; i++)
     {
-        len = strlen(argv[i])+1;
+        len = strlen(argv[i]) + 1;
         must_write(priv_fd, &len, sizeof(len));
         must_write(priv_fd, argv[i], len);
+    }
+    must_write(priv_fd, &env_len, sizeof(env_len));
+    for (i=0; i < env_len; i++) {
+        len = strlen(env[i]) + 1;
+        must_write(priv_fd, &len, sizeof(len));
+        must_write(priv_fd, env[i], len);
     }
 
     must_read(priv_fd, &retval, sizeof(retval));

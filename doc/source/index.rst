@@ -1,25 +1,38 @@
-
 =====================
-MLVPN - Documentation
+mlvpn - documentation
 =====================
 
-The official website is http://www.mlvpn.fr/
-
-MLVPN is Open Source and licensed under the `BSD License`_.
+MLVPN is Open Source software, licensed under the `BSD License`_.
 
 Source code is available on github https://github.com/zehome/MLVPN/
 
-Contents:
 
+User guide
+----------
 .. toctree::
-   :maxdepth: 2
+    :maxdepth: 2
 
-   linux_example
-   debian_packaging
-   openbsd
-   copyright
+    what_is_mlvpn
+    getting_started
+    security
+    faq
 
-.. _`BSD License`: http://www.opensource.org/licenses/BSD-3-Clause
+Example scenarios
+-----------------
+.. toctree::
+    :maxdepth: 1
+
+    linux_example
+
+Developer guide
+---------------
+.. toctree::
+    :maxdepth: 1
+
+    debian_packaging
+    openbsd
+
+.. _`BSD License`: http://www.opensource.org/licenses/BSD-2-Clause
 
 Indices and tables
 ==================

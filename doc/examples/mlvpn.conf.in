@@ -1,23 +1,53 @@
 [general]
-# Script called by mlvpn on network event
-# (tunnel up/down, link failure etc)
+# Script called by mlvpn on network event (tunnel up/down, link failure etc)
 # This command will be called as root.
 statuscommand = "@sysconfdir@/mlvpn/mlvpn_updown.sh"
 
+# Tunnel mode: "server" will listen for connections
+# "client" will just connect to "remotehost/remoteport"
+mode = "client"
+
+# Interface configuration
+# IPv4 address of the tunnel on the local side (don't forget the cidr mask)
+#ip4 = "10.42.43.1/30"
+# IPv6 address of the tunnel on the local side (don't forget the cidr mask)
+#ip6 = "fec0::1/10"
+# IPv4 address of the remote side (without mask this time)
+#ip4_gateway = "10.42.43.2"
+# IPv6 address of the remote side (without mask this time)
+#ip6_gateway = "fec0::2"
+# IPv4 routes to add when the tunnel is up
+#ip4_routes = "192.168.0.0/24 192.168.1.0/24"
+# IPv6 routes to add when the tunnel is up
+#ip6_routes = ""
+
+# MTU must be set properly, mlvpn generates overhead
+# which can be calculated as followed:
+#  - 60 bytes if using encrypted data
+#  - 44 bytes if using cleartext data
+# *NEVER* set the MTU to more than 1456.
+# Don't forget that PPPoE generates 8 bytes of overhead, so:
+# If using cleartext data and pppoe MTU = 1448
+# If using encrypted data and pppoe MTU = 1432
+mtu = 1432
+
 # Tuntap type
-# tun provides better performance as encapsulation
-# overhead will be less than tap. This is layer 3 IP tunnel.
-# tap provides ethernet layer2 tunnel.
+# "tun" provides better performance as encapsulation
+# overhead will be less than "tap". This is layer 3 IP tunnel.
+# "tap" provides ethernet layer2 tunnel.
 tuntap = "tun"
 
-mode = "client"
-# Only available on Linux
+# Sets the tunnel interface name (LINUX only)
 interface_name = "mlvpn0"
+
+# After "timeout" seconds of inactivity, the link will be considered
+# dead and will be disconnected.
 timeout = 30
+
 password = "pleasechangeme!"
 # if cleartext_data is set to 1, then session data (auth)
 # will still be encrypted, but all data packets will NOT.
-# use this setting only when you can't do otherwise. (Performance reasons)
+# use this setting only when you can't do otherwise (for performance reasons).
 cleartext_data = 0
 
 # Remote control can be setup on UNIX socket

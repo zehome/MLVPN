@@ -4,8 +4,7 @@
 SUBDIRS = systemd
 if INSTALL_EXAMPLES
 dist_doc_DATA = mlvpn.conf \
-    mlvpn_updown.sh mlvpn.init.d mlvpn.default \
-    mlvpn_updown_openbsd.sh
+    mlvpn_updown.sh mlvpn.init.d mlvpn.default
 else
 nodist_doc_DATA = mlvpn.conf mlvpn_updown.sh mlvpn.init.d 
 endif
