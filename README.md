@@ -48,7 +48,7 @@ Build from source
 # Debian
 $ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev
 # OR ArchLinux
-$ sudo pacman -S autoconf pkg-config git libev libsodium automake
+$ sudo pacman -S base-devel git libev libsodium
 $ ./autogen.sh
 $ ./configure
 $ make
