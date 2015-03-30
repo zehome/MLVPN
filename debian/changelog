@@ -1,3 +1,10 @@
+mlvpn (2.1.2~bpo70+1) wheezy-backports; urgency=medium
+
+  * Rebuild for wheezy-backports.
+  * Rebuild for wheezy-backports.
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Mon, 30 Mar 2015 13:36:52 +0200
+
 mlvpn (2.1.2) unstable; urgency=medium
 
   * Update to 2.1.2 release.
