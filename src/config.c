@@ -217,6 +217,7 @@ mlvpn_config(int config_file_fd, int first_time)
             } else {
                 char *bindaddr;
                 char *bindport;
+                char *binddev;
                 char *dstaddr;
                 char *dstport;
                 int bwlimit = 0;
@@ -251,6 +252,8 @@ mlvpn_config(int config_file_fd, int first_time)
                         config, lastSection, "remoteport", &dstport, NULL,
                         "No remote port specified.\n", 1);
                 }
+                _conf_set_str_from_conf(
+                    config, lastSection, "binddev", &binddev, NULL, NULL, 0);
                 _conf_set_int_from_conf(
                     config, lastSection, "bandwidth_upload", &bwlimit, 0,
                     NULL, 0);
@@ -276,7 +279,8 @@ mlvpn_config(int config_file_fd, int first_time)
                             if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
                                     (! mystr_eq(tmptun->bindport, bindport)) ||
                                     (! mystr_eq(tmptun->destaddr, dstaddr)) ||
-                                    (! mystr_eq(tmptun->destport, dstport))) {
+                                    (! mystr_eq(tmptun->destport, dstport)) ||
+                                    (! mystr_eq(tmptun->binddev, binddev))) {
                                 mlvpn_rtun_status_down(tmptun);
                             }
 
@@ -291,6 +295,12 @@ mlvpn_config(int config_file_fd, int first_time)
                                 if (! tmptun->bindport)
                                     tmptun->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
                                 strlcpy(tmptun->bindport, bindport, MLVPN_MAXPORTSTR);
+                            }
+                            if (binddev)
+                            {
+                                if (! tmptun->binddev)
+                                    tmptun->binddev = calloc(1, MLVPN_IFNAMSIZ+1);
+                                strlcpy(tmptun->binddev, binddev, MLVPN_IFNAMSIZ);
                             }
                             if (dstaddr)
                             {
@@ -315,13 +325,15 @@ mlvpn_config(int config_file_fd, int first_time)
                 {
                     log_info("config", "%s tunnel added", lastSection);
                     mlvpn_rtun_new(
-                        lastSection, bindaddr, bindport, dstaddr, dstport,
-                        default_server_mode, timeout, fallback_only);
+                        lastSection, bindaddr, bindport, binddev,
+                        dstaddr, dstport, default_server_mode, timeout, fallback_only);
                 }
                 if (bindaddr)
                     free(bindaddr);
                 if (bindport)
                     free(bindport);
+                if (binddev)
+                    free(binddev);
                 if (dstaddr)
                     free(dstaddr);
                 if (dstport)

@@ -97,6 +97,7 @@ typedef struct mlvpn_tunnel_s
     char *name;           /* tunnel name */
     char *bindaddr;       /* packets source */
     char *bindport;       /* packets port source (or NULL) */
+    char *binddev;        /* bind to specific device */
     char *destaddr;       /* remote server ip (can be hostname) */
     char *destport;       /* remote server port */
     int fd;               /* socket file descriptor */
@@ -142,7 +143,7 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
 mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
-    const char *bindaddr, const char *bindport,
+    const char *bindaddr, const char *bindport, const char *binddev,
     const char *destaddr, const char *destport,
     int server_mode, uint32_t timeout,
     int fallback_only);

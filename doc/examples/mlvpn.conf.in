@@ -79,6 +79,7 @@ bindport = 5080
 #[adsl3]
 ##0.0.0.0 to listen on any interface, any ipv4 address
 #bindhost = "0.0.0.0"
+#binddev = "eth1"
 #remotehost = "10.2.3.4"
 #remoteport = 5082
 ## bandwidth_upload = 512000

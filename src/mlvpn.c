@@ -405,7 +405,7 @@ mlvpn_rtun_write(EV_P_ ev_io *w, int revents)
 
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
-               const char *bindaddr, const char *bindport,
+               const char *bindaddr, const char *bindport, const char *binddev,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout,
                int fallback_only)
@@ -455,6 +455,12 @@ mlvpn_rtun_new(const char *name,
     {
         new->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
         strlcpy(new->bindport, bindport, MLVPN_MAXPORTSTR);
+    }
+
+    if (binddev)
+    {
+        new->binddev = calloc(1, MLVPN_IFNAMSIZ+1);
+        strlcpy(new->binddev, binddev, MLVPN_IFNAMSIZ);
     }
 
     if (destaddr)
@@ -571,6 +577,8 @@ static int
 mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 {
     struct addrinfo hints, *res;
+    struct ifreq ifr;
+    char bindifstr[MLVPN_IFNAMSIZ+4];
     int n, fd;
 
     memset(&hints, 0, sizeof(hints));
@@ -593,7 +601,20 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 
     /* Try open socket with each address getaddrinfo returned,
        until getting a valid listening socket. */
-    log_info(NULL, "%s bind to %s", t->name, t->bindaddr ? t->bindaddr : "any");
+    memset(bindifstr, 0, sizeof(bindifstr));
+    if (t->binddev) {
+        snprintf(bindifstr, sizeof(bindifstr) - 1, "on %s", t->binddev);
+    }
+    log_info(NULL, "%s bind to %s%s",
+        t->name, t->bindaddr ? t->bindaddr : "any",
+        bindifstr);
+    if (t->binddev) {
+        memset(&ifr, 0, sizeof(ifr));
+        snprintf(ifr.ifr_name, sizeof(ifr.ifr_name) - 1, t->binddev);
+        if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0) {
+            log_warn("failed to bind on interface %s", t->binddev);
+        }
+    }
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(res);
     if (n < 0)
@@ -1015,7 +1036,7 @@ update_process_title()
                 s = "!";
                 break;
         }
-        len = snprintf(status, sizeof(status) - 1, "%s%s ", s, t->name);
+        len = snprintf(status, sizeof(status) - 1, " %s%s", s, t->name);
         if (len) {
             status[len] = 0;
             strlcat(title, status, sizeof(title));
