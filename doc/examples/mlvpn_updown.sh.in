@@ -15,7 +15,7 @@
 # rtun_up is called when successfully connected
 # rtun_down is called when disconnected
 
-# Environment variables are set by mlvpn, reflecting
+# Environment variables are set by mlvpn, reflecting
 # settings in mlvpn.conf
 # IP4=
 # IP6=
@@ -23,7 +23,7 @@
 # IP6_GATEWAY=
 # IP4_ROUTES=
 # IP6_ROUTES=
-# MTU=
+# MTU=
 # DEVICE=
 
 DEVICE="$1"
