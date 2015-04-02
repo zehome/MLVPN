@@ -578,7 +578,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 {
     struct addrinfo hints, *res;
     struct ifreq ifr;
-    char bindifstr[MLVPN_IFNAMSIZ+4];
+    char bindifstr[MLVPN_IFNAMSIZ + 5];
     int n, fd;
 
     memset(&hints, 0, sizeof(hints));
@@ -603,7 +603,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
        until getting a valid listening socket. */
     memset(bindifstr, 0, sizeof(bindifstr));
     if (t->binddev) {
-        snprintf(bindifstr, sizeof(bindifstr) - 1, "on %s", t->binddev);
+        snprintf(bindifstr, sizeof(bindifstr) - 1, " on %s", t->binddev);
     }
     log_info(NULL, "%s bind to %s%s",
         t->name, t->bindaddr ? t->bindaddr : "any",
@@ -612,9 +612,10 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
         memset(&ifr, 0, sizeof(ifr));
         snprintf(ifr.ifr_name, sizeof(ifr.ifr_name) - 1, t->binddev);
         if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, sizeof(ifr)) < 0) {
-            log_warn("failed to bind on interface %s", t->binddev);
+            log_warn(NULL, "failed to bind on interface %s", t->binddev);
         }
     }
+    log_debug(NULL, "test");
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(res);
     if (n < 0)
