@@ -46,7 +46,7 @@ start_vpn () {
         --pidfile @localstatedir@/run/mlvpn.$NAME.pid \
         --background \
         --make-pidfile \
-        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER || STATUS=1
+        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER --name $NAME || STATUS=1
 }
 stop_vpn () {
   kill `cat $PIDFILE` || true
