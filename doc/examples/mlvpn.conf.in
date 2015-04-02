@@ -7,7 +7,7 @@ statuscommand = "@sysconfdir@/mlvpn/mlvpn_updown.sh"
 # "client" will just connect to "remotehost/remoteport"
 mode = "client"
 
-# Interface configuration
+# Interface configuration
 # IPv4 address of the tunnel on the local side (don't forget the cidr mask)
 #ip4 = "10.42.43.1/30"
 # IPv6 address of the tunnel on the local side (don't forget the cidr mask)
@@ -41,7 +41,7 @@ tuntap = "tun"
 interface_name = "mlvpn0"
 
 # After "timeout" seconds of inactivity, the link will be considered
-# dead and will be disconnected.
+# dead and will be disconnected.
 timeout = 30
 
 password = "pleasechangeme!"
