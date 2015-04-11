@@ -305,6 +305,7 @@ mlvpn_config(int config_file_fd, int first_time)
                                 strlcpy(tmptun->destport, dstport, MLVPN_MAXPORTSTR);
                             }
                             tmptun->fallback_only = fallback_only;
+                            tmptun->bandwidth = bwlimit;
                             create_tunnel = 0;
                             break; /* Very important ! */
                         }
@@ -316,7 +317,7 @@ mlvpn_config(int config_file_fd, int first_time)
                     log_info("config", "%s tunnel added", lastSection);
                     mlvpn_rtun_new(
                         lastSection, bindaddr, bindport, dstaddr, dstport,
-                        default_server_mode, timeout, fallback_only);
+                        default_server_mode, timeout, fallback_only, bwlimit);
                 }
                 if (bindaddr)
                     free(bindaddr);

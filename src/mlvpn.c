@@ -408,7 +408,7 @@ mlvpn_rtun_new(const char *name,
                const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout,
-               int fallback_only)
+               int fallback_only, int bandwidth)
 {
     mlvpn_tunnel_t *new;
 
@@ -442,7 +442,7 @@ mlvpn_rtun_new(const char *name,
     new->sentpackets = 0;
     new->sentbytes = 0;
     new->recvbytes = 0;
-    new->bandwidth = 0;
+    new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
 
     if (bindaddr)
