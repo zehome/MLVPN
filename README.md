@@ -105,6 +105,8 @@ Contributors
   * Philippe Pepiot, contributor (privilege separation, bugfix)
   * Ghislain Lévèque, contributor (weight round robin)
   * Fabien Dupont, contributor (bugfix)
+  * Thomas Soëte, contributor (bugfix)
+  * Nicolas Braud-Santoni, contributor (documentation)
 
 LICENSE
 =======
