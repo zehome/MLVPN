@@ -106,6 +106,7 @@ Contributors
   * Ghislain Lévèque, contributor (weight round robin)
   * Fabien Dupont, contributor (bugfix)
   * Thomas Soëte, contributor (bugfix)
+  * Frank Denis, contributor (documentation)
   * Nicolas Braud-Santoni, contributor (documentation)
 
 LICENSE
