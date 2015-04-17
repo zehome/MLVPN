@@ -26,11 +26,14 @@
 test $DEBIAN_SCRIPT_DEBUG && set -v -x
 
 DAEMON=@sbindir@/mlvpn
+RUNDIR=@localstatedir@/run/mlvpn
 USER=mlvpn
 DESC="virtual private network daemon"
 CONFIG_DIR=@sysconfdir@/mlvpn
 test -x $DAEMON || exit 0
 test -d $CONFIG_DIR || exit 0
+
+[ -d $RUNDIR ] || mkdir $RUNDIR
 
 # Source defaults file; edit that file to configure this script.
 AUTOSTART="all"
@@ -46,7 +49,7 @@ start_vpn () {
         --pidfile @localstatedir@/run/mlvpn.$NAME.pid \
         --background \
         --make-pidfile \
-        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER || STATUS=1
+        --exec $DAEMON -- -c $CONFIG_DIR/$NAME.conf --user=$USER --name=$NAME || STATUS=1
 }
 stop_vpn () {
   kill `cat $PIDFILE` || true
