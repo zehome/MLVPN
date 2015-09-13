@@ -48,12 +48,12 @@ mlvpn_config(int config_file_fd, int first_time)
     char *lastSection = NULL;
     char *tundevname = NULL;
     char *password = NULL;
-    int tun_mtu = 0;
+    uint32_t tun_mtu = 0;
 
-    int default_timeout = 60;
-    int default_server_mode = 0; /* 0 => client */
-    int cleartext_data = 0;
-    int fallback_only = 0;
+    uint32_t default_timeout = 60;
+    uint32_t default_server_mode = 0; /* 0 => client */
+    uint32_t cleartext_data = 0;
+    uint32_t fallback_only = 0;
 
     work = config = _conf_parseConfig(config_file_fd);
     if (! config)
@@ -130,13 +130,13 @@ mlvpn_config(int config_file_fd, int first_time)
                     memset(password, 0, strlen(password));
                     free(password);
                 }
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "cleartext_data", &cleartext_data, 0,
                     NULL, 0);
                 mlvpn_options.cleartext_data = cleartext_data;
 
 
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "timeout", &default_timeout, 60,
                     NULL, 0);
                 if (default_timeout < 5) {
@@ -209,7 +209,7 @@ mlvpn_config(int config_file_fd, int first_time)
                         sizeof(mlvpn_options.ip6_routes));
                 }
 
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "mtu", &tun_mtu, 1432, NULL, 0);
                 if (tun_mtu != 0) {
                     mlvpn_options.mtu = tun_mtu;
@@ -219,8 +219,8 @@ mlvpn_config(int config_file_fd, int first_time)
                 char *bindport;
                 char *dstaddr;
                 char *dstport;
-                int bwlimit = 0;
-                int timeout = 30;
+                uint32_t bwlimit = 0;
+                uint32_t timeout = 30;
                 int create_tunnel = 1;
 
                 if (default_server_mode)
@@ -251,17 +251,17 @@ mlvpn_config(int config_file_fd, int first_time)
                         config, lastSection, "remoteport", &dstport, NULL,
                         "No remote port specified.\n", 1);
                 }
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "bandwidth_upload", &bwlimit, 0,
                     NULL, 0);
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "timeout", &timeout, default_timeout,
                     NULL, 0);
                 if (timeout < 5) {
                     log_warnx("config", "timeout capped to 5 seconds");
                     timeout = 5;
                 }
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "fallback_only", &fallback_only, 0,
                     NULL, 0);
                 if (! LIST_EMPTY(&rtuns))

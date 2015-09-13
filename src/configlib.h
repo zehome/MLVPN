@@ -6,8 +6,8 @@
  * (c) 2007 Laurent Coustet
  ********************************************************/
 
-#ifndef __CONFIGLIB_H
-#define __CONFIGLIB_H
+#ifndef _CONFIGLIB_H_
+#define _CONFIGLIB_H_
 
 typedef struct
 {
@@ -63,9 +63,9 @@ _conf_set_str_from_conf(config_t *config,
                         const char *errMsg, int exit_n);
 
 void
-_conf_set_int_from_conf(config_t *config, const char *section,
-                        const char *type, int *value,
-                        int def, const char *errMsg, int exit_n);
+_conf_set_uint_from_conf(config_t *config, const char *section,
+                        const char *type, uint32_t *value,
+                        uint32_t def, const char *errMsg, int exit_n);
 
 void
 _conf_set_bool_from_conf(config_t *config, const char *section,

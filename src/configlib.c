@@ -567,13 +567,9 @@ _conf_set_str_from_conf(config_t *config,
 }
 
 void
-_conf_set_int_from_conf(config_t *config,
-                        const char *section,
-                        const char *type,
-                        int *value,
-                        int def,
-                        const char *errMsg,
-                        int exit_n)
+_conf_set_uint_from_conf(config_t *config, const char *section,
+    const char *type, uint32_t *value, uint32_t def, const char *errMsg,
+    int exit_n)
 {
     char *tmp;
     _conf_getValue(config, section, type, &tmp);
