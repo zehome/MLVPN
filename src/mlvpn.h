@@ -38,6 +38,7 @@
 
 #include "pkt.h"
 #include "buffer.h"
+#include "reorder.h"
 
 #define MLVPN_MAXHNAMSTR 256
 #define MLVPN_MAXPORTSTR 5
@@ -81,6 +82,7 @@ struct mlvpn_options
     char unpriv_user[128];
     int cleartext_data;
     int root_allowed;
+    uint32_t reorder_buffer_size;
 };
 
 enum chap_status {
@@ -104,7 +106,15 @@ typedef struct mlvpn_tunnel_s
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
     int fallback_only;    /* if set, this link will be used when all others are down */
+    uint64_t seq;
+    uint64_t receiver_seq;
+    uint64_t saved_timestamp;
+    uint64_t saved_timestamp_received_at;
+    uint64_t rto;
+    double srtt;
+    double rttvar;
     double weight;        /* For weight round robin */
+    uint32_t flow_id;
     uint64_t sentpackets; /* 64bit packets sent counter */
     uint64_t recvpackets; /* 64bit packets recv counter */
     uint64_t sentbytes;   /* 64bit bytes sent counter */

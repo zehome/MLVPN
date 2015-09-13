@@ -69,9 +69,12 @@ struct tuntap_s tuntap;
 char *_progname;
 static char **saved_argv;
 struct ev_loop *loop;
+static ev_timer reorder_drain_timeout;
 char *status_command = NULL;
 char *process_title = NULL;
 int logdebug = 0;
+
+static uint64_t data_seq = 0;
 
 struct mlvpn_status_s mlvpn_status = {
     .start_time = 0,
@@ -100,8 +103,12 @@ struct mlvpn_options mlvpn_options = {
     .verbose = 1,
     .unpriv_user = "mlvpn",
     .cleartext_data = 1,
-    .root_allowed = 0
+    .root_allowed = 0,
+    .reorder_buffer_size = 0
 };
+
+struct mlvpn_reorder_buffer *reorder_buffer;
+freebuffer_t *freebuf;
 
 static char *optstr = "c:n:u:hvVD:";
 static struct option long_options[] = {
@@ -120,6 +127,8 @@ static struct option long_options[] = {
 static int mlvpn_rtun_start(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_read(EV_P_ ev_io *w, int revents);
 static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
+static uint32_t mlvpn_rtun_reorder_drain(uint32_t reorder);
+static void mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t);
 static void mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t);
@@ -181,6 +190,83 @@ inline static void mlvpn_rtun_tick(mlvpn_tunnel_t *t) {
     t->last_activity = ev_now(EV_DEFAULT_UC);
 }
 
+/* Inject the packet to the tuntap device (real network) */
+inline static void mlvpn_rtun_inject_tuntap(mlvpn_pkt_t *pkt)
+{
+    mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
+    tuntap_pkt->len = pkt->len;
+    memcpy(tuntap_pkt->data, pkt->data, tuntap_pkt->len);
+    /* Send the packet back into the LAN */
+    if (!ev_is_active(&tuntap.io_write)) {
+        ev_io_start(EV_A_ &tuntap.io_write);
+    }
+}
+
+static void
+mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents)
+{
+    log_debug("reorder", "reorder timeout. Packet loss?");
+    mlvpn_rtun_reorder_drain(0);
+    if (freebuf->used == 0) {
+        ev_timer_stop(EV_A_ w);
+    }
+}
+
+static uint32_t
+mlvpn_rtun_reorder_drain(uint32_t reorder)
+{
+    int i;
+    uint32_t drained = 0;
+    mlvpn_pkt_t *drained_pkts[128];
+    mlvpn_pkt_t *pkt;
+    /* Try to drain packets */
+    if (reorder) {
+        drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 128);
+        for(i = 0; i < drained; i++) {
+            pkt = drained_pkts[i];
+            mlvpn_rtun_inject_tuntap(pkt);
+            mlvpn_freebuffer_free(freebuf, drained_pkts[i]);
+        }
+    } else {
+        while ((pkt = mlvpn_freebuffer_drain_used(freebuf)) != NULL) {
+            drained++;
+            mlvpn_rtun_inject_tuntap(pkt);
+        }
+        mlvpn_freebuffer_reset(freebuf);
+        mlvpn_reorder_reset(reorder_buffer);
+        ev_timer_stop(EV_A_ &reorder_drain_timeout);
+    }
+    return drained;
+}
+
+static int
+mlvpn_rtun_recv_data(mlvpn_tunnel_t *tun, mlvpn_pkt_t *inpkt)
+{
+    int ret;
+    uint32_t drained;
+    if (reorder_buffer == NULL) {
+        mlvpn_rtun_inject_tuntap(inpkt);
+        return 1;
+    } else {
+        mlvpn_pkt_t *pkt = mlvpn_freebuffer_get(freebuf);
+        memcpy(pkt, inpkt, sizeof(mlvpn_pkt_t));
+        ret = mlvpn_reorder_insert(reorder_buffer, pkt);
+        if (ret != 0) {
+            log_warnx("net", "reorder_buffer_insert failed: %d", ret);
+            mlvpn_reorder_reset(reorder_buffer);
+            drained = mlvpn_rtun_reorder_drain(0);
+        } else {
+            drained = mlvpn_rtun_reorder_drain(1);
+        }
+        if (drained > 0 && freebuf->used > 0) {
+            ev_timer_again(EV_A_ &reorder_drain_timeout);
+        }
+        //log_debug("reorder", "drained %d packets", drained);
+    }
+    return drained;
+}
+
+
 /* read from the rtunnel => write directly to the tap send buffer */
 static void
 mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
@@ -237,19 +323,13 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-        log_debug("net", "< %s recv %d bytes (type=%d)",
-            tun->name, (int)len, decap_pkt.type);
+        log_debug("net", "< %s recv %d bytes (type=%d, seq=%"PRIu64")",
+            tun->name, (int)len, decap_pkt.type, decap_pkt.seq);
 
         if (decap_pkt.type == MLVPN_PKT_DATA) {
             if (tun->status == MLVPN_CHAP_AUTHOK) {
                 mlvpn_rtun_tick(tun);
-                mlvpn_pkt_t *tuntap_pkt = mlvpn_pktbuffer_write(tuntap.sbuf);
-                tuntap_pkt->len = decap_pkt.len;
-                memcpy(tuntap_pkt->data, decap_pkt.data, tuntap_pkt->len);
-                /* Send the packet back into the LAN */
-                if (!ev_is_active(&tuntap.io_write)) {
-                    ev_io_start(EV_A_ &tuntap.io_write);
-                }
+                mlvpn_rtun_recv_data(tun, &decap_pkt);
             } else {
                 log_debug("protocol", "%s ignoring non authenticated packet",
                     tun->name);
@@ -280,6 +360,7 @@ mlvpn_protocol_read(
     mlvpn_tunnel_t *tun, mlvpn_pkt_t *pkt,
     mlvpn_pkt_t *decap_pkt)
 {
+    unsigned char nonce[crypto_NONCEBYTES];
     int ret;
     uint16_t rlen;
     mlvpn_proto_t proto;
@@ -289,7 +370,7 @@ mlvpn_protocol_read(
 
     /* pkt->data contains mlvpn_proto_t struct */
     if (pkt->len > sizeof(pkt->data) || pkt->len > sizeof(proto) ||
-            pkt->len < (PKTHDRSIZ(proto) + IP4_UDP_OVERHEAD)) {
+            pkt->len < (PKTHDRSIZ(proto))) {
         log_warnx("protocol", "%s received invalid packet of %d bytes",
             tun->name, pkt->len);
         goto fail;
@@ -305,9 +386,14 @@ mlvpn_protocol_read(
     if (mlvpn_options.cleartext_data && proto.flags == MLVPN_PKT_DATA) {
         memcpy(decap_pkt->data, &proto.data, rlen);
     } else {
+        proto.seq = be64toh(proto.seq);
+        proto.flow_id = be32toh(proto.flow_id);
+        sodium_memzero(nonce, sizeof(nonce));
+        memcpy(nonce, &proto.seq, sizeof(proto.seq));
+        memcpy(nonce + sizeof(proto.seq), &proto.flow_id, sizeof(proto.flow_id));
         if ((ret = crypto_decrypt((unsigned char *)decap_pkt->data,
                                   (const unsigned char *)&proto.data, rlen,
-                                  (const unsigned char *)&proto.nonce)) != 0) {
+                                  nonce)) != 0) {
             log_warnx("protocol", "%s crypto_decrypt failed: %d",
                 tun->name, ret);
             goto fail;
@@ -319,6 +405,7 @@ mlvpn_protocol_read(
 #endif
     decap_pkt->len = rlen;
     decap_pkt->type = proto.flags;
+    decap_pkt->seq = be64toh(proto.data_seq);
     return 0;
 fail:
     return -1;
@@ -327,15 +414,23 @@ fail:
 static int
 mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 {
+    unsigned char nonce[crypto_NONCEBYTES];
     ssize_t ret;
     size_t wlen;
     mlvpn_proto_t proto;
     memset(&proto, 0, sizeof(proto));
 
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
+    if (pkt->type == MLVPN_PKT_DATA) {
+        proto.data_seq = data_seq++;
+    }
     wlen = PKTHDRSIZ(proto) + pkt->len;
     proto.len = pkt->len;
     proto.flags = pkt->type;
+    proto.seq = tun->seq++;
+    proto.flow_id = tun->flow_id;
+    proto.timestamp = 0; /* TODO */
+    proto.timestamp_reply = 0; /* TODO */
 #ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
         memcpy(&proto.data, &pkt->data, wlen);
@@ -348,11 +443,13 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
                 pkt->len);
             return -1;
         }
-        crypto_nonce_random((unsigned char *)&proto.nonce, sizeof(proto.nonce));
+        sodium_memzero(nonce, sizeof(nonce));
+        memcpy(nonce, &proto.seq, sizeof(proto.seq));
+        memcpy(nonce + sizeof(proto.seq), &proto.flow_id, sizeof(proto.flow_id));
         if ((ret = crypto_encrypt((unsigned char *)&proto.data,
                                   (const unsigned char *)&pkt->data, pkt->len,
-                                  (const unsigned char *)&proto.nonce)) != 0) {
-            log_warnx("protocol", "%s crypto_encrypt failed: %d",
+                                  nonce)) != 0) {
+            log_warnx("protocol", "%s crypto_encrypt failed: %d incorrect password?",
                 tun->name, (int)ret);
             return -1;
         }
@@ -363,6 +460,9 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     memcpy(&proto.data, &pkt->data, wlen);
 #endif
     proto.len = htons(proto.len);
+    proto.seq = htobe64(proto.seq);
+    proto.data_seq = htobe64(proto.data_seq);
+    proto.flow_id = htobe32(proto.flow_id);
     ret = sendto(tun->fd, &proto, wlen, MSG_DONTWAIT,
                  tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     if (ret < 0)
@@ -372,6 +472,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
             mlvpn_rtun_status_down(tun);
         }
     } else {
+        tun->sentpackets++;
         tun->sentbytes += ret;
         if (wlen != ret)
         {
@@ -442,6 +543,14 @@ mlvpn_rtun_new(const char *name,
     new->sentpackets = 0;
     new->sentbytes = 0;
     new->recvbytes = 0;
+    new->seq = 0;
+    new->receiver_seq = 0;
+    new->saved_timestamp = -1;
+    new->saved_timestamp_received_at = 0;
+    new->rto = 0;
+    new->srtt = 0;
+    new->rttvar = 0;
+    new->flow_id = crypto_nonce_random();
     new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
 
@@ -769,6 +878,8 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
         cmdargs[2] = NULL;
         priv_run_script(2, cmdargs, env_len, env);
         mlvpn_status.initialized = 1;
+        mlvpn_rtun_reorder_drain(0);
+        mlvpn_reorder_reset(reorder_buffer);
     }
     mlvpn_free_script_env(env);
     update_process_title();
@@ -804,6 +915,8 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
             mlvpn_status.initialized = 0;
         }
         mlvpn_free_script_env(env);
+        mlvpn_rtun_reorder_drain(0);
+        mlvpn_reorder_reset(reorder_buffer);
     }
     update_process_title();
 }
@@ -909,8 +1022,6 @@ mlvpn_rtun_choose()
 {
     mlvpn_tunnel_t *tun;
     tun = mlvpn_rtun_wrr_choose();
-    if (tun)
-        tun->sentpackets++;
     return tun;
 }
 
@@ -1201,6 +1312,7 @@ main(int argc, char **argv)
         update_process_title();
 
     LIST_INIT(&rtuns);
+    freebuf = mlvpn_freebuffer_init(512);
 
     /* Kill me if my root process dies ! */
 #ifdef HAVE_LINUX
@@ -1223,6 +1335,8 @@ main(int argc, char **argv)
     else
         log_info(NULL, "created interface `%s'", tuntap.devname);
 
+    ev_timer_init(&reorder_drain_timeout,
+        mlvpn_rtun_reorder_drain_timeout, 0.9, 0.9);
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);

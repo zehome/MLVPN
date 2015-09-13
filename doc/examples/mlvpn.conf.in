@@ -21,15 +21,12 @@ mode = "client"
 # IPv6 routes to add when the tunnel is up
 #ip6_routes = ""
 
-# MTU must be set properly, mlvpn generates overhead
-# which can be calculated as followed:
-#  - 60 bytes if using encrypted data
-#  - 44 bytes if using cleartext data
-# *NEVER* set the MTU to more than 1456.
-# Don't forget that PPPoE generates 8 bytes of overhead, so:
-# If using cleartext data and pppoe MTU = 1448
-# If using encrypted data and pppoe MTU = 1432
-mtu = 1432
+# MTU must be set properly, mlvpn generates a total of 48 bytes of overhead.
+# You should *NEVER* set the MTU to more than 1452 bytes.
+# If you are running behind PPPoE you'll need to substract another 8 bytes.
+# Absolute maximum MTU: 1452
+# MTU with PPPoE in the path: 1444
+mtu = 1444
 
 # Tuntap type
 # "tun" provides better performance as encapsulation

@@ -33,6 +33,7 @@
 extern char *status_command;
 extern struct tuntap_s tuntap;
 extern struct mlvpn_options mlvpn_options;
+extern struct mlvpn_reorder_buffer *reorder_buffer;
 
 /* Config file reading / re-read.
  * config_file_fd: fd opened in priv_open_config
@@ -54,6 +55,7 @@ mlvpn_config(int config_file_fd, int first_time)
     uint32_t default_server_mode = 0; /* 0 => client */
     uint32_t cleartext_data = 0;
     uint32_t fallback_only = 0;
+    uint32_t reorder_buffer_size = 0;
 
     work = config = _conf_parseConfig(config_file_fd);
     if (! config)
@@ -126,6 +128,7 @@ mlvpn_config(int config_file_fd, int first_time)
                     config, lastSection, "password", &password, NULL,
                     "Password is mandatory.", 2);
                 if (password) {
+                    log_info("config", "new password set");
                     crypto_set_password(password, strlen(password));
                     memset(password, 0, strlen(password));
                     free(password);
@@ -142,6 +145,30 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (default_timeout < 5) {
                     log_warnx("config", "timeout capped to 5 seconds");
                     default_timeout = 5;
+                }
+
+                _conf_set_uint_from_conf(
+                    config, lastSection, "reorder_buffer_size",
+                    &reorder_buffer_size,
+                    0, NULL, 0);
+                if (reorder_buffer_size != mlvpn_options.reorder_buffer_size) {
+                    log_info("config",
+                        "reorder_buffer_size changed from %d to %d",
+                        mlvpn_options.reorder_buffer_size,
+                        reorder_buffer_size);
+                    if (reorder_buffer_size != 0 &&
+                            mlvpn_options.reorder_buffer_size != 0) {
+                        mlvpn_reorder_free(reorder_buffer);
+                        reorder_buffer = NULL;
+                    }
+                    mlvpn_options.reorder_buffer_size = reorder_buffer_size;
+                    if (mlvpn_options.reorder_buffer_size > 0) {
+                        reorder_buffer = mlvpn_reorder_create(
+                            mlvpn_options.reorder_buffer_size);
+                        if (reorder_buffer == NULL) {
+                            fatal("config", "reorder_buffer allocation failed");
+                        }
+                    }
                 }
 
                 /* Tunnel configuration */
