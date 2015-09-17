@@ -123,7 +123,7 @@ Again, we can test the link:
     64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=62.4 ms
     64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=61.1 ms
 
-Noticed we changed the source address, and the latency is higher on ADSL2 by ~ 20ms.
+Noticed we changed the source address.
 
 Everything is fine, let's cleanup the routing table:
 
@@ -327,7 +327,7 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     mode = "client"
     interface_name = "mlvpn0"
     timeout = 30
-    password = "pleasechangeme!"
+    password = "you have not changed me yet?"
 
     [adsl1]
     bindhost = "192.168.1.2"
@@ -341,9 +341,6 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     remoteport = 5081
     bandwidth_upload = 61440
 
-
-Little note, we are adding 10 ms of latency on adsl1 to match the latency of adsl2.
-This is a little trick to help mlvpn aggregation. (Latency must be matched)
 
 mlvpn0_updown.sh
 ~~~~~~~~~~~~~~~~~
