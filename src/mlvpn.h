@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <time.h>
+#include <math.h>
 #include <ev.h>
 
 /* Many thanks Fabien Dupont! */
@@ -39,6 +40,7 @@
 #include "pkt.h"
 #include "buffer.h"
 #include "reorder.h"
+#include "timestamp.h"
 
 #define MLVPN_MAXHNAMSTR 256
 #define MLVPN_MAXPORTSTR 5
@@ -107,10 +109,11 @@ typedef struct mlvpn_tunnel_s
     int conn_attempts;    /* connection attempts */
     int fallback_only;    /* if set, this link will be used when all others are down */
     uint64_t seq;
-    uint64_t receiver_seq;
+    uint64_t expected_receiver_seq;
     uint64_t saved_timestamp;
     uint64_t saved_timestamp_received_at;
     uint64_t rto;
+    int rtt_hit;
     double srtt;
     double rttvar;
     double weight;        /* For weight round robin */

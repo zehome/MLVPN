@@ -364,6 +364,7 @@ mlvpn_protocol_read(
     int ret;
     uint16_t rlen;
     mlvpn_proto_t proto;
+    uint64_t now64 = mlvpn_timestamp64(ev_now(EV_DEFAULT_UC));
     /* Overkill */
     memset(&proto, 0, sizeof(proto));
     memset(decap_pkt, 0, sizeof(*decap_pkt));
@@ -381,13 +382,15 @@ mlvpn_protocol_read(
         log_warnx("protocol", "%s invalid packet size: %d", tun->name, rlen);
         goto fail;
     }
+    proto.seq = be64toh(proto.seq);
+    proto.timestamp = be16toh(proto.timestamp);
+    proto.timestamp_reply = be16toh(proto.timestamp_reply);
+    proto.flow_id = be32toh(proto.flow_id);
     /* now auth the packet using libsodium before further checks */
 #ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && proto.flags == MLVPN_PKT_DATA) {
         memcpy(decap_pkt->data, &proto.data, rlen);
     } else {
-        proto.seq = be64toh(proto.seq);
-        proto.flow_id = be32toh(proto.flow_id);
         sodium_memzero(nonce, sizeof(nonce));
         memcpy(nonce, &proto.seq, sizeof(proto.seq));
         memcpy(nonce + sizeof(proto.seq), &proto.flow_id, sizeof(proto.flow_id));
@@ -406,6 +409,32 @@ mlvpn_protocol_read(
     decap_pkt->len = rlen;
     decap_pkt->type = proto.flags;
     decap_pkt->seq = be64toh(proto.data_seq);
+
+    if (proto.timestamp != (uint16_t)-1) {
+        tun->saved_timestamp = proto.timestamp;
+        tun->saved_timestamp_received_at = now64;
+    }
+    if (proto.timestamp_reply != (uint16_t)-1) {
+        uint16_t now16 = mlvpn_timestamp16(now64);
+        double R = mlvpn_timestamp16_diff(now16, proto.timestamp_reply);
+        if (R < 5000) { /* ignore large values, e.g. server was Ctrl-Zed */
+            if (!tun->rtt_hit) { /* first measurement */
+                tun->srtt = R;
+                tun->rttvar = R / 2;
+                tun->rtt_hit = 1;
+            } else {
+                const double alpha = 1.0 / 8.0;
+                const double beta = 1.0 / 4.0;
+                tun->rttvar = (1 - beta) * tun->rttvar + (beta * fabs(tun->srtt - R));
+                tun->srtt = (1 - alpha) * tun->srtt + (alpha * R);
+            }
+        }
+        log_debug("rtt", "%ums srtt %ums",
+            (unsigned int)R, (unsigned int)tun->srtt);
+    } else {
+        log_debug("rtt", "rtt NA srtt %ums", (unsigned int)tun->srtt);
+    }
+
     return 0;
 fail:
     return -1;
@@ -418,6 +447,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     ssize_t ret;
     size_t wlen;
     mlvpn_proto_t proto;
+    uint64_t now64 = mlvpn_timestamp64(ev_now(EV_DEFAULT_UC));
     memset(&proto, 0, sizeof(proto));
 
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
@@ -429,8 +459,18 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.flags = pkt->type;
     proto.seq = tun->seq++;
     proto.flow_id = tun->flow_id;
-    proto.timestamp = 0; /* TODO */
-    proto.timestamp_reply = 0; /* TODO */
+
+    /* we have a recent received timestamp */
+    if (now64 - tun->saved_timestamp_received_at < 1000 ) {
+        /* send "corrected" timestamp advanced by how long we held it */
+        /* Cast to uint16_t there intentional */
+        proto.timestamp_reply = tun->saved_timestamp + (now64 - tun->saved_timestamp_received_at);
+        tun->saved_timestamp = -1;
+        tun->saved_timestamp_received_at = 0;
+    } else {
+        proto.timestamp_reply = -1;
+    }
+    proto.timestamp = mlvpn_timestamp16(now64);
 #ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
         memcpy(&proto.data, &pkt->data, wlen);
@@ -463,6 +503,8 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.seq = htobe64(proto.seq);
     proto.data_seq = htobe64(proto.data_seq);
     proto.flow_id = htobe32(proto.flow_id);
+    proto.timestamp = htobe16(proto.timestamp);
+    proto.timestamp_reply = htobe16(proto.timestamp_reply);
     ret = sendto(tun->fd, &proto, wlen, MSG_DONTWAIT,
                  tun->addrinfo->ai_addr, tun->addrinfo->ai_addrlen);
     if (ret < 0)
@@ -544,12 +586,13 @@ mlvpn_rtun_new(const char *name,
     new->sentbytes = 0;
     new->recvbytes = 0;
     new->seq = 0;
-    new->receiver_seq = 0;
+    new->expected_receiver_seq = 0;
     new->saved_timestamp = -1;
     new->saved_timestamp_received_at = 0;
-    new->rto = 0;
-    new->srtt = 0;
-    new->rttvar = 0;
+    new->rto = -1;
+    new->srtt = 1000;
+    new->rttvar = 500;
+    new->rtt_hit = 0;
     new->flow_id = crypto_nonce_random();
     new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
