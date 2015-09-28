@@ -431,10 +431,7 @@ mlvpn_protocol_read(
         }
         log_debug("rtt", "%ums srtt %ums",
             (unsigned int)R, (unsigned int)tun->srtt);
-    } else {
-        log_debug("rtt", "rtt NA srtt %ums", (unsigned int)tun->srtt);
     }
-
     return 0;
 fail:
     return -1;
