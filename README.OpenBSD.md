@@ -6,7 +6,7 @@ Install requirements
 ```sh
 pkg_add git autoconf automake libev libsodium
 ```
-.. note: For OpenBSD 5.6 and less, you need to build libsodium
+.. note: For OpenBSD 5.6 and older, you need to build libsodium
          from source, because the version provided is too old.
 
 Build
