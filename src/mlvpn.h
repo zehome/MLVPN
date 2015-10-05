@@ -113,6 +113,8 @@ typedef struct mlvpn_tunnel_s
     uint64_t saved_timestamp;
     uint64_t saved_timestamp_received_at;
     uint64_t rto;
+    uint64_t seq_last;
+    uint64_t seq_vect;
     int rtt_hit;
     double srtt;
     double rttvar;

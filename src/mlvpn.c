@@ -239,6 +239,38 @@ mlvpn_rtun_reorder_drain(uint32_t reorder)
     return drained;
 }
 
+/* Count the loss on the last 64 packets */
+static void
+mlvpn_loss_update(mlvpn_tunnel_t *tun, uint64_t seq)
+{
+    if (seq > tun->seq_last + 64) {
+        /* consider a connection reset. */
+        tun->seq_vect = (uint64_t) -1;
+        tun->seq_last = seq;
+    } else if (seq > tun->seq_last) {
+        /* new sequence number -- recent message arrive */
+        tun->seq_vect <<= seq - tun->seq_last;
+        tun->seq_vect |= 1;
+        tun->seq_last = seq;
+    } else if (seq >= tun->seq_last - 63) {
+        tun->seq_vect |= (1 << (tun->seq_last - seq));
+    }
+}
+
+static int
+mlvpn_loss_ratio(mlvpn_tunnel_t *tun)
+{
+    int loss = 0;
+    int i;
+    /* Count zeroes */
+    for (i = 0; i < 64; i++) {
+        if (! (1 & (tun->seq_vect >> i))) {
+            loss++;
+        }
+    }
+    return loss * 100 / 64;
+}
+
 static int
 mlvpn_rtun_recv_data(mlvpn_tunnel_t *tun, mlvpn_pkt_t *inpkt)
 {
@@ -409,7 +441,7 @@ mlvpn_protocol_read(
     decap_pkt->len = rlen;
     decap_pkt->type = proto.flags;
     decap_pkt->seq = be64toh(proto.data_seq);
-
+    mlvpn_loss_update(tun, decap_pkt->seq);
     if (proto.timestamp != (uint16_t)-1) {
         tun->saved_timestamp = proto.timestamp;
         tun->saved_timestamp_received_at = now64;
@@ -429,8 +461,8 @@ mlvpn_protocol_read(
                 tun->srtt = (1 - alpha) * tun->srtt + (alpha * R);
             }
         }
-        log_debug("rtt", "%ums srtt %ums",
-            (unsigned int)R, (unsigned int)tun->srtt);
+        log_debug("rtt", "%ums srtt %ums loss ratio: %d",
+            (unsigned int)R, (unsigned int)tun->srtt, mlvpn_loss_ratio(tun));
     }
     return 0;
 fail:
@@ -590,6 +622,8 @@ mlvpn_rtun_new(const char *name,
     new->srtt = 1000;
     new->rttvar = 500;
     new->rtt_hit = 0;
+    new->seq_last = 0;
+    new->seq_vect = (uint64_t) -1;
     new->flow_id = crypto_nonce_random();
     new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
