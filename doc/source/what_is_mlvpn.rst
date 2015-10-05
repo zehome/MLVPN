@@ -19,7 +19,7 @@ scenarios.
 
 Features
 ========
-  * Bandwidth agregation of multiple internet connections
+  * Bandwidth aggregation of multiple internet connections
   * Automatic failover, without changing IP addresses or interrupting TCP connections in case of a failure
   * Encrypt and authenticate connections using libsodium_.
   * Hot configuration reload (by signaling SIGHUP)

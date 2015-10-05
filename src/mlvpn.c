@@ -100,7 +100,7 @@ struct mlvpn_options mlvpn_options = {
     .config_path = "mlvpn.conf",
     .config_fd = -1,
     .debug = 0,
-    .verbose = 1,
+    .verbose = 2,
     .unpriv_user = "mlvpn",
     .cleartext_data = 1,
     .root_allowed = 0,
@@ -119,6 +119,7 @@ static struct option long_options[] = {
     {"help",          no_argument,       0, 'h' },
     {"user",          required_argument, 0, 'u' },
     {"verbose",       no_argument,       0, 'v' },
+    {"quiet",         no_argument,       0, 'q' },
     {"version",       no_argument,       0, 'V' },
     {"yes-run-as-root",no_argument,      0, 3   },
     {0,               0,                 0, 0 }
@@ -162,6 +163,7 @@ usage(char **argv)
             " -u, --user [username] drop privileges to user 'username'\n"
             " --yes-run-as-root     ! please do not use !\n"
             " -v --verbose          increase verbosity\n"
+            " -q --quiet            decrease verbosity\n"
             " -V, --version         output version information and exit\n"
             "\n"
             "For more details see mlvpn(1) and mlvpn.conf(5).\n", argv[0]);
@@ -1316,30 +1318,33 @@ main(int argc, char **argv)
         case 3:  /* --yes-run-as-root */
             mlvpn_options.root_allowed = 1;
             break;
-        case 'c':  /* --config */
+        case 'c': /* --config */
             strlcpy(mlvpn_options.config_path, optarg,
                     sizeof(mlvpn_options.config_path));
             break;
-        case 'D':  /* debug= */
+        case 'D': /* debug= */
             mlvpn_options.debug = 1;
             log_accept(optarg);
             break;
-        case 'n':  /* --name */
+        case 'n': /* --name */
             strlcpy(mlvpn_options.process_name, optarg,
                     sizeof(mlvpn_options.process_name));
             break;
-        case 'u':  /* --user */
+        case 'u': /* --user */
             strlcpy(mlvpn_options.unpriv_user, optarg,
                     sizeof(mlvpn_options.unpriv_user));
             break;
-        case 'v':  /* --verbose */
+        case 'v': /* --verbose */
             mlvpn_options.verbose++;
             break;
-        case 'V':   /* --version */
+        case 'V': /* --version */
             printf("mlvpn version %s.\n", VERSION);
             _exit(0);
             break;
-        case 'h':  /* --help */
+        case 'q': /* --quiet */
+            mlvpn_options.verbose--;
+            break;
+        case 'h': /* --help */
         default:
             usage(argv);
         }
