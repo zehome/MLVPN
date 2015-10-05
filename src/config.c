@@ -163,6 +163,9 @@ mlvpn_config(int config_file_fd, int first_time)
                     }
                     mlvpn_options.reorder_buffer_size = reorder_buffer_size;
                     if (mlvpn_options.reorder_buffer_size > 0) {
+                        if (reorder_buffer) {
+                            mlvpn_reorder_free(reorder_buffer);
+                        }
                         reorder_buffer = mlvpn_reorder_create(
                             mlvpn_options.reorder_buffer_size);
                         if (reorder_buffer == NULL) {
