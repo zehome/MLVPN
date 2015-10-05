@@ -48,6 +48,11 @@ if you want good balancing of the links.
   * `--verbose`, `-v`:
     increases verbosity (repeat multiple times to increase more)
 
+  * `--quiet`, `-q`:
+    decrease verbosity
+    The verbosity will print usefull messages and errors only.
+    If `--quiet` is specified, then only errors will be shown / logged.
+
   * `--yes-run-as-root`:
     don't drop privileges, kills privilege separation,
     do not use unless you are hacking **mlvpn**
@@ -57,6 +62,11 @@ if you want good balancing of the links.
 
   * `-h`:
     show the help
+
+## LOGGING
+  mlvpn uses syslog if `--debug` is not specified.
+  if `--debug` is specified, then mlvpn will will output on the standard error.
+  refer to README.debug.md for more debugging informations.
 
 ## FILES
   * _/etc/mlvpn/*.conf_:

@@ -40,9 +40,6 @@ The **[general]** section is reserved for global configuration.
     - "client": connects to _remote_address_, _remote_port_ for every
       tunnel
 
-  - _loglevel_ = 1
-    Change the log level (0=errors, 1=info (recommanded), 2=debug)
-
   - _timeout_ = 30
     Timeout, expressed in seconds.
 
@@ -74,6 +71,16 @@ The **[general]** section is reserved for global configuration.
   - _control_bind_port_ = ""
     Bind port of the remote control. (HTTP)
 
+  - _reorder_buffer_size_ = 0
+    mlvpn includes a reordering algorithm for it's aggregation.
+    This variable defines how many packets can be held in case one end
+    of the tunnel does receive data ouf ot order.
+
+    Experiment to know what value is best for you. Good starting point
+    can be as small as 64 packets.
+
+    **0** disables the reordering.
+
 
 ### TUNNELS
 Each tunnel must be declared in it's own section.
@@ -93,9 +100,9 @@ The section name is mapped to the tunnel name. Example: "[adsl1]", "[adsl2]".
     Port of the remote host. (client)
 
   - _bandwidth_upload_ = 61440
-    Maxiumm upload bandwidth, in bytes for this link.
+    Maximum upload bandwidth, in bytes for this link.
 
-    Bandwidth is specified in Bytes (1KiB = 1024Bytes).
+    Bandwidth is specified in Bytes (1 KiB is 1024 Bytes).
 
     This is used to setup the weight round-robin balancing algorithm.
     Set 0 if both links are similar. (client/server)
@@ -112,6 +119,11 @@ The section name is mapped to the tunnel name. Example: "[adsl1]", "[adsl2]".
 The configuration can be reloaded at any moment by sending SIGHUP to the child
 mlvpn process.
 
+## REORDERING
+
+
+    The reorder buffer will be sent "as is" on the network if the buffer
+    can't be reconstructed in time, ie: packet loss. (SRTT plus a small factor)
 ## EXAMPLE
 
 See examples/mlvpn.conf

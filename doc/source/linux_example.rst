@@ -323,23 +323,21 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     [general]
     statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
     tuntap = "tun"
-    loglevel = 1
     mode = "client"
     interface_name = "mlvpn0"
     timeout = 30
     password = "you have not changed me yet?"
+    reorder_buffer_size = 64
 
     [adsl1]
     bindhost = "192.168.1.2"
     remotehost = "128.128.128.128"
     remoteport = 5080
-    bandwidth_upload = 61440
 
     [adsl2]
     bindhost = "192.168.2.2"
     remotehost = "128.128.128.128"
     remoteport = 5081
-    bandwidth_upload = 61440
 
 
 mlvpn0_updown.sh
@@ -398,19 +396,17 @@ mlvpn0.conf
     [general]
     statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
     tuntap = "tun"
-    loglevel = 1
     mode = "server"
     interface_name = "mlvpn0"
     timeout = 30
     password = "pleasechangeme!"
+    reorder_buffer_size = 64
 
     [adsl1]
     bindport = 5080
-    bandwidth_upload = 512000
 
     [adsl2]
     bindport = 5081
-    bandwidth_upload = 512000
 
 
 mlvpn0_updown.sh
