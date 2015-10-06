@@ -1191,7 +1191,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
         max_srtt *= 1.2;
         log_debug("reorder", "adjusting reordering drain timeout to %"PRIu64"ms",
             max_srtt);
-        ev_timer_set(&reorder_drain_timeout, (max_srtt / 1000.0), 0.);
+        ev_timer_set(&reorder_drain_timeout, (max_srtt / 1000.0), 1.0);
     }
     mlvpn_rtun_check_lossy(t);
 }
@@ -1466,7 +1466,7 @@ main(int argc, char **argv)
      * SRTT values will be available
      */
     ev_timer_init(&reorder_drain_timeout, &mlvpn_rtun_reorder_drain_timeout,
-        1.0, 0.);
+        1.0, 1.0);
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);
