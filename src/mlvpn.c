@@ -731,13 +731,9 @@ mlvpn_rtun_recalc_weight()
             warned++;
         bandwidth_total += t->bandwidth;
     }
-
     if (warned && bandwidth_total > 0) {
-        log_warn(NULL,
-            "configuration error: you must set the bandwidth"
-            "on all tunnels. (or 0 on all tunnels");
+        log_warnx("config", "you must set the bandwidth on every tunnel");
     }
-
     if (warned == 0)
     {
         LIST_FOREACH(t, &rtuns, entries)
@@ -1083,7 +1079,7 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
         }
     } else {
         if (t->status < MLVPN_CHAP_AUTHOK) {
-            t->conn_attempts += 1;
+            t->conn_attempts++;
             t->last_connection_attempt = now;
             if (t->fd < 0) {
                 if (mlvpn_rtun_start(t) == 0) {
