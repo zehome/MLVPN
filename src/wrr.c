@@ -43,8 +43,8 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
             continue;
         }
         /* Don't select "LOSSY" tunnels, except if we are in fallback mode */
-        if (t->fallback_only && t->status >= MLVPN_AUTHOK ||
-            t->status == MLVPN_AUTHOK)
+        if ((t->fallback_only && t->status >= MLVPN_AUTHOK) ||
+            (t->status == MLVPN_AUTHOK))
         {
             if (wrr.len >= MAX_TUNNELS)
                 fatalx("You have too much tunnels declared");
