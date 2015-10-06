@@ -1188,10 +1188,10 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     /* Update the reorder algorithm */
     if (t->rtt_hit && max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
-        max_srtt *= 1.3;
-        log_debug("rtt", "adjusting reordering drain timeout to %"PRIu64"ms",
+        max_srtt *= 1.2;
+        log_debug("reorder", "adjusting reordering drain timeout to %"PRIu64"ms",
             max_srtt);
-        reorder_drain_timeout.repeat = (max_srtt / 1000.0);
+        ev_timer_set(&reorder_drain_timeout, (max_srtt / 1000.0), 0.);
     }
     mlvpn_rtun_check_lossy(t);
 }
@@ -1462,11 +1462,11 @@ main(int argc, char **argv)
     else
         log_info(NULL, "created interface `%s'", tuntap.devname);
 
-    ev_init(&reorder_drain_timeout, &mlvpn_rtun_reorder_drain_timeout);
     /* This is a dummy value which will be overwritten when the first
      * SRTT values will be available
      */
-    reorder_drain_timeout.repeat = 1.0;
+    ev_timer_init(&reorder_drain_timeout, &mlvpn_rtun_reorder_drain_timeout,
+        1.0, 0.);
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);
