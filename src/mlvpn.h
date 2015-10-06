@@ -88,9 +88,10 @@ struct mlvpn_options
 };
 
 enum chap_status {
-    MLVPN_CHAP_DISCONNECTED,
-    MLVPN_CHAP_AUTHSENT,
-    MLVPN_CHAP_AUTHOK
+    MLVPN_DISCONNECTED,
+    MLVPN_AUTHSENT,
+    MLVPN_AUTHOK,
+    MLVPN_LOSSY
 };
 
 LIST_HEAD(rtunhead, mlvpn_tunnel_s) rtuns;
@@ -108,11 +109,11 @@ typedef struct mlvpn_tunnel_s
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
     int fallback_only;    /* if set, this link will be used when all others are down */
+    uint32_t loss_tolerence; /* How much loss is acceptable before the link is discarded */
     uint64_t seq;
     uint64_t expected_receiver_seq;
     uint64_t saved_timestamp;
     uint64_t saved_timestamp_received_at;
-    uint64_t rto;
     uint64_t seq_last;
     uint64_t seq_vect;
     int rtt_hit;
@@ -152,7 +153,7 @@ struct mlvpn_status_s
 int mlvpn_config(int config_file_fd, int first_time);
 int mlvpn_sock_set_nonblocking(int fd);
 
-/* wrr */
+int mlvpn_loss_ratio(mlvpn_tunnel_t *tun);
 int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
@@ -160,7 +161,8 @@ mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     const char *bindaddr, const char *bindport,
     const char *destaddr, const char *destport,
     int server_mode, uint32_t timeout,
-    int fallback_only, int bandwidth);
+    int fallback_only, uint32_t bandwidth,
+    uint32_t loss_tolerence);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 

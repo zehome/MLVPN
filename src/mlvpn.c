@@ -261,7 +261,7 @@ mlvpn_loss_update(mlvpn_tunnel_t *tun, uint64_t seq)
     }
 }
 
-static int
+int
 mlvpn_loss_ratio(mlvpn_tunnel_t *tun)
 {
     int loss = 0;
@@ -339,7 +339,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
 
         if ((tun->addrinfo->ai_addrlen != addrlen) ||
                 (memcmp(tun->addrinfo->ai_addr, &clientaddr, addrlen) != 0)) {
-            if (mlvpn_options.cleartext_data && tun->status == MLVPN_CHAP_AUTHOK) {
+            if (mlvpn_options.cleartext_data && tun->status >= MLVPN_AUTHOK) {
                 log_warnx("protocol", "%s rejected non authenticated connection",
                     tun->name);
                 return;
@@ -351,7 +351,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                                     clienthost, sizeof(clienthost),
                                     clientport, sizeof(clientport),
                                     NI_NUMERICHOST|NI_NUMERICSERV)) < 0) {
-                log_warnx("protocol", "%s error in getnameinfo: %d",
+                log_warn("protocol", "%s error in getnameinfo: %d",
                        tun->name, ret);
             } else {
                 log_info("protocol", "%s new connection -> %s:%s",
@@ -363,7 +363,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
             tun->name, (int)len, decap_pkt.type, decap_pkt.seq);
 
         if (decap_pkt.type == MLVPN_PKT_DATA) {
-            if (tun->status == MLVPN_CHAP_AUTHOK) {
+            if (tun->status >= MLVPN_AUTHOK) {
                 mlvpn_rtun_tick(tun);
                 mlvpn_rtun_recv_data(tun, &decap_pkt);
             } else {
@@ -371,7 +371,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                     tun->name);
             }
         } else if (decap_pkt.type == MLVPN_PKT_KEEPALIVE &&
-                tun->status == MLVPN_CHAP_AUTHOK) {
+                tun->status >= MLVPN_AUTHOK) {
             log_debug("protocol", "%s keepalive received", tun->name);
             mlvpn_rtun_tick(tun);
             tun->last_keepalive_ack = ev_now(EV_DEFAULT_UC);
@@ -381,7 +381,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 mlvpn_rtun_send_keepalive(tun->last_keepalive_ack, tun);
             }
         } else if (decap_pkt.type == MLVPN_PKT_DISCONNECT &&
-                tun->status == MLVPN_CHAP_AUTHOK) {
+                tun->status >= MLVPN_AUTHOK) {
             log_info("protocol", "%s disconnect received", tun->name);
             mlvpn_rtun_status_down(tun);
         } else if (decap_pkt.type == MLVPN_PKT_AUTH ||
@@ -584,7 +584,8 @@ mlvpn_rtun_new(const char *name,
                const char *bindaddr, const char *bindport,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout,
-               int fallback_only, int bandwidth)
+               int fallback_only, uint32_t bandwidth,
+               uint32_t loss_tolerence)
 {
     mlvpn_tunnel_t *new;
 
@@ -613,7 +614,7 @@ mlvpn_rtun_new(const char *name,
     new->fd = -1;
     new->server_mode = server_mode;
     new->weight = 1;
-    new->status = MLVPN_CHAP_DISCONNECTED;
+    new->status = MLVPN_DISCONNECTED;
     new->addrinfo = NULL;
     new->sentpackets = 0;
     new->sentbytes = 0;
@@ -622,7 +623,6 @@ mlvpn_rtun_new(const char *name,
     new->expected_receiver_seq = 0;
     new->saved_timestamp = -1;
     new->saved_timestamp_received_at = 0;
-    new->rto = -1;
     new->srtt = 1000;
     new->rttvar = 500;
     new->rtt_hit = 0;
@@ -631,6 +631,7 @@ mlvpn_rtun_new(const char *name,
     new->flow_id = crypto_nonce_random();
     new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
+    new->loss_tolerence = loss_tolerence;
 
     if (bindaddr)
     {
@@ -722,7 +723,6 @@ mlvpn_rtun_recalc_weight()
     mlvpn_tunnel_t *t;
     uint32_t bandwidth_total = 0;
     int warned = 0;
-
     /* If the bandwidth limit is not set on all interfaces, then
      * it's impossible to balance correctly! */
     LIST_FOREACH(t, &rtuns, entries)
@@ -937,7 +937,7 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
     char **env;
     int env_len;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
-    t->status = MLVPN_CHAP_AUTHOK;
+    t->status = MLVPN_AUTHOK;
     t->next_keepalive = NEXT_KEEPALIVE(now, t);
     t->last_activity = now;
     t->last_keepalive_ack = now;
@@ -966,7 +966,7 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     char **env;
     int env_len;
     enum chap_status old_status = t->status;
-    t->status = MLVPN_CHAP_DISCONNECTED;
+    t->status = MLVPN_DISCONNECTED;
     t->disconnects++;
     mlvpn_pktbuffer_reset(t->sbuf);
     mlvpn_pktbuffer_reset(t->hpsbuf);
@@ -975,7 +975,7 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
     }
 
     mlvpn_update_status();
-    if (old_status >= MLVPN_CHAP_AUTHOK)
+    if (old_status >= MLVPN_AUTHOK)
     {
         mlvpn_script_get_env(&env_len, &env);
         priv_run_script(3, cmdargs, env_len, env);
@@ -1003,7 +1003,7 @@ mlvpn_update_status()
     mlvpn_status.connected = 0;
     LIST_FOREACH(t, &rtuns, entries)
     {
-        if (t->status == MLVPN_CHAP_AUTHOK) {
+        if (t->status >= MLVPN_AUTHOK) {
             if (!t->fallback_only)
                 mlvpn_status.fallback_mode = 0;
             mlvpn_status.connected++;
@@ -1025,7 +1025,7 @@ mlvpn_rtun_challenge_send(mlvpn_tunnel_t *t)
     pkt->len = 2;
     pkt->type = MLVPN_PKT_AUTH;
 
-    t->status = MLVPN_CHAP_AUTHSENT;
+    t->status = MLVPN_AUTHSENT;
     log_debug("protocol", "%s mlvpn_rtun_challenge_send", t->name);
 }
 
@@ -1036,7 +1036,7 @@ mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
     if (t->server_mode)
     {
         /* server side */
-        if (t->status == MLVPN_CHAP_DISCONNECTED || t->status == MLVPN_CHAP_AUTHOK)
+        if (t->status == MLVPN_DISCONNECTED || t->status >= MLVPN_AUTHOK)
         {
             if (mlvpn_cb_is_full(t->hpsbuf)) {
                 log_warnx("net", "%s high priority buffer: overflow", t->name);
@@ -1047,8 +1047,8 @@ mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
             pkt->data[1] = 'K';
             pkt->len = 2;
             pkt->type = MLVPN_PKT_AUTH_OK;
-            if (t->status != MLVPN_CHAP_AUTHOK)
-                t->status = MLVPN_CHAP_AUTHSENT;
+            if (t->status < MLVPN_AUTHOK)
+                t->status = MLVPN_AUTHSENT;
             log_debug("protocol", "%s sending 'OK'", t->name);
             log_info("protocol", "%s authenticated", t->name);
             mlvpn_rtun_tick(t);
@@ -1059,7 +1059,7 @@ mlvpn_rtun_send_auth(mlvpn_tunnel_t *t)
         }
     } else {
         /* client side */
-        if (t->status == MLVPN_CHAP_AUTHSENT) {
+        if (t->status == MLVPN_AUTHSENT) {
             log_info("protocol", "%s authenticated", t->name);
             mlvpn_rtun_tick(t);
             mlvpn_rtun_status_up(t);
@@ -1078,7 +1078,7 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
             }
         }
     } else {
-        if (t->status < MLVPN_CHAP_AUTHOK) {
+        if (t->status < MLVPN_AUTHOK) {
             t->conn_attempts++;
             t->last_connection_attempt = now;
             if (t->fd < 0) {
@@ -1128,12 +1128,44 @@ mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t)
 }
 
 static void
+mlvpn_rtun_check_lossy(mlvpn_tunnel_t *tun)
+{
+    int loss = mlvpn_loss_ratio(tun);
+    int status_changed = 0;
+    if (loss >= tun->loss_tolerence && tun->status == MLVPN_AUTHOK) {
+        log_info("rtt", "%s packet loss reached threashold: %d%%/%d%%",
+            tun->name, loss, tun->loss_tolerence);
+        tun->status = MLVPN_LOSSY;
+        status_changed = 1;
+    } else if (loss < tun->loss_tolerence && tun->status == MLVPN_LOSSY) {
+        log_info("rtt", "%s packet loss acceptable again: %d%%/%d%%",
+            tun->name, loss, tun->loss_tolerence);
+        tun->status = MLVPN_AUTHOK;
+        status_changed = 1;
+    }
+    /* are all links in lossy mode ? switch to fallback ? */
+    if (status_changed) {
+        mlvpn_tunnel_t *t;
+        LIST_FOREACH(t, &rtuns, entries) {
+            if (! t->fallback_only && t->status != MLVPN_LOSSY) {
+                mlvpn_status.fallback_mode = 0;
+                mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
+                return;
+            }
+        }
+        log_info(NULL, "all tunnels are down or lossy, switch fallback mode");
+        mlvpn_status.fallback_mode = 1;
+        mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
+    }
+}
+
+static void
 mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
 {
     mlvpn_tunnel_t *t = w->data;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
     uint64_t max_srtt = 0;
-    if (t->status == MLVPN_CHAP_AUTHOK && t->timeout > 0) {
+    if (t->status >= MLVPN_AUTHOK && t->timeout > 0) {
         /* We don't want to monitor fallback only links inside the
          * reorder timeout algorithm
          */
@@ -1147,7 +1179,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
             if (now > t->next_keepalive)
                 mlvpn_rtun_send_keepalive(now, t);
         }
-    } else if (t->status < MLVPN_CHAP_AUTHOK) {
+    } else if (t->status < MLVPN_AUTHOK) {
         mlvpn_rtun_tick_connect(t);
     }
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
@@ -1157,10 +1189,11 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     if (max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
         max_srtt *= 1.3;
-        log_debug("rtt", "Adjusting reordering drain timeout to %"PRIu64"ms",
+        log_debug("rtt", "adjusting reordering drain timeout to %"PRIu64"ms",
             max_srtt);
         reorder_drain_timeout.repeat = (max_srtt / 1000.0);
     }
+    mlvpn_rtun_check_lossy(t);
 }
 
 static void
@@ -1207,14 +1240,17 @@ update_process_title()
     LIST_FOREACH(t, &rtuns, entries)
     {
         switch(t->status) {
-            case MLVPN_CHAP_AUTHOK:
+            case MLVPN_AUTHOK:
                 s = "@";
+                break;
+            case MLVPN_LOSSY:
+                s = "~";
                 break;
             default:
                 s = "!";
                 break;
         }
-        len = snprintf(status, sizeof(status) - 1, "%s%s ", s, t->name);
+        len = snprintf(status, sizeof(status) - 1, " %s%s", s, t->name);
         if (len) {
             status[len] = 0;
             strlcat(title, status, sizeof(title));
@@ -1255,7 +1291,7 @@ mlvpn_quit(EV_P_ ev_signal *w, int revents)
     {
         ev_timer_stop(EV_A_ &t->io_timeout);
         ev_io_stop(EV_A_ &t->io_read);
-        if (t->status == MLVPN_CHAP_AUTHOK) {
+        if (t->status >= MLVPN_AUTHOK) {
             mlvpn_rtun_send_disconnect(t);
         }
     }

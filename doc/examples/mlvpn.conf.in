@@ -3,7 +3,8 @@
 # This command will be called as root.
 statuscommand = "@sysconfdir@/mlvpn/mlvpn_updown.sh"
 
-# Tunnel mode: "server" will listen for connections
+# Tunnel mode
+# "server" will listen for connections
 # "client" will just connect to "remotehost/remoteport"
 mode = "client"
 
@@ -64,7 +65,13 @@ cleartext_data = 0
 # reorder_buffer_size is 0 (disabled) by default.
 #reorder_buffer_size = 64
 
-[adsl1]
+# Loss tolerence
+# Defines the maximum loss ratio accepted before the link affected is being
+# considered too lossy and removed from agregation.
+# This value is expressed in percent.
+#loss_tolerence = 10
+
+[dsl1]
 bindhost = "0.0.0.0"
 bindport = 5080
 #remotehost = "10.2.3.4"
@@ -72,15 +79,18 @@ bindport = 5080
 #bandwidth_upload = 61440
 #timeout = 25
 
-#[adsl2]
+#[airlink]
 ##:: to listen on any interface, any ipv6 address
 #bindhost = "::"
 ## bindport =
 #remotehost = "10.2.3.4"
 #remoteport = 5081
+# If it is a lossy link and we want to keep using it,
+# even if 30% of packets are lost
+#loss_tolerence = 30
 #bandwidth_upload = 512000
 
-#[adsl3]
+#[dsl2]
 ##0.0.0.0 to listen on any interface, any ipv4 address
 #bindhost = "0.0.0.0"
 #remotehost = "10.2.3.4"
