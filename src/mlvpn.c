@@ -1186,7 +1186,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
         ev_io_start(EV_A_ &t->io_write);
     }
     /* Update the reorder algorithm */
-    if (max_srtt > 0) {
+    if (t->rtt_hit && max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
         max_srtt *= 1.3;
         log_debug("rtt", "adjusting reordering drain timeout to %"PRIu64"ms",
