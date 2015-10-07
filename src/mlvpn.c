@@ -238,6 +238,8 @@ mlvpn_rtun_reorder_drain(uint32_t reorder)
         }
         mlvpn_freebuffer_reset(freebuf);
         mlvpn_reorder_reset(reorder_buffer);
+    }
+    if (freebuf->used == 0) {
         ev_timer_stop(EV_A_ &reorder_drain_timeout);
     }
     return drained;
@@ -1168,13 +1170,15 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
 {
     mlvpn_tunnel_t *t = w->data;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
-    uint64_t max_srtt = 0;
+    double max_srtt = 0.0;
+    double tmp;
     if (t->status >= MLVPN_AUTHOK && t->timeout > 0) {
         /* We don't want to monitor fallback only links inside the
          * reorder timeout algorithm
          */
         if (!t->fallback_only && t->rtt_hit) {
-            max_srtt = max_srtt > t->srtt ? max_srtt : t->srtt;
+            tmp = t->srtt + (4 * t->rttvar);
+            max_srtt = max_srtt > tmp ? max_srtt : tmp;
         }
         if ((t->last_keepalive_ack != 0) && (t->last_keepalive_ack + t->timeout) < now) {
             log_info("protocol", "%s timeout", t->name);
@@ -1192,10 +1196,10 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     /* Update the reorder algorithm */
     if (t->rtt_hit && max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
-        max_srtt *= 1.2;
-        log_debug("reorder", "adjusting reordering drain timeout to %"PRIu64"ms",
+        max_srtt *= 2.0;
+        log_debug("reorder", "adjusting reordering drain timeout to %.0fms",
             max_srtt);
-        ev_timer_set(&reorder_drain_timeout, (max_srtt / 1000.0), 1.0);
+        reorder_drain_timeout.repeat = max_srtt / 1000.0;
     }
     mlvpn_rtun_check_lossy(t);
 }
@@ -1469,8 +1473,7 @@ main(int argc, char **argv)
     /* This is a dummy value which will be overwritten when the first
      * SRTT values will be available
      */
-    ev_timer_init(&reorder_drain_timeout, &mlvpn_rtun_reorder_drain_timeout,
-        1.0, 1.0);
+    ev_init(&reorder_drain_timeout, &mlvpn_rtun_reorder_drain_timeout);
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);
