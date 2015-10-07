@@ -223,9 +223,6 @@ mlvpn_rtun_reorder_drain(uint32_t reorder)
     uint32_t drained = 0;
     mlvpn_pkt_t *drained_pkts[128];
     mlvpn_pkt_t *pkt;
-    if (!reorder_buffer) {
-        return 0;
-    }
     /* Try to drain packets */
     if (reorder) {
         drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 128);
@@ -955,8 +952,10 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
         cmdargs[2] = NULL;
         priv_run_script(2, cmdargs, env_len, env);
         mlvpn_status.initialized = 1;
-        mlvpn_rtun_reorder_drain(0);
-        mlvpn_reorder_reset(reorder_buffer);
+        if (reorder_buffer != NULL) {
+            mlvpn_rtun_reorder_drain(0);
+            mlvpn_reorder_reset(reorder_buffer);
+        }
     }
     mlvpn_free_script_env(env);
     update_process_title();
@@ -992,8 +991,10 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
             mlvpn_status.initialized = 0;
         }
         mlvpn_free_script_env(env);
-        mlvpn_rtun_reorder_drain(0);
-        mlvpn_reorder_reset(reorder_buffer);
+        if (reorder_buffer != NULL) {
+            mlvpn_rtun_reorder_drain(0);
+            mlvpn_reorder_reset(reorder_buffer);
+        }
     }
     update_process_title();
 }
