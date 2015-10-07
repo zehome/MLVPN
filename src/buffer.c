@@ -226,7 +226,7 @@ mlvpn_freebuffer_free(freebuffer_t *freebuf, mlvpn_pkt_t *pkt)
         if (p == pkt) {
             TAILQ_REMOVE(&freebuf->used_head, entry, entries);
             TAILQ_INSERT_HEAD(&freebuf->free_head, entry, entries);
-            freebuf->used++;
+            freebuf->used--;
             return;
         }
     }
