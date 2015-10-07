@@ -223,6 +223,9 @@ mlvpn_rtun_reorder_drain(uint32_t reorder)
     uint32_t drained = 0;
     mlvpn_pkt_t *drained_pkts[128];
     mlvpn_pkt_t *pkt;
+    if (!reorder_buffer) {
+        return 0;
+    }
     /* Try to drain packets */
     if (reorder) {
         drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 128);
