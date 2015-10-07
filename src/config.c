@@ -116,14 +116,17 @@ mlvpn_config(int config_file_fd, int first_time)
                             sizeof(mlvpn_options.control_bind_port));
                         free(tmp);
                     }
-                    _conf_set_str_from_conf(
-                        config, lastSection, "mode", &mode, NULL,
-                        "Operation mode is mandatory.", 1);
-                    if (mystr_eq(mode, "server"))
-                        default_server_mode = 1;
-                    if (mode)
-                        free(mode);
                 }
+                /* This is important to be parsed every time because
+                 * it's used later in the configuration parsing
+                 */
+                _conf_set_str_from_conf(
+                    config, lastSection, "mode", &mode, NULL,
+                    "Operation mode is mandatory.", 1);
+                if (mystr_eq(mode, "server"))
+                    default_server_mode = 1;
+                if (mode)
+                    free(mode);
 
                 _conf_set_str_from_conf(
                     config, lastSection, "password", &password, NULL,
