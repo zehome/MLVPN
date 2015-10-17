@@ -85,6 +85,7 @@ struct mlvpn_options
     int cleartext_data;
     int root_allowed;
     uint32_t reorder_buffer_size;
+    uint32_t fallback_available;
 };
 
 enum chap_status {

@@ -1005,7 +1005,7 @@ static void
 mlvpn_update_status()
 {
     mlvpn_tunnel_t *t;
-    mlvpn_status.fallback_mode = 1;
+    mlvpn_status.fallback_mode = mlvpn_options.fallback_available;
     mlvpn_status.connected = 0;
     LIST_FOREACH(t, &rtuns, entries)
     {
@@ -1159,9 +1159,13 @@ mlvpn_rtun_check_lossy(mlvpn_tunnel_t *tun)
                 return;
             }
         }
-        log_info(NULL, "all tunnels are down or lossy, switch fallback mode");
-        mlvpn_status.fallback_mode = 1;
-        mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
+        if (mlvpn_options.fallback_available) {
+            log_info(NULL, "all tunnels are down or lossy, switch fallback mode");
+            mlvpn_status.fallback_mode = 1;
+            mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
+        } else {
+            log_info(NULL, "all tunnels are down or lossy but fallback is not available");
+        }
     }
 }
 

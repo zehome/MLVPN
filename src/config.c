@@ -58,6 +58,8 @@ mlvpn_config(int config_file_fd, int first_time)
     uint32_t fallback_only = 0;
     uint32_t reorder_buffer_size = 0;
 
+    mlvpn_options.fallback_available = 0;
+
     work = config = _conf_parseConfig(config_file_fd);
     if (! config)
         goto error;
@@ -314,6 +316,9 @@ mlvpn_config(int config_file_fd, int first_time)
                 _conf_set_uint_from_conf(
                     config, lastSection, "fallback_only", &fallback_only, 0,
                     NULL, 0);
+                if (fallback_only) {
+                    mlvpn_options.fallback_available = 1;
+                }
                 if (! LIST_EMPTY(&rtuns))
                 {
                     LIST_FOREACH(tmptun, &rtuns, entries)
