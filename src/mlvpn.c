@@ -1402,7 +1402,7 @@ main(int argc, char **argv)
     if (stat(mlvpn_options.config_path, &st) < 0) {
         fatal("config", "unable to open file");
     } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
-        fatal("config", "file is group/other accessible. Fix permissions");
+        fatal("config", "file is group/other accessible");
     }
 
     /* Some common checks */
