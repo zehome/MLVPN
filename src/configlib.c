@@ -555,12 +555,12 @@ _conf_set_str_from_conf(config_t *config,
 
     if (*value == NULL)
     {
+        if (exit_n > 0)
+            fatalx(errMsg);
         if (errMsg)
             log_warnx("config", "%s", errMsg);
         if (def != NULL)
             *value = strdup(def);
-        if (exit_n > 0)
-            exit(exit_n);
     }
 }
 
@@ -574,11 +574,11 @@ _conf_set_uint_from_conf(config_t *config, const char *section,
 
     if ( tmp == NULL )
     {
+        if (exit_n > 0)
+            fatalx(errMsg);
         if (errMsg)
             log_warnx("config", errMsg);
         *value = def;
-        if (exit_n > 0)
-            exit(exit_n);
     } else {
         *value = atoi(tmp);
         free(tmp);
@@ -599,11 +599,11 @@ _conf_set_bool_from_conf(config_t *config,
 
     if ( tmp == NULL )
     {
+        if (exit_n > 0)
+            fatalx(errMsg);
         if (errMsg)
             log_warnx("config", errMsg);
         *value = def;
-        if (exit_n > 0)
-            exit(exit_n);
     } else {
         *value = atoi(tmp);
         if ( (*value) != 1)
