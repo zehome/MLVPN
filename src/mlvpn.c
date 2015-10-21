@@ -1410,7 +1410,7 @@ main(int argc, char **argv)
     {
         void *pw = getpwnam(mlvpn_options.unpriv_user);
         if (!mlvpn_options.root_allowed && ! pw)
-            fatal(NULL, "you are not allowed to run this program as root"
+            fatal(NULL, "you are not allowed to run this program as root. "
                         "please specify a valid user with --user option");
         if (! pw)
             fatal(NULL, "invalid unprivilged username");
