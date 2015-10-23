@@ -296,7 +296,7 @@ mlvpn_rtun_recv_data(mlvpn_tunnel_t *tun, mlvpn_pkt_t *inpkt)
         } else {
             drained = mlvpn_rtun_reorder_drain(1);
         }
-        if (drained > 0 && freebuf->used > 0) {
+        if (freebuf->used > 0) {
             ev_timer_again(EV_A_ &reorder_drain_timeout);
         }
         //log_debug("reorder", "drained %d packets", drained);
@@ -1204,6 +1204,8 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
         log_debug("reorder", "adjusting reordering drain timeout to %.0fms",
             max_srtt);
         reorder_drain_timeout.repeat = max_srtt / 1000.0;
+    } else {
+        reorder_drain_timeout.repeat = 0.8; /* Conservative 800ms shot */
     }
     mlvpn_rtun_check_lossy(t);
 }
