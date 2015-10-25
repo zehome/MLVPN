@@ -62,6 +62,7 @@
 
 #ifdef HAVE_FREEBSD
 #define _NSIG _SIG_MAXSIG
+#include <sys/endian.h>
 #endif
 
 /* GLOBALS */
