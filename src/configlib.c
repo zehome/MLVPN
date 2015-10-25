@@ -577,7 +577,7 @@ _conf_set_uint_from_conf(config_t *config, const char *section,
         if (exit_n > 0)
             fatalx(errMsg);
         if (errMsg)
-            log_warnx("config", errMsg);
+            log_warnx("config", "%s", errMsg);
         *value = def;
     } else {
         *value = atoi(tmp);
@@ -602,7 +602,7 @@ _conf_set_bool_from_conf(config_t *config,
         if (exit_n > 0)
             fatalx(errMsg);
         if (errMsg)
-            log_warnx("config", errMsg);
+            log_warnx("config", "%s", errMsg);
         *value = def;
     } else {
         *value = atoi(tmp);
