@@ -60,12 +60,16 @@ _conf_parseConfig(int config_fd)
             config_fd);
         return NULL;
     }
-    config = (config_t *)malloc(sizeof(config_t));
+    config = (config_t *)calloc(1, sizeof(config_t));
+    if (! config)
+        fatal("config", "calloc");
     config->next    = NULL;
     config->section = NULL;
     config->conf    = NULL;
 
-    buf = (char *)calloc(bufsize, 1);
+    buf = (char *)calloc(1, bufsize);
+    if (! buf)
+        fatal("config", "calloc");
 
     while (! feof(configFile))
     {
@@ -155,9 +159,10 @@ _conf_strip_comment(char *line, unsigned int size)
     char c;
     char *new;
 
-    new = calloc(size+1, 1);
-
-    for ( i = 0; i < size; i++)
+    new = calloc(1, size + 1);
+    if (! new)
+        fatal("config", "new");
+    for (i = 0; i < size; i++)
     {
         c = line[i];
 
@@ -222,7 +227,9 @@ _conf_get_section(char *line, unsigned int linelen, unsigned int linenum)
                 errorMsg = "parse error near line %d: '[' followed by another '['";
                 goto error;
             }
-            section = (char *)malloc(linelen+1-i);
+            section = (char *)calloc(1, linelen + 1 - i);
+            if (! section)
+                fatal("config", "calloc");
             break;
         case ']':
             if (! section)
@@ -273,11 +280,15 @@ _conf_parseLine(char *line, unsigned int linelen, unsigned int linenum)
     if ((line == NULL) || (*line == '\0'))
         return NULL;
 
-    confObj = (confObj_t *)malloc(sizeof(confObj_t));
+    confObj = (confObj_t *)calloc(1, sizeof(confObj_t));
+    if (! confObj)
+        fatal("config", "calloc");
     confObj->var = NULL;
     confObj->val = NULL;
 
-    buf = malloc(linelen+1);
+    buf = calloc(1, linelen + 1);
+    if (! buf)
+        fatal("config", "calloc");
 
     /* First step: getting variable */
     for (i = 0, quote = 0, space = 0, j = 0; i < linelen; i++)
@@ -423,11 +434,12 @@ _conf_setValue(config_t *start,
         start->section  = strdup(section);
         start->next     = NULL; /* Useless, but safe :) */
     } else {
-        work = (config_t *)malloc(sizeof(config_t));
+        work = (config_t *)calloc(1, sizeof(config_t));
+        if (! work)
+            fatal("config", "calloc");
         work->next    = NULL;
         work->section = strdup(section);
         work->conf    = confObj;
-
         last = start;
         while (last->next != NULL)
             last = last->next;
@@ -455,13 +467,17 @@ conf_setValue( config_t **start,
 
     if ((*start) == NULL)
     {
-        (*start) = (config_t *)malloc(sizeof(config_t));
+        (*start) = (config_t *)calloc(1, sizeof(config_t));
+        if (! *start)
+            fatal("config", "calloc");
         (*start)->next      = NULL;
         (*start)->section   = NULL;
         (*start)->conf      = NULL;
     }
 
-    obj = (confObj_t *)malloc(sizeof(confObj_t));
+    obj = (confObj_t *)calloc(1, sizeof(confObj_t));
+    if (! obj)
+        fatal("config", "calloc");
     obj->var = strdup(var);
     obj->val = strdup(val);
 
