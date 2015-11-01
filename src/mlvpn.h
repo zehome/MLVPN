@@ -12,6 +12,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <time.h>
+#include <math.h>
 #include <ev.h>
 
 /* Many thanks Fabien Dupont! */
@@ -38,6 +39,8 @@
 
 #include "pkt.h"
 #include "buffer.h"
+#include "reorder.h"
+#include "timestamp.h"
 
 #define MLVPN_MAXHNAMSTR 256
 #define MLVPN_MAXPORTSTR 5
@@ -81,12 +84,15 @@ struct mlvpn_options
     char unpriv_user[128];
     int cleartext_data;
     int root_allowed;
+    uint32_t reorder_buffer_size;
+    uint32_t fallback_available;
 };
 
 enum chap_status {
-    MLVPN_CHAP_DISCONNECTED,
-    MLVPN_CHAP_AUTHSENT,
-    MLVPN_CHAP_AUTHOK
+    MLVPN_DISCONNECTED,
+    MLVPN_AUTHSENT,
+    MLVPN_AUTHOK,
+    MLVPN_LOSSY
 };
 
 LIST_HEAD(rtunhead, mlvpn_tunnel_s) rtuns;
@@ -104,7 +110,18 @@ typedef struct mlvpn_tunnel_s
     int disconnects;      /* is it stable ? */
     int conn_attempts;    /* connection attempts */
     int fallback_only;    /* if set, this link will be used when all others are down */
+    uint32_t loss_tolerence; /* How much loss is acceptable before the link is discarded */
+    uint64_t seq;
+    uint64_t expected_receiver_seq;
+    uint64_t saved_timestamp;
+    uint64_t saved_timestamp_received_at;
+    uint64_t seq_last;
+    uint64_t seq_vect;
+    int rtt_hit;
+    double srtt;
+    double rttvar;
     double weight;        /* For weight round robin */
+    uint32_t flow_id;
     uint64_t sentpackets; /* 64bit packets sent counter */
     uint64_t recvpackets; /* 64bit packets recv counter */
     uint64_t sentbytes;   /* 64bit bytes sent counter */
@@ -137,7 +154,7 @@ struct mlvpn_status_s
 int mlvpn_config(int config_file_fd, int first_time);
 int mlvpn_sock_set_nonblocking(int fd);
 
-/* wrr */
+int mlvpn_loss_ratio(mlvpn_tunnel_t *tun);
 int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
@@ -145,7 +162,8 @@ mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     const char *bindaddr, const char *bindport,
     const char *destaddr, const char *destport,
     int server_mode, uint32_t timeout,
-    int fallback_only, int bandwidth);
+    int fallback_only, uint32_t bandwidth,
+    uint32_t loss_tolerence);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 

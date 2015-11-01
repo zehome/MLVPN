@@ -158,9 +158,10 @@ mlvpn_ARG_WITH([systemdtmpfilesdir], [Directory for systemd tmpfiles],
     AM_CONDITIONAL(HAVE_SYSTEMDTMPFILESDIR,
         [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
 
-AC_CHECK_PROGS([RONN], [ronn], [:])
-if test "$RONN" = :; then
-    AC_MSG_WARN([Unable to build manpages without ronn! gem install ronn please.])
+AC_CHECK_PROGS([RONN], [ronn], [])
+AM_CONDITIONAL(HAVE_RONN, [test x"$RONN" != "x"])
+if test x"$RONN" = "x"; then
+    AC_MSG_WARN([ronn is not available, skip manpages build.])
 fi
 
 dnl Enable extra warnings

@@ -3,7 +3,8 @@
 # This command will be called as root.
 statuscommand = "@sysconfdir@/mlvpn/mlvpn_updown.sh"
 
-# Tunnel mode: "server" will listen for connections
+# Tunnel mode
+# "server" will listen for connections
 # "client" will just connect to "remotehost/remoteport"
 mode = "client"
 
@@ -21,15 +22,12 @@ mode = "client"
 # IPv6 routes to add when the tunnel is up
 #ip6_routes = ""
 
-# MTU must be set properly, mlvpn generates overhead
-# which can be calculated as followed:
-#  - 60 bytes if using encrypted data
-#  - 44 bytes if using cleartext data
-# *NEVER* set the MTU to more than 1456.
-# Don't forget that PPPoE generates 8 bytes of overhead, so:
-# If using cleartext data and pppoe MTU = 1448
-# If using encrypted data and pppoe MTU = 1432
-mtu = 1432
+# MTU must be set properly, mlvpn generates a total of 48 bytes of overhead.
+# You should *NEVER* set the MTU to more than 1452 bytes.
+# If you are running behind PPPoE you'll need to substract another 8 bytes.
+# Absolute maximum MTU: 1452
+# MTU with PPPoE in the path: 1444
+mtu = 1444
 
 # Tuntap type
 # "tun" provides better performance as encapsulation
@@ -60,7 +58,20 @@ cleartext_data = 0
 #control_bind_host = "0.0.0.0"
 #control_bind_port = "1040"
 
-[adsl1]
+# Reordering
+# reorder_buffer_size corresponds to a number of packets mlvpn should hold
+# in case you want to enable re-ordering system.
+# Don't put insane values, 64 is usually sufficient for most DSL links.
+# reorder_buffer_size is 0 (disabled) by default.
+#reorder_buffer_size = 64
+
+# Loss tolerence
+# Defines the maximum loss ratio accepted before the link affected is being
+# considered too lossy and removed from agregation.
+# This value is expressed in percent.
+#loss_tolerence = 10
+
+[dsl1]
 bindhost = "0.0.0.0"
 bindport = 5080
 #remotehost = "10.2.3.4"
@@ -68,15 +79,18 @@ bindport = 5080
 #bandwidth_upload = 61440
 #timeout = 25
 
-#[adsl2]
+#[airlink]
 ##:: to listen on any interface, any ipv6 address
 #bindhost = "::"
 ## bindport =
 #remotehost = "10.2.3.4"
 #remoteport = 5081
+# If it is a lossy link and we want to keep using it,
+# even if 30% of packets are lost
+#loss_tolerence = 30
 #bandwidth_upload = 512000
 
-#[adsl3]
+#[dsl2]
 ##0.0.0.0 to listen on any interface, any ipv4 address
 #bindhost = "0.0.0.0"
 #remotehost = "10.2.3.4"

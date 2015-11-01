@@ -33,6 +33,7 @@
 extern char *status_command;
 extern struct tuntap_s tuntap;
 extern struct mlvpn_options mlvpn_options;
+extern struct mlvpn_reorder_buffer *reorder_buffer;
 
 /* Config file reading / re-read.
  * config_file_fd: fd opened in priv_open_config
@@ -48,12 +49,16 @@ mlvpn_config(int config_file_fd, int first_time)
     char *lastSection = NULL;
     char *tundevname = NULL;
     char *password = NULL;
-    int tun_mtu = 0;
+    uint32_t tun_mtu = 0;
 
-    int default_timeout = 60;
-    int default_server_mode = 0; /* 0 => client */
-    int cleartext_data = 0;
-    int fallback_only = 0;
+    uint32_t default_loss_tolerence = 100;
+    uint32_t default_timeout = 60;
+    uint32_t default_server_mode = 0; /* 0 => client */
+    uint32_t cleartext_data = 0;
+    uint32_t fallback_only = 0;
+    uint32_t reorder_buffer_size = 0;
+
+    mlvpn_options.fallback_available = 0;
 
     work = config = _conf_parseConfig(config_file_fd);
     if (! config)
@@ -113,35 +118,74 @@ mlvpn_config(int config_file_fd, int first_time)
                             sizeof(mlvpn_options.control_bind_port));
                         free(tmp);
                     }
-                    _conf_set_str_from_conf(
-                        config, lastSection, "mode", &mode, NULL,
-                        "Operation mode is mandatory.", 1);
-                    if (mystr_eq(mode, "server"))
-                        default_server_mode = 1;
-                    if (mode)
-                        free(mode);
                 }
+                /* This is important to be parsed every time because
+                 * it's used later in the configuration parsing
+                 */
+                _conf_set_str_from_conf(
+                    config, lastSection, "mode", &mode, NULL,
+                    "Operation mode is mandatory.", 1);
+                if (mystr_eq(mode, "server"))
+                    default_server_mode = 1;
+                if (mode)
+                    free(mode);
 
                 _conf_set_str_from_conf(
                     config, lastSection, "password", &password, NULL,
                     "Password is mandatory.", 2);
                 if (password) {
+                    log_info("config", "new password set");
                     crypto_set_password(password, strlen(password));
                     memset(password, 0, strlen(password));
                     free(password);
                 }
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "cleartext_data", &cleartext_data, 0,
                     NULL, 0);
                 mlvpn_options.cleartext_data = cleartext_data;
 
 
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "timeout", &default_timeout, 60,
                     NULL, 0);
                 if (default_timeout < 5) {
                     log_warnx("config", "timeout capped to 5 seconds");
                     default_timeout = 5;
+                }
+
+                _conf_set_uint_from_conf(
+                    config, lastSection, "reorder_buffer_size",
+                    &reorder_buffer_size,
+                    0, NULL, 0);
+                if (reorder_buffer_size != mlvpn_options.reorder_buffer_size) {
+                    log_info("config",
+                        "reorder_buffer_size changed from %d to %d",
+                        mlvpn_options.reorder_buffer_size,
+                        reorder_buffer_size);
+                    if (reorder_buffer_size != 0 &&
+                            mlvpn_options.reorder_buffer_size != 0) {
+                        mlvpn_reorder_free(reorder_buffer);
+                        reorder_buffer = NULL;
+                    }
+                    mlvpn_options.reorder_buffer_size = reorder_buffer_size;
+                    if (mlvpn_options.reorder_buffer_size > 0) {
+                        if (reorder_buffer) {
+                            mlvpn_reorder_free(reorder_buffer);
+                        }
+                        reorder_buffer = mlvpn_reorder_create(
+                            mlvpn_options.reorder_buffer_size);
+                        if (reorder_buffer == NULL) {
+                            fatal("config", "reorder_buffer allocation failed");
+                        }
+                    }
+                }
+
+                _conf_set_uint_from_conf(
+                    config, lastSection, "loss_tolerence",
+                    &default_loss_tolerence, 100,  NULL, 0);
+                if (default_loss_tolerence > 100) {
+                    log_warnx("config", "loss_tolerence is capped to 100 %%");
+                    default_loss_tolerence = 100;
                 }
 
                 /* Tunnel configuration */
@@ -209,7 +253,7 @@ mlvpn_config(int config_file_fd, int first_time)
                         sizeof(mlvpn_options.ip6_routes));
                 }
 
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "mtu", &tun_mtu, 1432, NULL, 0);
                 if (tun_mtu != 0) {
                     mlvpn_options.mtu = tun_mtu;
@@ -219,8 +263,9 @@ mlvpn_config(int config_file_fd, int first_time)
                 char *bindport;
                 char *dstaddr;
                 char *dstport;
-                int bwlimit = 0;
-                int timeout = 30;
+                uint32_t bwlimit = 0;
+                uint32_t timeout = 30;
+                uint32_t loss_tolerence;
                 int create_tunnel = 1;
 
                 if (default_server_mode)
@@ -251,19 +296,29 @@ mlvpn_config(int config_file_fd, int first_time)
                         config, lastSection, "remoteport", &dstport, NULL,
                         "No remote port specified.\n", 1);
                 }
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "bandwidth_upload", &bwlimit, 0,
                     NULL, 0);
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
                     config, lastSection, "timeout", &timeout, default_timeout,
                     NULL, 0);
                 if (timeout < 5) {
                     log_warnx("config", "timeout capped to 5 seconds");
                     timeout = 5;
                 }
-                _conf_set_int_from_conf(
+                _conf_set_uint_from_conf(
+                    config, lastSection, "loss_tolerence", &loss_tolerence,
+                    default_loss_tolerence, NULL, 0);
+                if (loss_tolerence > 100) {
+                    log_warnx("config", "loss_tolerence is capped to 100 %%");
+                    loss_tolerence = 100;
+                }
+                _conf_set_uint_from_conf(
                     config, lastSection, "fallback_only", &fallback_only, 0,
                     NULL, 0);
+                if (fallback_only) {
+                    mlvpn_options.fallback_available = 1;
+                }
                 if (! LIST_EMPTY(&rtuns))
                 {
                     LIST_FOREACH(tmptun, &rtuns, entries)
@@ -271,7 +326,7 @@ mlvpn_config(int config_file_fd, int first_time)
                         if (mystr_eq(lastSection, tmptun->name))
                         {
                             log_info("config",
-                                "%s tunnel restarted during config reload",
+                                "%s restart for configuration reload",
                                   tmptun->name);
                             if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
                                     (! mystr_eq(tmptun->bindport, bindport)) ||
@@ -304,8 +359,24 @@ mlvpn_config(int config_file_fd, int first_time)
                                     tmptun->destport = calloc(1, MLVPN_MAXPORTSTR+1);
                                 strlcpy(tmptun->destport, dstport, MLVPN_MAXPORTSTR);
                             }
-                            tmptun->fallback_only = fallback_only;
-                            tmptun->bandwidth = bwlimit;
+                            if (tmptun->fallback_only != fallback_only)
+                            {
+                                log_info("config", "%s fallback_only changed from %d to %d",
+                                    tmptun->name, tmptun->fallback_only, fallback_only);
+                                tmptun->fallback_only = fallback_only;
+                            }
+                            if (tmptun->bandwidth != bwlimit)
+                            {
+                            log_info("config", "%s bandwidth changed from %d to %d",
+                                    tmptun->name, tmptun->bandwidth, bwlimit);
+                                tmptun->bandwidth = bwlimit;
+                            }
+                            if (tmptun->loss_tolerence != loss_tolerence)
+                            {
+                                log_info("config", "%s loss tolerence changed from %d%% to %d%%",
+                                    tmptun->name, tmptun->loss_tolerence, loss_tolerence);
+                                tmptun->loss_tolerence = loss_tolerence;
+                            }
                             create_tunnel = 0;
                             break; /* Very important ! */
                         }
@@ -317,7 +388,8 @@ mlvpn_config(int config_file_fd, int first_time)
                     log_info("config", "%s tunnel added", lastSection);
                     mlvpn_rtun_new(
                         lastSection, bindaddr, bindport, dstaddr, dstport,
-                        default_server_mode, timeout, fallback_only, bwlimit);
+                        default_server_mode, timeout, fallback_only,
+                        bwlimit, loss_tolerence);
                 }
                 if (bindaddr)
                     free(bindaddr);

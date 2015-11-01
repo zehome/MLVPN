@@ -85,7 +85,7 @@ route_add()
 (
 TIMESTAMP=$(date "+%Y-%m-%dT%H:%M:%S")
 ECHO="echo ${TIMESTAMP} "
-[ "$MTU" -gt 1456 ] && (echo "MTU set too high."; exit 1)
+[ "$MTU" -gt 1452 ] && (echo "MTU set too high."; exit 1)
 [ "$MTU" -lt 100 ] && (echo "MTU set too low."; exit 1)
 case "$STATUS" in
     "tuntap_up")

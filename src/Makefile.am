@@ -18,6 +18,8 @@ mlvpn_SOURCES = \
     crypto.c crypto.h \
     log.c log.h \
     tuntap_generic.h \
+    reorder.h reorder.c \
+    timestamp.h timestamp.c \
     mlvpn.c mlvpn.h
 
 # There are better ways to do that, using a "compat" library
