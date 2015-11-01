@@ -37,6 +37,10 @@
  #include <resolv.h>
 #endif
 
+#ifdef ENABLE_FILTERS
+ #include <pcap/pcap.h>
+#endif
+
 #include "pkt.h"
 #include "buffer.h"
 #include "reorder.h"
@@ -73,8 +77,13 @@
 #define MLVPN_IO_TIMEOUT_INCREMENT 2
 
 #define NEXT_KEEPALIVE(now, t) (now + 2)
+/* Protocol version of mlvpn
+ * version 0: mlvpn 2.0 to 2.1 
+ * version 1: mlvpn 2.2+ (add reorder field in mlvpn_proto_t)
+ */
+#define MLVPN_PROTOCOL_VERSION 1
 
-struct mlvpn_options
+struct mlvpn_options_s
 {
     /* use ps_status or not ? */
     int change_process_title;
@@ -105,6 +114,15 @@ struct mlvpn_options
     uint32_t fallback_available;
 };
 
+struct mlvpn_status_s
+{
+    int fallback_mode;
+    int connected;
+    int initialized;
+    time_t start_time;
+    time_t last_reload;
+};
+
 enum chap_status {
     MLVPN_DISCONNECTED,
     MLVPN_AUTHSENT,
@@ -118,10 +136,10 @@ typedef struct mlvpn_tunnel_s
 {
     LIST_ENTRY(mlvpn_tunnel_s) entries;
     char *name;           /* tunnel name */
-    char *bindaddr;       /* packets source */
-    char *bindport;       /* packets port source (or NULL) */
-    char *destaddr;       /* remote server ip (can be hostname) */
-    char *destport;       /* remote server port */
+    char bindaddr[MLVPN_MAXHNAMSTR]; /* packets source */
+    char bindport[MLVPN_MAXPORTSTR]; /* packets port source (or NULL) */
+    char destaddr[MLVPN_MAXHNAMSTR]; /* remote server ip (can be hostname) */
+    char destport[MLVPN_MAXPORTSTR]; /* remote server port */
     int fd;               /* socket file descriptor */
     int server_mode;      /* server or client */
     int disconnects;      /* is it stable ? */
@@ -159,14 +177,13 @@ typedef struct mlvpn_tunnel_s
     ev_timer io_timeout;
 } mlvpn_tunnel_t;
 
-struct mlvpn_status_s
-{
-    int fallback_mode;
-    int connected;
-    int initialized;
-    time_t start_time;
-    time_t last_reload;
+#ifdef ENABLE_FILTERS
+struct mlvpn_filters_s {
+    uint8_t count;
+    struct bpf_program filter[255];
+    mlvpn_tunnel_t *tun[255];
 };
+#endif
 
 int mlvpn_config(int config_file_fd, int first_time);
 int mlvpn_sock_set_nonblocking(int fd);
@@ -183,6 +200,10 @@ mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     uint32_t loss_tolerence);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
+#ifdef ENABLE_FILTERS
+int mlvpn_filters_add(const struct bpf_program *filter, mlvpn_tunnel_t *tun);
+mlvpn_tunnel_t *mlvpn_filters_choose(uint32_t pktlen, const u_char *pktdata);
+#endif
 
 #include "privsep.h"
 #include "log.h"

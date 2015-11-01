@@ -120,8 +120,8 @@ dnl checks for libsodium
 PKG_CHECK_MODULES([libsodium], [libsodium >= 0.6], [], [
     AC_CHECK_HEADERS([sodium.h], [], [AC_MSG_ERROR("sodium.h not found")])
     AC_CHECK_LIB([sodium], [sodium_init], [
-    libsodium_LIBS="-lsodium"
-    AC_DEFINE([HAVE_LIBSODIUM], [1], [sodium_init in -lsodium])
+        libsodium_LIBS="-lsodium"
+        AC_DEFINE([HAVE_LIBSODIUM], [1], [sodium_init in -lsodium])
     ], [AC_MSG_ERROR("libsodium not found")])
 ])
 
@@ -130,13 +130,15 @@ dnl checks for libev
 PKG_CHECK_MODULES([libev], [libev], [], [
     AC_CHECK_HEADERS([ev.h], [], [AC_MSG_ERROR("ev.h not found")])
     AC_CHECK_LIB([ev], [ev_time], [
-    libev_LIBS="-lev"
-    AC_DEFINE([HAVE_LIBEV], [1], [ev_time in -lev])
+        libev_LIBS="-lev"
+        AC_DEFINE([HAVE_LIBEV], [1], [ev_time in -lev])
     ], [AC_MSG_ERROR("libev not found")])
 ])
 
+
 ### Command lines options ###
 mlvpn_ARG_ENABLE([control], [remote control system (cli and http)], [yes])
+mlvpn_ARG_ENABLE([filters], [libpcap support for filters], [yes])
 mlvpn_ARG_WITH([install-examples], [install example files], [yes])
 AM_CONDITIONAL([INSTALL_EXAMPLES], [test x"$with_install_examples" = x"yes" ])
 
@@ -157,6 +159,22 @@ mlvpn_ARG_WITH([systemdtmpfilesdir], [Directory for systemd tmpfiles],
     AC_SUBST([systemdtmpfilesdir], [$with_systemdtmpfilesdir])
     AM_CONDITIONAL(HAVE_SYSTEMDTMPFILESDIR,
         [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
+
+dnl checks for libpcap
+# Default values
+AC_DEFINE([HAVE_LIBPCAP], [0], [])
+AM_CONDITIONAL([HAVE_LIBPCAP], [false])
+if test x"$ENABLE_FILTERS" = x"yes"; then
+    dnl checks for libpcap
+    PKG_CHECK_MODULES([libpcap], [libpcap], [], [
+        AC_CHECK_HEADERS([pcap.h], [], [AC_MSG_ERROR("pcap.h not found")])
+        AC_CHECK_LIB([pcap], [pcap_open_dead], [
+            libpcap_LIBS="-lpcap"
+            AC_DEFINE([HAVE_LIBPCAP], [1], [pcap_open_dead in -lpcap])
+            AM_CONDITIONAL([HAVE_LIBPCAP], [true])
+        ], [AC_MSG_ERROR("libpcap not found")])
+    ])
+fi
 
 AC_CHECK_PROGS([RONN], [ronn], [])
 AM_CONDITIONAL(HAVE_RONN, [test x"$RONN" != "x"])

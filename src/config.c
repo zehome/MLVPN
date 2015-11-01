@@ -31,8 +31,9 @@
 #include "tuntap_generic.h"
 
 extern char *status_command;
+extern struct mlvpn_options_s mlvpn_options;
+extern struct mlvpn_filters_s mlvpn_filters;
 extern struct tuntap_s tuntap;
-extern struct mlvpn_options mlvpn_options;
 extern struct mlvpn_reorder_buffer *reorder_buffer;
 
 /* Config file reading / re-read.
@@ -59,6 +60,13 @@ mlvpn_config(int config_file_fd, int first_time)
     uint32_t reorder_buffer_size = 0;
 
     mlvpn_options.fallback_available = 0;
+
+    /* reset all bpf filters on every interface */
+#ifdef ENABLE_FILTERS
+    struct bpf_program filter;
+    pcap_t *pcap_dead_p = pcap_open_dead(DLT_RAW, DEFAULT_MTU);
+    memset(&mlvpn_filters, 0, sizeof(mlvpn_filters));
+#endif
 
     work = config = _conf_parseConfig(config_file_fd);
     if (! config)
@@ -258,7 +266,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (tun_mtu != 0) {
                     mlvpn_options.mtu = tun_mtu;
                 }
-            } else {
+            } else if (strncmp(lastSection, "filters", 7) != 0) {
                 char *bindaddr;
                 char *bindport;
                 char *dstaddr;
@@ -319,67 +327,52 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (fallback_only) {
                     mlvpn_options.fallback_available = 1;
                 }
-                if (! LIST_EMPTY(&rtuns))
+                LIST_FOREACH(tmptun, &rtuns, entries)
                 {
-                    LIST_FOREACH(tmptun, &rtuns, entries)
+                    if (mystr_eq(lastSection, tmptun->name))
                     {
-                        if (mystr_eq(lastSection, tmptun->name))
-                        {
-                            log_info("config",
-                                "%s restart for configuration reload",
-                                  tmptun->name);
-                            if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
-                                    (! mystr_eq(tmptun->bindport, bindport)) ||
-                                    (! mystr_eq(tmptun->destaddr, dstaddr)) ||
-                                    (! mystr_eq(tmptun->destport, dstport))) {
-                                mlvpn_rtun_status_down(tmptun);
-                            }
-
-                            if (bindaddr)
-                            {
-                                if (! tmptun->bindaddr)
-                                    tmptun->bindaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
-                                strlcpy(tmptun->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
-                            }
-                            if (bindport)
-                            {
-                                if (! tmptun->bindport)
-                                    tmptun->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
-                                strlcpy(tmptun->bindport, bindport, MLVPN_MAXPORTSTR);
-                            }
-                            if (dstaddr)
-                            {
-                                if (! tmptun->destaddr)
-                                    tmptun->destaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
-                                strlcpy(tmptun->destaddr, dstaddr, MLVPN_MAXHNAMSTR);
-                            }
-                            if (dstport)
-                            {
-                                if (! tmptun->destport)
-                                    tmptun->destport = calloc(1, MLVPN_MAXPORTSTR+1);
-                                strlcpy(tmptun->destport, dstport, MLVPN_MAXPORTSTR);
-                            }
-                            if (tmptun->fallback_only != fallback_only)
-                            {
-                                log_info("config", "%s fallback_only changed from %d to %d",
-                                    tmptun->name, tmptun->fallback_only, fallback_only);
-                                tmptun->fallback_only = fallback_only;
-                            }
-                            if (tmptun->bandwidth != bwlimit)
-                            {
-                            log_info("config", "%s bandwidth changed from %d to %d",
-                                    tmptun->name, tmptun->bandwidth, bwlimit);
-                                tmptun->bandwidth = bwlimit;
-                            }
-                            if (tmptun->loss_tolerence != loss_tolerence)
-                            {
-                                log_info("config", "%s loss tolerence changed from %d%% to %d%%",
-                                    tmptun->name, tmptun->loss_tolerence, loss_tolerence);
-                                tmptun->loss_tolerence = loss_tolerence;
-                            }
-                            create_tunnel = 0;
-                            break; /* Very important ! */
+                        log_info("config",
+                            "%s restart for configuration reload",
+                              tmptun->name);
+                        if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
+                                (! mystr_eq(tmptun->bindport, bindport)) ||
+                                (! mystr_eq(tmptun->destaddr, dstaddr)) ||
+                                (! mystr_eq(tmptun->destport, dstport))) {
+                            mlvpn_rtun_status_down(tmptun);
                         }
+
+                        if (bindaddr) {
+                            strlcpy(tmptun->bindaddr, bindaddr, sizeof(tmptun->bindaddr));
+                        }
+                        if (bindport) {
+                            strlcpy(tmptun->bindport, bindport, sizeof(tmptun->bindport));
+                        }
+                        if (dstaddr) {
+                            strlcpy(tmptun->destaddr, dstaddr, sizeof(tmptun->destaddr));
+                        }
+                        if (dstport) {
+                            strlcpy(tmptun->destport, dstport, sizeof(tmptun->destport));
+                        }
+                        if (tmptun->fallback_only != fallback_only)
+                        {
+                            log_info("config", "%s fallback_only changed from %d to %d",
+                                tmptun->name, tmptun->fallback_only, fallback_only);
+                            tmptun->fallback_only = fallback_only;
+                        }
+                        if (tmptun->bandwidth != bwlimit)
+                        {
+                        log_info("config", "%s bandwidth changed from %d to %d",
+                                tmptun->name, tmptun->bandwidth, bwlimit);
+                            tmptun->bandwidth = bwlimit;
+                        }
+                        if (tmptun->loss_tolerence != loss_tolerence)
+                        {
+                            log_info("config", "%s loss tolerence changed from %d%% to %d%%",
+                                tmptun->name, tmptun->loss_tolerence, loss_tolerence);
+                            tmptun->loss_tolerence = loss_tolerence;
+                        }
+                        create_tunnel = 0;
+                        break; /* Very important ! */
                     }
                 }
 
@@ -402,7 +395,6 @@ mlvpn_config(int config_file_fd, int first_time)
             }
         } else if (lastSection == NULL)
             lastSection = work->section;
-
         work = work->next;
     }
 
@@ -432,8 +424,48 @@ mlvpn_config(int config_file_fd, int first_time)
             }
         }
     }
+
+#ifdef ENABLE_FILTERS
+    work = config;
+    int found_in_config = 0;
+    while (work)
+    {
+        if (strncmp(work->section, "filters", 7) == 0) {
+            memset(&filter, 0, sizeof(filter));
+            if (pcap_compile(pcap_dead_p, &filter, work->conf->val,
+                    1, PCAP_NETMASK_UNKNOWN) != 0) {
+                log_warnx("config", "invalid filter %s = %s: %s",
+                    work->conf->var, work->conf->val, pcap_geterr(pcap_dead_p));
+            } else {
+                found_in_config = 0;
+                LIST_FOREACH(tmptun, &rtuns, entries) {
+                    if (strcmp(work->conf->var, tmptun->name) == 0) {
+                        if (mlvpn_filters_add(&filter, tmptun) != 0) {
+                            log_warnx("config", "%s filter %s error: too many filters",
+                                tmptun->name, work->conf->val);
+                        } else {
+                            log_debug("config", "%s added filter: %s",
+                                tmptun->name, work->conf->val);
+                            found_in_config = 1;
+                            break;
+                        }
+                    }
+                }
+                if (!found_in_config) {
+                    log_warnx("config", "(filters) %s interface not found",
+                        work->conf->var);
+                }
+            }
+        }
+        work = work->next;
+    }
+#endif
+
     //_conf_printConfig(config);
     _conf_freeConfig(config);
+#ifdef ENABLE_FILTERS
+    pcap_close(pcap_dead_p);
+#endif
 
     if (first_time && status_command)
         priv_init_script(status_command);
