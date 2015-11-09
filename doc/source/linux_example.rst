@@ -483,5 +483,5 @@ Seems good. Let's test the ICMP echo reply. (ping)
     # Testing connectivity to the internet
     root@client:~ # ping -n -c1 -I192.168.0.1 proof.ovh.net
     # Download speed testing
-    root@client:~ # wget -O/dev/null http://proof.ovh.net/files/10Gio.dat
+    root@client:~ # wget -4 -O/dev/null http://proof.ovh.net/files/10Gio.dat
 
