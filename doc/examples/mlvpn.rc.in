@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+# $OpenBSD: mlvpn.rc,v 1.1.1.1 2015/10/23 09:28:58 sthen Exp $
+
+daemon="/usr/local/sbin/mlvpn"
+daemon_flags="-c /etc/mlvpn/mlvpn.conf --user _mlvpn"
+
+. /etc/rc.d/rc.subr
+
+pexp="mlvpn: .*priv.*"
+rc_bg=YES
+
+rc_cmd $1

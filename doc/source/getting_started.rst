@@ -40,32 +40,6 @@ OpenBSD
 Refer to the `README.OpenBSD <https://github.com/zehome/MLVPN/>`_
 file inside the mlvpn repository for OpenBSD build instructions.
 
-.. code-block:: sh
-
-    # Install dependencies
-    # DO NOT install libsodium from package on OpenBSD 5.6 or older
-    pkg_add git autoconf automake libev libsodium
-    # Adjust to your needs
-    export AUTOCONF_VERSION=2.69
-    export AUTOMAKE_VERSION=1.15
-    export CPPFLAGS="-I/usr/local/include $CPPFLAGS"
-    export LDFLAGS="-L/usr/local/lib $LDFLAGS"
-    git clone https://github.com/zehome/MLVPN mlvpn
-    cd mlvpn
-    ./autogen.sh
-    ./configure
-    make
-    # Install
-    sudo make install
-    sudo mkdir /etc/mlvpn
-    sudo cp /usr/local/share/doc/mlvpn/mlvpn.conf /etc/mlvpn/
-    sudo cp /usr/local/share/doc/mlvpn/mlvpn_updown.sh /etc/mlvpn/
-    sudo chown -R root /etc/mlvpn
-    sudo chmod 660 /etc/mlvpn/mlvpn.conf
-    sudo chmod 700 /etc/mlvpn/mlvpn_updown.sh
-    # Create a system user for mlvpn (unprivileged)
-    sudo groupadd _mlvpn
-    sudo useradd -c "mlvpn Daemon" -d /var/empty -s /sbin/nologin -L daemon -g _mlvpn _mlvpn
 
 FreeBSD
 -------

@@ -12,6 +12,7 @@ configure
 debian/
 doc/build
 doc/examples/mlvpn.conf
+doc/examples/mlvpn.rc
 doc/examples/mlvpn.init.d
 doc/examples/mlvpn_updown.sh
 doc/examples/systemd/Makefile
