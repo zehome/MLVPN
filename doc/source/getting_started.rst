@@ -105,3 +105,40 @@ mlvpn_updown.sh
 For example, when mlvpn is launched and a link is activated, mlvpn_updown.sh is called in order
 to bring the tunnel device up and ready for communication.
 
+Checking mlvpn status using ps
+==============================
+You can check what mlvpn is doing at any time
+by using standard unix command **ps**.
+
+mlvpn spawns two process. One privileged running as root with [priv] in it's name.
+
+The other running as the user you have selected with running mlvpn --user.
+
+
+Example:
+.. code-block::
+
+    root     30222 30221  0 23:17 pts/8    00:00:00 mlvpn: adsl3g [priv]
+    ed       30223 30222  0 23:17 pts/8    00:00:00 mlvpn: adsl3g !3g @adsl
+
+This output means tunnel 3g is down, and adsl is up.
+
+Tunnel prefix reference
+-----------------------
+    * '!' means down
+    * '@' means up & running
+    * '~' means up but lossy (above the configured threshold)
+
+Hot reloading mlvpn configuration
+=================================
+mlvpn supports hot configuration reloading. You can reload the configuration
+by sending the **SIGHUP** signal to any process.
+
+.. code-block::
+    
+    kill -HUP $(pidof mlvpn)
+    # or pkill -HUP mlvpn
+
+
+.. warning:: Hot reloading the configuration forces every established link
+    to be disconnected and reconnected.
