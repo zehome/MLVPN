@@ -15,7 +15,6 @@ mlvpn_filters_choose(uint32_t pktlen, const u_char *pktdata) {
         /* Don't even consider offline interfaces */
         /* log_debug("filters", "check filter[%d] (%s)", i, tun->name); */
         if (pcap_offline_filter(&mlvpn_filters.filter[i], &hdr, pktdata) != 0) {
-            log_debug("filters", "filter %d matches", i);
             if (tun->status < MLVPN_AUTHOK) {
                 /* log_debug("filters", "tun %s is offline.", tun->name); */
                 continue;

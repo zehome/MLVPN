@@ -42,5 +42,5 @@ Note that the created aggregated link will have the WORST latency of all the lin
 
 Re-ordering is important because packets are not sent at the same speed
 on every path. Packets would come of order which confuses a LOT TCP.
-Without re-ordering, expect to have the bandwidth of the slowest link.
+Without re-ordering enabled, expect to have the bandwidth of the slowest link.
 

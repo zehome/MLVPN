@@ -328,6 +328,9 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     timeout = 30
     password = "you have not changed me yet?"
     reorder_buffer_size = 64
+    loss_tolerence = 50
+
+    [filters]
 
     [adsl1]
     bindhost = "192.168.1.2"
@@ -401,6 +404,9 @@ mlvpn0.conf
     timeout = 30
     password = "pleasechangeme!"
     reorder_buffer_size = 64
+    loss_tolerence = 50
+
+    [filters]
 
     [adsl1]
     bindport = 5080

@@ -90,7 +90,8 @@ The other running as the user you have selected with running mlvpn --user.
 
 
 Example:
-.. code-block::
+
+.. code-block:: none
 
     root     30222 30221  0 23:17 pts/8    00:00:00 mlvpn: adsl3g [priv]
     ed       30223 30222  0 23:17 pts/8    00:00:00 mlvpn: adsl3g !3g @adsl
@@ -108,7 +109,7 @@ Hot reloading mlvpn configuration
 mlvpn supports hot configuration reloading. You can reload the configuration
 by sending the **SIGHUP** signal to any process.
 
-.. code-block::
+.. code-block:: sh
     
     kill -HUP $(pidof mlvpn)
     # or pkill -HUP mlvpn

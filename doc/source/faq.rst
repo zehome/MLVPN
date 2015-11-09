@@ -13,10 +13,12 @@ mlvpn does not launch
 ---------------------
 Launch mlvpn manually in debug mode:
 .. code-block:: sh
+
     mlvpn --user _mlvpn -c /etc/mlvpn.conf --debug -Dprotocol -v
 
 Check your permissions:
 .. code-block:: sh
+
     chmod 0600 /etc/mlvpn/mlvpn.conf
     chmod 0700 /etc/mlvpn/mlvpn_updown.sh
     chown root /etc/mlvpn/mlvpn.conf /etc/mlvpn/mlvpn_updown.sh

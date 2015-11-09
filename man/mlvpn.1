@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "MLVPN" "1" "October 2015" "" ""
+.TH "MLVPN" "1" "November 2015" "" ""
 .
 .SH "NAME"
 \fBmlvpn\fR \- MultiLink Virtual Public Network aggregator
@@ -61,12 +61,16 @@ change process title to \fIname\fR (privileged process will be named \fIname\fR 
 log to stderr instead of syslog
 .
 .TP
+\fB\-D\fR\fItoken\fR
+only show messages of specified \fItoken\fR\. See README\.debug\.md for available tokens\. \-D can be specified multiple times
+.
+.TP
 \fB\-\-verbose\fR, \fB\-v\fR
 increases verbosity (repeat multiple times to increase more)
 .
 .TP
 \fB\-\-quiet\fR, \fB\-q\fR
-decrease verbosity The verbosity will print usefull messages and errors only\. If \fB\-\-quiet\fR is specified, then only errors will be shown / logged\.
+decrease verbosity The verbosity will print usefull messages and errors only\. If \fB\-\-quiet\fR is specified, then only errors will be shown / logged
 .
 .TP
 \fB\-\-yes\-run\-as\-root\fR
@@ -81,13 +85,16 @@ display the current version of \fBmlvpn\fR
 show the help
 .
 .SH "LOGGING"
-mlvpn uses syslog if \fB\-\-debug\fR is not specified\. if \fB\-\-debug\fR is specified, then mlvpn will will output on the standard error\. refer to README\.debug\.md for more debugging informations\.
+mlvpn uses syslog if \fB\-\-debug\fR is not specified\. if \fB\-\-debug\fR is specified, mlvpn sends logging messages to syslog\.
 .
 .SH "FILES"
 .
 .TP
 \fI/etc/mlvpn/*\.conf\fR
 configuration files for \fBmlvpn\fR
+.
+.SH "DEBUGGING"
+refer to README\.debug\.md for more debugging informations\.
 .
 .SH "SEE ALSO"
 mlvpn\.conf(5)
