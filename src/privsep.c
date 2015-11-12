@@ -187,6 +187,11 @@ priv_init(char *argv[], char *username)
         }
         close(socks[0]);
         priv_fd = socks[1];
+#ifdef HAVE_PLEDGE
+        if (pledge("stdio inet unix recvfd", NULL) != 0) {
+            err(1, "pledge");
+        }
+#endif
         return 0;
     }
     /* Father */
@@ -436,6 +441,11 @@ priv_init(char *argv[], char *username)
 
         case PRIV_SET_RUNNING_STATE:
             increase_state(STATE_RUNNING);
+#ifdef HAVE_PLEDGE
+            if (pledge("rpath stdio dns sendfd exec proc", NULL) != 0) {
+                err(1, "pledge");
+            }
+#endif
             break;
 
         default:
