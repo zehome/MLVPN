@@ -675,8 +675,9 @@ mlvpn_rtun_new(const char *name,
     new->io_timeout.data = new;
     ev_init(&new->io_read, mlvpn_rtun_read);
     ev_init(&new->io_write, mlvpn_rtun_write);
-    ev_timer_init(&new->io_timeout, mlvpn_rtun_check_timeout, 1.0, 1.0);
-    mlvpn_rtun_tick_connect(new);
+    ev_timer_init(&new->io_timeout, mlvpn_rtun_check_timeout,
+        0., MLVPN_IO_TIMEOUT_DEFAULT);
+    ev_timer_start(EV_A_ &new->io_timeout);
     update_process_title();
     return new;
 }
@@ -837,28 +838,21 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
         res = res->ai_next;
     }
 
-    if (fd < 0)
-    {
+    if (fd < 0) {
         log_warnx("dns", "%s connection failed. Check DNS?",
             t->name);
-        return 1;
+        goto error;
     }
 
     /* setup non blocking sockets */
     socklen_t val = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(socklen_t)) < 0) {
         log_warn(NULL, "%s setsockopt SO_REUSEADDR failed", t->name);
-        close(t->fd);
-        t->fd = -1;
-        return -1;
+        goto error;
     }
-    if (t->bindaddr || t->server_mode)
-    {
-        if (mlvpn_rtun_bind(t) < 0)
-        {
-            log_warnx(NULL, "%s bind error", t->name);
-            if (t->server_mode)
-                return -2;
+    if (*t->bindaddr) {
+        if (mlvpn_rtun_bind(t) < 0) {
+            goto error;
         }
     }
 
@@ -868,8 +862,16 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     ev_io_set(&t->io_read, fd, EV_READ);
     ev_io_set(&t->io_write, fd, EV_WRITE);
     ev_io_start(EV_A_ &t->io_read);
-    ev_timer_again(EV_A_ &t->io_timeout);
+    t->io_timeout.repeat = MLVPN_IO_TIMEOUT_DEFAULT;
     return 0;
+error:
+    if (t->fd > 0) {
+        close(t->fd);
+        t->fd = -1;
+    }
+    if (t->io_timeout.repeat < MLVPN_IO_TIMEOUT_MAXIMUM)
+        t->io_timeout.repeat *= MLVPN_IO_TIMEOUT_INCREMENT;
+    return -1;
 }
 
 static void
@@ -1082,6 +1084,8 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
         if (t->fd < 0) {
             if (mlvpn_rtun_start(t) == 0) {
                 t->conn_attempts = 0;
+            } else {
+                return;
             }
         }
     } else {
@@ -1091,6 +1095,8 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
             if (t->fd < 0) {
                 if (mlvpn_rtun_start(t) == 0) {
                     t->conn_attempts = 0;
+                } else {
+                    return;
                 }
             }
         }

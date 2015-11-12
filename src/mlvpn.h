@@ -55,6 +55,23 @@
 #endif
 #define MLVPN_IFNAMSIZ IFNAMSIZ
 
+/* How frequently we check tunnels */
+#define MLVPN_IO_TIMEOUT_DEFAULT 1.0
+/* What is the maximum retry timeout */
+#define MLVPN_IO_TIMEOUT_MAXIMUM 60.0
+/* In case we can't open the tunnel, retry every time with previous
+ * timeout multiplied by the increment.
+ * Example:
+ * 1st try t+0: bind error
+ * 2nd try t+1: bind error
+ * 3rd try t+2: bind error
+ * 4rd try t+4: dns error
+ * ...
+ * n try t+60
+ * n+1 try t+60
+ */
+#define MLVPN_IO_TIMEOUT_INCREMENT 2
+
 #define NEXT_KEEPALIVE(now, t) (now + 2)
 
 struct mlvpn_options
