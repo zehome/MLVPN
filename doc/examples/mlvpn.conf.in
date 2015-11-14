@@ -71,20 +71,20 @@ cleartext_data = 0
 # This value is expressed in percent.
 #loss_tolerence = 10
 
-# Routing system
+# Filtering system
 # when MLVPN is configured to balance traffic across multiple links
-# It may be desirable to force some traffic (VoIP) through a specific
+# It may be required to force some traffic (VoIP) through a specific
 # interface. No reordering or load balancing will be applied on thoses
 # packets.
-# 
-# In order to define new force route, you must define a configuration
-# section begening with "route_".
-# The name of the route is defined after the underscore "_".
+#
 # The variables inside the block will define the interface your filter
 # will be routed to.
-# The order of the filters matters: first match is used first.
+# Filters are EXCLUSIVE FIRST MATCH. That means if a packet matches
+# an expression and the interface is ready to receive data,
+# filtering STOPS and the packet is sent.
 # Filters are pcap-filter(7). Like tcpdump. (man 7 pcap-filter)
-[route_icmp]
+
+[filters]
 dsl1 = ip proto icmp
 airlink = ip proto icmp
 
