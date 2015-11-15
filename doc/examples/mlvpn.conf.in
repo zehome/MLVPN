@@ -84,9 +84,9 @@ cleartext_data = 0
 # filtering STOPS and the packet is sent.
 # Filters are pcap-filter(7). Like tcpdump. (man 7 pcap-filter)
 
-[filters]
-dsl1 = ip proto icmp
-airlink = ip proto icmp
+#[filters]
+#dsl1 = ip proto icmp
+#airlink = ip proto icmp
 
 [dsl1]
 bindhost = "0.0.0.0"
