@@ -149,3 +149,86 @@ mlvpn_pktbuffer_read(circular_buffer_t *buf)
     return (mlvpn_pkt_t *)mlvpn_cb_read(buf,
                                         (void *)pktbuffer->pkts);
 }
+
+
+freebuffer_t *
+mlvpn_freebuffer_init(unsigned int size)
+{
+    unsigned int i;
+    struct pkt_entry *entry;
+    freebuffer_t *freebuf = calloc(size, sizeof(freebuffer_t));
+    if (freebuf == NULL) {
+        fatal("buffer", "memory allocation failed");
+    }
+    freebuf->size = size;
+    freebuf->used = 0;
+    TAILQ_INIT(&freebuf->free_head);
+    TAILQ_INIT(&freebuf->used_head);
+    for(i = 0; i < size; i++) {
+        entry = calloc(1, sizeof(struct pkt_entry));
+        if (entry == NULL) {
+            fatal("buffer", "memory allocation failed");
+        }
+        TAILQ_INSERT_HEAD(&freebuf->free_head, entry, entries);
+    }
+    return freebuf;
+}
+
+void
+mlvpn_freebuffer_reset(freebuffer_t *freebuf) 
+{
+    struct pkt_entry *entry;
+    while(!TAILQ_EMPTY(&freebuf->used_head)) {
+        entry = TAILQ_FIRST(&freebuf->used_head);
+        TAILQ_REMOVE(&freebuf->used_head, entry, entries);
+        TAILQ_INSERT_HEAD(&freebuf->free_head, entry, entries);
+    }
+    freebuf->used = 0;
+}
+
+mlvpn_pkt_t *
+mlvpn_freebuffer_get(freebuffer_t *freebuf)
+{
+    struct pkt_entry *entry = TAILQ_FIRST(&freebuf->free_head);
+    if (entry) {
+        TAILQ_REMOVE(&freebuf->free_head, entry, entries);
+        TAILQ_INSERT_TAIL(&freebuf->used_head, entry, entries);
+        freebuf->used++;
+        return &entry->pkt;
+    } else {
+        return NULL;
+    }
+}
+
+mlvpn_pkt_t *
+mlvpn_freebuffer_drain_used(freebuffer_t *freebuf)
+{
+    /* We get the elements in reverse order there... Not ideal */
+    struct pkt_entry *entry = TAILQ_FIRST(&freebuf->used_head);
+    if (entry) {
+        TAILQ_REMOVE(&freebuf->used_head, entry, entries);
+        TAILQ_INSERT_HEAD(&freebuf->free_head, entry, entries);
+        freebuf->used--;
+        return &entry->pkt;
+    } else {
+        return NULL;
+    }
+}
+
+void
+mlvpn_freebuffer_free(freebuffer_t *freebuf, mlvpn_pkt_t *pkt)
+{
+    struct pkt_entry *entry;
+    mlvpn_pkt_t *p;
+    TAILQ_FOREACH(entry, &freebuf->used_head, entries)
+    {
+        p = &entry->pkt;
+        if (p == pkt) {
+            TAILQ_REMOVE(&freebuf->used_head, entry, entries);
+            TAILQ_INSERT_HEAD(&freebuf->free_head, entry, entries);
+            freebuf->used--;
+            return;
+        }
+    }
+    fatalx("freebuffer_free could not find the packet you gave me.");
+}

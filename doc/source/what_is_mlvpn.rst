@@ -19,7 +19,7 @@ scenarios.
 
 Features
 ========
-  * Bandwidth agregation of multiple internet connections
+  * Bandwidth aggregation of multiple internet connections
   * Automatic failover, without changing IP addresses or interrupting TCP connections in case of a failure
   * Encrypt and authenticate connections using libsodium_.
   * Hot configuration reload (by signaling SIGHUP)
@@ -31,23 +31,16 @@ Features
 Limitations
 ===========
 
-3G/4G and ADSL
-==============
-mlvpn can't aggregate links too dis-similar. For example, you can't aggregate
-3G link and an ADSL link properly. You can do failover scenarios however.
+Non equivalent links (3G/4G and *DSL or WIFI and *DSL)
+======================================================
+mlvpn can aggregate very different links if reordering is enabled.
 
-Aggregating links too different is difficult because mlvpn does **not** do
-re-ordering of packets sent over the links. The TCP connection
-inside the mlvpn tunnel will then see very dis-ordered packets and will
-cap the bandwidth to the slowest's link.
+If you have a high latency 3G/4G link and a DSL connection, then
+adjust reorder_buffer_size to a reasonable value to get good performance.
 
-Another problem is that 3G connections tends to drop packets a lot.
-TCP connection will suffer a **LOT** from this and the bandwidth can't be agregated properly.
+Note that the created aggregated link will have the WORST latency of all the links. ie: the 3G/4G link.
 
+Re-ordering is important because packets are not sent at the same speed
+on every path. Packets would come of order which confuses a LOT TCP.
+Without re-ordering enabled, expect to have the bandwidth of the slowest link.
 
-Wifi and ADSL
-=============
-The same applies as when using 3G and ADSL. This time, it's the network latency jitter
-which will work against the agregation.
-
-You can try it anyway, as the results may differ, based on the quality of your wifi link.

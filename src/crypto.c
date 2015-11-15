@@ -54,8 +54,3 @@ int crypto_decrypt(unsigned char *m, const unsigned char *c,
 {
     return crypto_secretbox_open_easy(m, c, clen, nonce, key);
 }
-
-void crypto_nonce_random(unsigned char *nonce, int len)
-{
-    randombytes_buf(nonce, len);
-}

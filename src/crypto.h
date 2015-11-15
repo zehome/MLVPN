@@ -15,6 +15,6 @@ int crypto_encrypt(unsigned char *c, const unsigned char *m,
 int crypto_decrypt(unsigned char *m, const unsigned char *c,
                    unsigned long long clen,
                    const unsigned char *nonce);
-void crypto_nonce_random(unsigned char *nonce, int len);
+#define crypto_nonce_random randombytes_random
 
 #endif

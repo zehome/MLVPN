@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define _BSD_SOURCE
+#define _DEFAULT_SOURCE
 #define _GNU_SOURCE
 
 #include "includes.h"
@@ -187,6 +187,11 @@ priv_init(char *argv[], char *username)
         }
         close(socks[0]);
         priv_fd = socks[1];
+#ifdef HAVE_PLEDGE
+        if (pledge("stdio inet unix recvfd", NULL) != 0) {
+            err(1, "pledge");
+        }
+#endif
         return 0;
     }
     /* Father */
@@ -310,11 +315,11 @@ priv_init(char *argv[], char *username)
                          path, strerror(errno));
             } else if (st.st_mode & (S_IRWXG|S_IRWXO)) {
                 snprintf(errormessage, ERRMSGSIZ,
-                         "%s is group/other accessible. Fix permissions.",
+                         "%s is group/other accessible",
                          path);
             } else if (!(st.st_mode & S_IXUSR)) {
                 snprintf(errormessage, ERRMSGSIZ,
-                         "%s is not executable. Fix permissions.",
+                         "%s is not executable",
                          path);
             } else {
                 strlcpy(script_path, path, len);
@@ -436,6 +441,11 @@ priv_init(char *argv[], char *username)
 
         case PRIV_SET_RUNNING_STATE:
             increase_state(STATE_RUNNING);
+#ifdef HAVE_PLEDGE
+            if (pledge("rpath stdio dns sendfd exec proc", NULL) != 0) {
+                err(1, "pledge");
+            }
+#endif
             break;
 
         default:

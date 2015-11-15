@@ -123,7 +123,7 @@ Again, we can test the link:
     64 bytes from 213.186.33.13: icmp_req=1 ttl=51 time=62.4 ms
     64 bytes from 213.186.33.13: icmp_req=2 ttl=51 time=61.1 ms
 
-Noticed we changed the source address, and the latency is higher on ADSL2 by ~ 20ms.
+Noticed we changed the source address.
 
 Everything is fine, let's cleanup the routing table:
 
@@ -323,27 +323,25 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     [general]
     statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
     tuntap = "tun"
-    loglevel = 1
     mode = "client"
     interface_name = "mlvpn0"
     timeout = 30
-    password = "pleasechangeme!"
+    password = "you have not changed me yet?"
+    reorder_buffer_size = 64
+    loss_tolerence = 50
+
+    [filters]
 
     [adsl1]
     bindhost = "192.168.1.2"
     remotehost = "128.128.128.128"
     remoteport = 5080
-    bandwidth_upload = 61440
 
     [adsl2]
     bindhost = "192.168.2.2"
     remotehost = "128.128.128.128"
     remoteport = 5081
-    bandwidth_upload = 61440
 
-
-Little note, we are adding 10 ms of latency on adsl1 to match the latency of adsl2.
-This is a little trick to help mlvpn aggregation. (Latency must be matched)
 
 mlvpn0_updown.sh
 ~~~~~~~~~~~~~~~~~
@@ -401,19 +399,20 @@ mlvpn0.conf
     [general]
     statuscommand = "/etc/mlvpn/mlvpn0_updown.sh"
     tuntap = "tun"
-    loglevel = 1
     mode = "server"
     interface_name = "mlvpn0"
     timeout = 30
     password = "pleasechangeme!"
+    reorder_buffer_size = 64
+    loss_tolerence = 50
+
+    [filters]
 
     [adsl1]
     bindport = 5080
-    bandwidth_upload = 512000
 
     [adsl2]
     bindport = 5081
-    bandwidth_upload = 512000
 
 
 mlvpn0_updown.sh
@@ -490,5 +489,5 @@ Seems good. Let's test the ICMP echo reply. (ping)
     # Testing connectivity to the internet
     root@client:~ # ping -n -c1 -I192.168.0.1 proof.ovh.net
     # Download speed testing
-    root@client:~ # wget -O/dev/null http://proof.ovh.net/files/10Gio.dat
+    root@client:~ # wget -4 -O/dev/null http://proof.ovh.net/files/10Gio.dat
 
