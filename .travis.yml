@@ -6,9 +6,7 @@ compiler:
 sudo: false
 branches:
   only:
-    - ev
-    - reorder
-    - filters
+    - master
     - debian-unstable
     - coverity_scan
 before_install:
