@@ -12,6 +12,7 @@ Debug tokens
 MLVPN can filter debug messages based on specific tokens using -D argument.
 
 Tokens available:
+
     - config: configuration file related
     - control: control socket related (HTTP/json, UNIX socket)
     - dns: DNS related

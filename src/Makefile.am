@@ -17,9 +17,9 @@ mlvpn_SOURCES = \
     wrr.c \
     crypto.c crypto.h \
     log.c log.h \
-    tuntap_generic.h \
     reorder.h reorder.c \
     timestamp.h timestamp.c \
+    tuntap_generic.c tuntap_generic.h \
     mlvpn.c mlvpn.h
 
 # There are better ways to do that, using a "compat" library
@@ -66,3 +66,9 @@ EXTRA_DIST = \
 
 mlvpn_LDADD=-lm $(libsodium_LIBS) $(libev_LIBS)
 mlvpn_CFLAGS=$(CFLAGS) $(libsodium_CFLAGS) $(libev_CFLAGS)
+
+if ENABLE_FILTERS
+mlvpn_SOURCES += filters.c
+mlvpn_LDADD += -lpcap
+mlvpn_CFLAGS += $(libpcap_CFLAGS)
+endif

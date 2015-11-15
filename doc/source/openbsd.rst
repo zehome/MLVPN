@@ -2,6 +2,17 @@
 Building mlvpn on OpenBSD
 =========================
 
+Install since OpenBSD 5.9
+=========================
+
+mlvpn is part of OpenBSD port system since OpenBSD 5.9. You can install
+it as a package:
+
+.. code-block:: sh
+
+    pkg_add mlvpn
+
+
 Installing requirements
 =======================
 
@@ -26,4 +37,4 @@ Building mlvpn
 
 Configuration
 =============
-Example configuration files for OpenBSD are located in **examples/mlvpn_updown.sh**.
+Example configuration files for OpenBSD are located in **/usr/local/share/examples/mlvpn/**.

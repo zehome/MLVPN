@@ -45,13 +45,17 @@ if you want good balancing of the links.
   * `--debug`:
     log to stderr instead of syslog
 
+  * `-D`_token_:
+    only show messages of specified _token_. See README.debug.md for available
+    tokens. -D can be specified multiple times
+
   * `--verbose`, `-v`:
     increases verbosity (repeat multiple times to increase more)
 
   * `--quiet`, `-q`:
     decrease verbosity
     The verbosity will print usefull messages and errors only.
-    If `--quiet` is specified, then only errors will be shown / logged.
+    If `--quiet` is specified, then only errors will be shown / logged
 
   * `--yes-run-as-root`:
     don't drop privileges, kills privilege separation,
@@ -65,12 +69,14 @@ if you want good balancing of the links.
 
 ## LOGGING
   mlvpn uses syslog if `--debug` is not specified.
-  if `--debug` is specified, then mlvpn will will output on the standard error.
-  refer to README.debug.md for more debugging informations.
+  if `--debug` is specified, mlvpn sends logging messages to syslog.
 
 ## FILES
   * _/etc/mlvpn/*.conf_:
     configuration files for **mlvpn**
+
+## DEBUGGING
+  refer to README.debug.md for more debugging informations.
 
 ## SEE ALSO
 

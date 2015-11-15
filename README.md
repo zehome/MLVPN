@@ -32,7 +32,6 @@ sudo apt-get update
 sudo apt-get install mlvpn
 ```
 
-
 Install FreeBSD port
 --------------------
 ```sh
@@ -108,6 +107,7 @@ Contributors
   * Thomas Soëte, contributor (bugfix)
   * Frank Denis, contributor (documentation)
   * Nicolas Braud-Santoni, contributor (documentation)
+  * Stuart Henderson, contributor (OpenBSD port/package)
 
 LICENSE
 =======

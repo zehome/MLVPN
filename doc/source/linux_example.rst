@@ -328,6 +328,9 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     timeout = 30
     password = "you have not changed me yet?"
     reorder_buffer_size = 64
+    loss_tolerence = 50
+
+    [filters]
 
     [adsl1]
     bindhost = "192.168.1.2"
@@ -401,6 +404,9 @@ mlvpn0.conf
     timeout = 30
     password = "pleasechangeme!"
     reorder_buffer_size = 64
+    loss_tolerence = 50
+
+    [filters]
 
     [adsl1]
     bindport = 5080
@@ -483,5 +489,5 @@ Seems good. Let's test the ICMP echo reply. (ping)
     # Testing connectivity to the internet
     root@client:~ # ping -n -c1 -I192.168.0.1 proof.ovh.net
     # Download speed testing
-    root@client:~ # wget -O/dev/null http://proof.ovh.net/files/10Gio.dat
+    root@client:~ # wget -4 -O/dev/null http://proof.ovh.net/files/10Gio.dat
 

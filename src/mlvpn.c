@@ -84,8 +84,7 @@ struct mlvpn_status_s mlvpn_status = {
     .connected = 0,
     .initialized = 0
 };
-
-struct mlvpn_options mlvpn_options = {
+struct mlvpn_options_s mlvpn_options = {
     .change_process_title = 1,
     .process_name = "mlvpn",
     .control_unix_path = "",
@@ -106,6 +105,9 @@ struct mlvpn_options mlvpn_options = {
     .cleartext_data = 1,
     .root_allowed = 0,
     .reorder_buffer_size = 0
+};
+struct mlvpn_filters_s mlvpn_filters = {
+    .count = 0
 };
 
 struct mlvpn_reorder_buffer *reorder_buffer;
@@ -147,7 +149,6 @@ static int
 mlvpn_protocol_read(mlvpn_tunnel_t *tun,
                     mlvpn_pkt_t *rawpkt,
                     mlvpn_pkt_t *decap_pkt);
-
 
 
 static void
@@ -283,7 +284,7 @@ mlvpn_rtun_recv_data(mlvpn_tunnel_t *tun, mlvpn_pkt_t *inpkt)
 {
     int ret;
     uint32_t drained;
-    if (reorder_buffer == NULL) {
+    if (reorder_buffer == NULL || !inpkt->reorder) {
         mlvpn_rtun_inject_tuntap(inpkt);
         return 1;
     } else {
@@ -362,8 +363,8 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-        log_debug("net", "< %s recv %d bytes (type=%d, seq=%"PRIu64")",
-            tun->name, (int)len, decap_pkt.type, decap_pkt.seq);
+        log_debug("net", "< %s recv %d bytes (type=%d, seq=%"PRIu64", reorder=%d)",
+            tun->name, (int)len, decap_pkt.type, decap_pkt.seq, decap_pkt.reorder);
 
         if (decap_pkt.type == MLVPN_PKT_DATA) {
             if (tun->status >= MLVPN_AUTHOK) {
@@ -416,7 +417,7 @@ mlvpn_protocol_read(
         goto fail;
     }
     memcpy(&proto, pkt->data, pkt->len);
-    rlen = ntohs(proto.len);
+    rlen = be16toh(proto.len);
     if (rlen == 0 || rlen > sizeof(proto.data)) {
         log_warnx("protocol", "%s invalid packet size: %d", tun->name, rlen);
         goto fail;
@@ -447,8 +448,14 @@ mlvpn_protocol_read(
 #endif
     decap_pkt->len = rlen;
     decap_pkt->type = proto.flags;
-    decap_pkt->seq = be64toh(proto.data_seq);
-    mlvpn_loss_update(tun, decap_pkt->seq);
+    if (proto.version >= 1) {
+        decap_pkt->reorder = proto.reorder;
+        decap_pkt->seq = be64toh(proto.data_seq);
+        mlvpn_loss_update(tun, decap_pkt->seq);
+    } else {
+        decap_pkt->reorder = 0;
+        decap_pkt->seq = 0;
+    }
     if (proto.timestamp != (uint16_t)-1) {
         tun->saved_timestamp = proto.timestamp;
         tun->saved_timestamp_received_at = now64;
@@ -487,14 +494,18 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     memset(&proto, 0, sizeof(proto));
 
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
-    if (pkt->type == MLVPN_PKT_DATA) {
+    if (pkt->type == MLVPN_PKT_DATA && pkt->reorder) {
         proto.data_seq = data_seq++;
     }
     wlen = PKTHDRSIZ(proto) + pkt->len;
     proto.len = pkt->len;
     proto.flags = pkt->type;
-    proto.seq = tun->seq++;
+    if (pkt->reorder) {
+        proto.seq = tun->seq++;
+    }
     proto.flow_id = tun->flow_id;
+    proto.version = MLVPN_PROTOCOL_VERSION;
+    proto.reorder = pkt->reorder;
 
     /* we have a recent received timestamp */
     if (now64 - tun->saved_timestamp_received_at < 1000 ) {
@@ -535,7 +546,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 #else
     memcpy(&proto.data, &pkt->data, wlen);
 #endif
-    proto.len = htons(proto.len);
+    proto.len = htobe16(proto.len);
     proto.seq = htobe64(proto.seq);
     proto.data_seq = htobe64(proto.data_seq);
     proto.flow_id = htobe32(proto.flow_id);
@@ -555,10 +566,10 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
         if (wlen != ret)
         {
             log_warnx("net", "%s write error %d/%u",
-               tun->name, (int)ret, (unsigned int)wlen);
+                tun->name, (int)ret, (unsigned int)wlen);
         } else {
-            log_debug("net", "> %s sent %d bytes (packet=%d bytes)",
-               tun->name, (int)ret, pkt->len);
+            log_debug("net", "> %s sent %d bytes (size=%d, type=%d, seq=%"PRIu64", reorder=%d)",
+                tun->name, (int)ret, pkt->len, pkt->type, pkt->seq, pkt->reorder);
         }
     }
 
@@ -611,8 +622,9 @@ mlvpn_rtun_new(const char *name,
     }
 
     new = (mlvpn_tunnel_t *)calloc(1, sizeof(mlvpn_tunnel_t));
+    if (! new)
+        fatal(NULL, "calloc failed");
     /* other values are enforced by calloc to 0/NULL */
-
     new->name = strdup(name);
     new->fd = -1;
     new->server_mode = server_mode;
@@ -635,48 +647,28 @@ mlvpn_rtun_new(const char *name,
     new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
     new->loss_tolerence = loss_tolerence;
-
     if (bindaddr)
-    {
-        new->bindaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
-        strlcpy(new->bindaddr, bindaddr, MLVPN_MAXHNAMSTR);
-    }
-
+        strlcpy(new->bindaddr, bindaddr, sizeof(new->bindaddr));
     if (bindport)
-    {
-        new->bindport = calloc(1, MLVPN_MAXPORTSTR+1);
-        strlcpy(new->bindport, bindport, MLVPN_MAXPORTSTR);
-    }
-
+        strlcpy(new->bindport, bindport, sizeof(new->bindport));
     if (destaddr)
-    {
-        new->destaddr = calloc(1, MLVPN_MAXHNAMSTR+1);
-        strlcpy(new->destaddr, destaddr, MLVPN_MAXHNAMSTR);
-    }
-
+        strlcpy(new->destaddr, destaddr, sizeof(new->destaddr));
     if (destport)
-    {
-        new->destport = calloc(1, MLVPN_MAXPORTSTR+1);
-        strlcpy(new->destport, destport, MLVPN_MAXPORTSTR);
-    }
-
+        strlcpy(new->destport, destport, sizeof(new->destport));
     new->sbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
     new->hpsbuf = mlvpn_pktbuffer_init(PKTBUFSIZE);
-
     mlvpn_rtun_tick(new);
-
     new->timeout = timeout;
     new->next_keepalive = 0;
-
     LIST_INSERT_HEAD(&rtuns, new, entries);
-
     new->io_read.data = new;
     new->io_write.data = new;
     new->io_timeout.data = new;
     ev_init(&new->io_read, mlvpn_rtun_read);
     ev_init(&new->io_write, mlvpn_rtun_write);
-    ev_timer_init(&new->io_timeout, mlvpn_rtun_check_timeout, 1.0, 1.0);
-    mlvpn_rtun_tick_connect(new);
+    ev_timer_init(&new->io_timeout, mlvpn_rtun_check_timeout,
+        0., MLVPN_IO_TIMEOUT_DEFAULT);
+    ev_timer_start(EV_A_ &new->io_timeout);
     update_process_title();
     return new;
 }
@@ -697,14 +689,6 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
             LIST_REMOVE(tmp, entries);
             if (tmp->name)
                 free(tmp->name);
-            if (tmp->bindaddr)
-                free(tmp->bindaddr);
-            if (tmp->bindport)
-                free(tmp->bindport);
-            if (tmp->destaddr)
-                free(tmp->destaddr);
-            if (tmp->destport)
-                free(tmp->destport);
             if (tmp->addrinfo)
                 freeaddrinfo(tmp->addrinfo);
             mlvpn_pktbuffer_free(tmp->sbuf);
@@ -779,7 +763,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
 
     /* Try open socket with each address getaddrinfo returned,
        until getting a valid listening socket. */
-    log_info(NULL, "%s bind to %s", t->name, t->bindaddr ? t->bindaddr : "any");
+    log_info(NULL, "%s bind to %s", t->name, *t->bindaddr ? t->bindaddr : "any");
     n = bind(fd, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(res);
     if (n < 0)
@@ -837,28 +821,21 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
         res = res->ai_next;
     }
 
-    if (fd < 0)
-    {
+    if (fd < 0) {
         log_warnx("dns", "%s connection failed. Check DNS?",
             t->name);
-        return 1;
+        goto error;
     }
 
     /* setup non blocking sockets */
     socklen_t val = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(socklen_t)) < 0) {
         log_warn(NULL, "%s setsockopt SO_REUSEADDR failed", t->name);
-        close(t->fd);
-        t->fd = -1;
-        return -1;
+        goto error;
     }
-    if (t->bindaddr || t->server_mode)
-    {
-        if (mlvpn_rtun_bind(t) < 0)
-        {
-            log_warnx(NULL, "%s bind error", t->name);
-            if (t->server_mode)
-                return -2;
+    if (*t->bindaddr) {
+        if (mlvpn_rtun_bind(t) < 0) {
+            goto error;
         }
     }
 
@@ -868,8 +845,16 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     ev_io_set(&t->io_read, fd, EV_READ);
     ev_io_set(&t->io_write, fd, EV_WRITE);
     ev_io_start(EV_A_ &t->io_read);
-    ev_timer_again(EV_A_ &t->io_timeout);
+    t->io_timeout.repeat = MLVPN_IO_TIMEOUT_DEFAULT;
     return 0;
+error:
+    if (t->fd > 0) {
+        close(t->fd);
+        t->fd = -1;
+    }
+    if (t->io_timeout.repeat < MLVPN_IO_TIMEOUT_MAXIMUM)
+        t->io_timeout.repeat *= MLVPN_IO_TIMEOUT_INCREMENT;
+    return -1;
 }
 
 static void
@@ -1082,6 +1067,8 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
         if (t->fd < 0) {
             if (mlvpn_rtun_start(t) == 0) {
                 t->conn_attempts = 0;
+            } else {
+                return;
             }
         }
     } else {
@@ -1091,6 +1078,8 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
             if (t->fd < 0) {
                 if (mlvpn_rtun_start(t) == 0) {
                     t->conn_attempts = 0;
+                } else {
+                    return;
                 }
             }
         }
@@ -1519,5 +1508,3 @@ main(int argc, char **argv)
     free(_progname);
     return 0;
 }
-
-

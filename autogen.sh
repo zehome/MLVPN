@@ -6,6 +6,7 @@ AUTOCONF=${AUTOCONF:-autoconf}
 AUTOHEADER=${AUTOHEADER:-autoheader}
 AUTOMAKE=${AUTOMAKE:-automake}
 
+
 # Check we have all tools installed
 check_command() {
     command -v "${1}" > /dev/null 2>&1 || {

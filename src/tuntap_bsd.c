@@ -18,59 +18,30 @@ int
 mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
     circular_buffer_t *sbuf;
-    mlvpn_tunnel_t *rtun;
+    mlvpn_tunnel_t *rtun = NULL;
     mlvpn_pkt_t *pkt;
-    int ret;
-    uint32_t type;
+    ssize_t ret;
+    u_char data[DEFAULT_MTU]
     struct iovec iov[2];
-
-    /* choosing a tunnel to send to (direct buffer copy) */
-    rtun = mlvpn_rtun_choose();
-
-    /* Not connected to anyone. read and discard packet. */
-    if (! rtun)
-    {
-        char blackhole[tuntap->maxmtu + sizeof(type)];
-        return read(tuntap->fd, blackhole, sizeof(blackhole));
-    }
-
-    /* Buffer checking / reset in case of overflow */
-    sbuf = rtun->sbuf;
-    if (mlvpn_cb_is_full(sbuf))
-        log_warnx("tuntap",
-            "%s buffer: overflow", rtun->name);
-
-    /* Ask for a free buffer */
-    pkt = mlvpn_pktbuffer_write(sbuf);
+    uint32_t type;
 
     iov[0].iov_base = &type;
     iov[0].iov_len = sizeof(type);
-    iov[1].iov_base = pkt->data;
+    iov[1].iov_base = &data;
     iov[1].iov_len = DEFAULT_MTU;
-
     ret = readv(tuntap->fd, iov, 2);
-    if (ret < 0)
-    {
+    if (ret < 0) {
         /* read error on tuntap is not recoverable. We must die. */
         fatal("tuntap", "unrecoverable read error");
-    } else if (ret == 0) {
-        /* End of file */
+    } else if (ret == 0) { /* End of file */
         fatalx("tuntap device closed");
-    }
-    pkt->len = ret - sizeof(type);
-    if (pkt->len > tuntap->maxmtu)
-    {
+    } else if (ret > tuntap->maxmtu)  {
         log_warnx("tuntap",
-            "cannot send packet: too big %d/%d",
-            pkt->len, tuntap->maxmtu);
-        pkt->len = tuntap->maxmtu;
+            "cannot send packet: too big %d/%d. truncating",
+            (uint32_t)ret, tuntap->maxmtu);
+        ret = tuntap->maxmtu;
     }
-
-    if (!ev_is_active(&rtun->io_write) && !mlvpn_cb_is_empty(rtun->sbuf)) {
-        ev_io_start(EV_DEFAULT_UC, &rtun->io_write);
-    }
-
-    return pkt->len;
+    return mlvpn_tuntap_generic_read(data, ret);
 }
 
 int
@@ -96,12 +67,10 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
 
     len = writev(tuntap->fd, iov, 2);
     datalen = len - iov[0].iov_len;
-    if (len < 0)
-    {
+    if (len < 0) {
         log_warn("tuntap", "%s write error", tuntap->devname);
     } else {
-        if (datalen != pkt->len)
-        {
+        if (datalen != pkt->len) {
             log_warnx("tuntap", "%s write error: only %d/%d bytes sent",
                tuntap->devname, datalen, pkt->len);
         } else {
