@@ -1,3 +1,9 @@
+mlvpn (2.3.0~bpo70+1) wheezy-backports; urgency=medium
+
+  *  Update to 2.3.0
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Mon, 16 Nov 2015 15:03:46 +0100
+
 mlvpn (2.1.4~bpo70+1) wheezy-backports; urgency=medium
 
   * Update to 2.1.4 release.
