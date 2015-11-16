@@ -3,12 +3,12 @@
 # This command will be called as root.
 statuscommand = "@sysconfdir@/mlvpn/mlvpn_updown.sh"
 
-# Tunnel mode
+# Tunnel mode
 # "server" will listen for connections
 # "client" will just connect to "remotehost/remoteport"
 mode = "client"
 
-# Interface configuration
+# Interface configuration
 # IPv4 address of the tunnel on the local side (don't forget the cidr mask)
 #ip4 = "10.42.43.1/30"
 # IPv6 address of the tunnel on the local side (don't forget the cidr mask)
@@ -39,7 +39,7 @@ tuntap = "tun"
 interface_name = "mlvpn0"
 
 # After "timeout" seconds of inactivity, the link will be considered
-# dead and will be disconnected.
+# dead and will be disconnected.
 timeout = 30
 
 password = "pleasechangeme!"
@@ -59,30 +59,30 @@ cleartext_data = 0
 #control_bind_port = "1040"
 
 # Reordering
-# reorder_buffer_size corresponds to a number of packets mlvpn should hold
-# in case you want to enable re-ordering system.
+# reorder_buffer_size corresponds to a number of packets mlvpn should hold
+# in case you want to enable re-ordering system.
 # Don't put insane values, 64 is usually sufficient for most DSL links.
-# reorder_buffer_size is 0 (disabled) by default.
+# reorder_buffer_size is 0 (disabled) by default.
 #reorder_buffer_size = 64
 
 # Loss tolerence
 # Defines the maximum loss ratio accepted before the link affected is being
-# considered too lossy and removed from agregation.
+# considered too lossy and removed from agregation.
 # This value is expressed in percent.
 #loss_tolerence = 10
 
 # Filtering system
-# when MLVPN is configured to balance traffic across multiple links
-# It may be required to force some traffic (VoIP) through a specific
+# when MLVPN is configured to balance traffic across multiple links
+# It may be required to force some traffic (VoIP) through a specific
 # interface. No reordering or load balancing will be applied on thoses
-# packets.
+# packets.
 #
-# The variables inside the block will define the interface your filter
-# will be routed to.
+# The variables inside the block will define the interface your filter
+# will be routed to.
 # Filters are EXCLUSIVE FIRST MATCH. That means if a packet matches
 # an expression and the interface is ready to receive data,
 # filtering STOPS and the packet is sent.
-# Filters are pcap-filter(7). Like tcpdump. (man 7 pcap-filter)
+# Filters are pcap-filter(7). Like tcpdump. (man 7 pcap-filter)
 
 #[filters]
 #dsl1 = ip proto icmp
