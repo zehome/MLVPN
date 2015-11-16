@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "MLVPN\.CONF" "5" "February 2015" "" ""
+.TH "MLVPN\.CONF" "5" "November 2015" "" ""
 .
 .SH "NAME"
 \fBmlvpn\.conf\fR \- MLVPN configuration
@@ -57,9 +57,6 @@ See the example file \fImlvpn_updown\.sh\fR for more informations
 
 .
 .IP "\(bu" 4
-\fIloglevel\fR = 1 Change the log level (0=errors, 1=info (recommanded), 2=debug)
-.
-.IP "\(bu" 4
 \fItimeout\fR = 30 Timeout, expressed in seconds\.
 .
 .IP
@@ -92,6 +89,24 @@ Use with cautions\.
 .IP "\(bu" 4
 \fIcontrol_bind_port\fR = "" Bind port of the remote control\. (HTTP)
 .
+.IP "\(bu" 4
+\fIreorder_buffer_size\fR = 0 mlvpn includes a reordering algorithm for it\'s aggregation\. This variable defines how many packets can be held in case one end of the tunnel does receive data ouf ot order\.
+.
+.IP
+Experiment to know what value is best for you\. Good starting point can be as small as 64 packets\.
+.
+.IP
+\fB0\fR disables the reordering\.
+.
+.IP "\(bu" 4
+\fIloss_tolerence\fR = 0 mlvpn monitors packet loss on every link\. If the packet loss ratio on a link exceed the specified value in percent, the link changes state to MLVPN_LOSSY and is removed from aggregation\.
+.
+.IP
+Lossy links ARE used anyway if no other choices are available (if all links are lossy)
+.
+.IP
+\fB100 or more\fR disables the loss tolerence system\.
+.
 .IP "" 0
 .
 .SS " TUNNELS"
@@ -113,10 +128,10 @@ The section name is mapped to the tunnel name\. Example: "[adsl1]", "[adsl2]"\.
 \fIremoteport\fR = 5080 Port of the remote host\. (client)
 .
 .IP "\(bu" 4
-\fIbandwidth_upload\fR = 61440 Maxiumm upload bandwidth, in bytes for this link\.
+\fIbandwidth_upload\fR = 61440 Maximum upload bandwidth, in bytes for this link\.
 .
 .IP
-Bandwidth is specified in Bytes (1KiB = 1024Bytes)\.
+Bandwidth is specified in Bytes (1 KiB is 1024 Bytes)\.
 .
 .IP
 This is used to setup the weight round\-robin balancing algorithm\. Set 0 if both links are similar\. (client/server)
@@ -129,8 +144,38 @@ This is used to setup the weight round\-robin balancing algorithm\. Set 0 if bot
 .
 .IP "" 0
 .
+.SS " FILTERS"
+\fB[filters]\fR section associate a bpf(4) filter to a specific interface\. Filters are used when aggregation is used but you want to pass some traffic specifically through only one interface, without re\-ordering\. (Like for using VoIP)
+.
+.P
+Example filters:
+.
+.P
+\fB[filters]\fR
+.
+.P
+\fBsdsl = udp port 5060\fR
+.
+.P
+\fBadsl = udp port 5060\fR
+.
 .SH "RELOADING"
 The configuration can be reloaded at any moment by sending SIGHUP to the child mlvpn process\.
+.
+.SH "REORDERING"
+The reorder buffer will be sent "as is" on the network if the buffer can\'t be reconstructed in time, ie: packet loss\. (SRTT * 2)
+.
+.SH "STATUS"
+MLVPN status can be monitored by using ps\. mlvpn prints it\'s \-\-name, then the status of each tunnel prefixed by the status\.
+.
+.P
+Status availables: \fB!\fR: down, \fB@\fR: up, \fB~\fR: lossy
+.
+.P
+Example: \fBmlvpn: adsl3g !3g @adsl ~wifi\fR
+.
+.P
+3g is \fBdown\fR, adsl is \fBup\fR and wifi is \fBlossy\fR (up, but above loss_tolerence threshold)\.
 .
 .SH "EXAMPLE"
 See examples/mlvpn\.conf

@@ -2,7 +2,7 @@
 #define _MLVPN_BUFFER_H
 
 #include <sys/types.h>
-
+#include <sys/queue.h>
 #include "pkt.h"
 
 /* Basic circular buffer
@@ -21,6 +21,19 @@ typedef struct
 {
     mlvpn_pkt_t **pkts;
 } pktbuffer_t;
+
+
+struct pkt_entry {
+    mlvpn_pkt_t pkt;
+    TAILQ_ENTRY(pkt_entry) entries;
+};
+
+typedef struct {
+    uint32_t size;
+    uint32_t used;
+    TAILQ_HEAD(, pkt_entry) free_head;
+    TAILQ_HEAD(, pkt_entry) used_head;
+} freebuffer_t;
 
 /**
  * Generic circular buffer handling
@@ -72,5 +85,24 @@ mlvpn_pktbuffer_read_norelease(circular_buffer_t *buf);
 
 mlvpn_pkt_t *
 mlvpn_pktbuffer_write(circular_buffer_t *buf);
+
+
+/**
+ * Single allocation buffers (used for reordering)
+ */
+freebuffer_t *
+mlvpn_freebuffer_init(uint32_t size);
+
+void
+mlvpn_freebuffer_reset(freebuffer_t *freebuf);
+
+mlvpn_pkt_t *
+mlvpn_freebuffer_get(freebuffer_t *freebuf);
+
+void
+mlvpn_freebuffer_free(freebuffer_t *freebuf, mlvpn_pkt_t *pkt);
+
+mlvpn_pkt_t *
+mlvpn_freebuffer_drain_used(freebuffer_t *freebuf);
 
 #endif

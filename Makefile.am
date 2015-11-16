@@ -18,4 +18,9 @@ $(top_srcdir)/.version:
 	echo $(VERSION) > $(top_srcdir)/.version
 
 SUBDIRS = src man doc
-dist_doc_DATA = AUTHORS README.md
+dist_doc_DATA = AUTHORS README.md README.OpenBSD.md README.NetBSD.md README.debug.md README.Debian
+
+release:
+	git describe --tags >.tarball-version
+	./autogen.sh
+	make dist

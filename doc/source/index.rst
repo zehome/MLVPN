@@ -23,6 +23,7 @@ Example scenarios
     :maxdepth: 1
 
     linux_example
+    filters_guide
 
 Developer guide
 ---------------

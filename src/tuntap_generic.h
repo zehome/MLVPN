@@ -35,5 +35,6 @@ struct tuntap_s
 int mlvpn_tuntap_alloc(struct tuntap_s *tuntap);
 int mlvpn_tuntap_read(struct tuntap_s *tuntap);
 int mlvpn_tuntap_write(struct tuntap_s *tuntap);
+int mlvpn_tuntap_generic_read(u_char *data, uint32_t len);
 
 #endif

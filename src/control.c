@@ -65,8 +65,10 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl);
     "   \"recvpackets\": %" PRIu64 ",\n" \
     "   \"sentbytes\": %" PRIu64 ",\n" \
     "   \"recvbytes\": %" PRIu64 ",\n" \
-    "   \"bandwidth\": %d,\n" \
-    "   \"disconnects\": %d,\n" \
+    "   \"bandwidth\": %u,\n" \
+    "   \"srtt\": %u,\n" \
+    "   \"loss\": %u,\n" \
+    "   \"disconnects\": %u,\n" \
     "   \"last_packet\": %u,\n" \
     "   \"timeout\": %u\n" \
     "}%s\n"
@@ -400,12 +402,16 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
         char *mode = t->server_mode ? "server" : "client";
         char *status;
 
-        if (t->status == MLVPN_CHAP_DISCONNECTED)
+        if (t->status == MLVPN_DISCONNECTED)
             status = "disconnected";
-        else if (t->status == MLVPN_CHAP_AUTHSENT)
+        else if (t->status == MLVPN_AUTHSENT)
             status = "waiting peer";
-        else
+        else if (t->status == MLVPN_AUTHOK)
             status = "connected";
+        else if (t->status == MLVPN_LOSSY)
+            status = "lossy link";
+        else
+            status = "unknown";
 
         ret = snprintf(buf, 1024, JSON_STATUS_RTUN,
                        t->name,
@@ -420,6 +426,8 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
                        t->sentbytes,
                        t->recvbytes,
                        0,
+                       (uint32_t)t->srtt,
+                       mlvpn_loss_ratio(t),
                        t->disconnects,
                        (uint32_t)t->last_activity,
                        (uint32_t)t->timeout,
