@@ -9,6 +9,7 @@ Build-Depends: debhelper (>= 8),
                automake,
                libev-dev,
                libsodium-dev,
+               libpcap-dev,
                ruby-ronn,
                dh-autoreconf,
                pkg-config
@@ -19,6 +20,6 @@ Homepage: http://www.mlvpn.fr/
 
 Package: mlvpn
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, net-tools, adduser, passwd, libev4, libsodium13
+Depends: ${shlibs:Depends}, ${misc:Depends}, net-tools, adduser, passwd, libev4, libsodium13, libpcap0.8
 Description: MultiLink Virtual Public Network aggregator.
  MLVPN aggregates multiple links into one tun/tap tunnel.
