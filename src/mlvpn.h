@@ -37,7 +37,7 @@
  #include <resolv.h>
 #endif
 
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
  #include <pcap/pcap.h>
 #endif
 
@@ -177,7 +177,7 @@ typedef struct mlvpn_tunnel_s
     ev_timer io_timeout;
 } mlvpn_tunnel_t;
 
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
 struct mlvpn_filters_s {
     uint8_t count;
     struct bpf_program filter[255];
@@ -200,7 +200,7 @@ mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     uint32_t loss_tolerence);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
 int mlvpn_filters_add(const struct bpf_program *filter, mlvpn_tunnel_t *tun);
 mlvpn_tunnel_t *mlvpn_filters_choose(uint32_t pktlen, const u_char *pktdata);
 #endif

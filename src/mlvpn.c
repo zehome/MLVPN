@@ -106,9 +106,11 @@ struct mlvpn_options_s mlvpn_options = {
     .root_allowed = 0,
     .reorder_buffer_size = 0
 };
+#ifdef HAVE_FILTERS
 struct mlvpn_filters_s mlvpn_filters = {
     .count = 0
 };
+#endif
 
 struct mlvpn_reorder_buffer *reorder_buffer;
 freebuffer_t *freebuf;

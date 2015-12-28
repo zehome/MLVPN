@@ -67,8 +67,8 @@ EXTRA_DIST = \
 mlvpn_LDADD=-lm $(libsodium_LIBS) $(libev_LIBS)
 mlvpn_CFLAGS=$(CFLAGS) $(libsodium_CFLAGS) $(libev_CFLAGS)
 
-if ENABLE_FILTERS
+if HAVE_FILTERS
 mlvpn_SOURCES += filters.c
-mlvpn_LDADD += -lpcap
+mlvpn_LDADD += $(libpcap_LIBS)
 mlvpn_CFLAGS += $(libpcap_CFLAGS)
 endif

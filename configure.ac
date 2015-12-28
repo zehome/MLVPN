@@ -163,20 +163,21 @@ mlvpn_ARG_WITH([systemdtmpfilesdir], [Directory for systemd tmpfiles],
         [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
 
 dnl checks for libpcap
-# Default values
-AC_DEFINE([HAVE_LIBPCAP], [0], [])
-AM_CONDITIONAL([HAVE_LIBPCAP], [false])
-if test x"$ENABLE_FILTERS" = x"yes"; then
+# Default values
+AM_CONDITIONAL([HAVE_FILTERS], [false])
+AS_IF([test x"$enable_filters" = x"yes"], [
+    AM_CONDITIONAL([HAVE_FILTERS], [true])
+    AC_DEFINE([HAVE_FILTERS], [], [filters enabled])
     dnl checks for libpcap
     PKG_CHECK_MODULES([libpcap], [libpcap], [], [
         AC_CHECK_HEADERS([pcap.h], [], [AC_MSG_ERROR("pcap.h not found")])
         AC_CHECK_LIB([pcap], [pcap_open_dead], [
             libpcap_LIBS="-lpcap"
-            AC_DEFINE([HAVE_LIBPCAP], [1], [pcap_open_dead in -lpcap])
-            AM_CONDITIONAL([HAVE_LIBPCAP], [true])
-        ], [AC_MSG_ERROR("libpcap not found")])
+        ], [
+            AC_MSG_ERROR("libpcap not found")
+        ])
     ])
-fi
+])
 
 AC_CHECK_PROGS([RONN], [ronn], [])
 AM_CONDITIONAL(HAVE_RONN, [test x"$RONN" != "x"])

@@ -62,7 +62,7 @@ mlvpn_config(int config_file_fd, int first_time)
     mlvpn_options.fallback_available = 0;
 
     /* reset all bpf filters on every interface */
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
     struct bpf_program filter;
     pcap_t *pcap_dead_p = pcap_open_dead(DLT_RAW, DEFAULT_MTU);
     memset(&mlvpn_filters, 0, sizeof(mlvpn_filters));
@@ -425,7 +425,7 @@ mlvpn_config(int config_file_fd, int first_time)
         }
     }
 
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
     work = config;
     int found_in_config = 0;
     while (work)
@@ -463,7 +463,7 @@ mlvpn_config(int config_file_fd, int first_time)
 
     //_conf_printConfig(config);
     _conf_freeConfig(config);
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
     pcap_close(pcap_dead_p);
 #endif
 

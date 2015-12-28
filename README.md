@@ -65,6 +65,7 @@ Dependencies
 ============
   - libev
   - libsodium
+  - libpcap (optional)
 
 Security
 ========
