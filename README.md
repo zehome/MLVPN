@@ -10,7 +10,7 @@ Take a look at the official documentation on [Read The Docs](http://mlvpn.readth
 
 Introduction
 ============
-MLVPN will do it's best to acheive the following tasks:
+MLVPN will do its best to achieve the following tasks:
 
   * Bond your internet links to increase bandwidth (unlimited)
   * Secure your internet connection by actively monitoring
