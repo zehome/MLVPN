@@ -71,6 +71,7 @@ char *_progname;
 static char **saved_argv;
 struct ev_loop *loop;
 static ev_timer reorder_drain_timeout;
+static ev_timer reorder_adjust_rtt_timeout;
 char *status_command = NULL;
 char *process_title = NULL;
 int logdebug = 0;
@@ -136,6 +137,7 @@ static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
 static uint32_t mlvpn_rtun_reorder_drain(uint32_t reorder);
 static void mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
+static void mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t);
 static void mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t);
 static int mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
@@ -1166,16 +1168,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
 {
     mlvpn_tunnel_t *t = w->data;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
-    double max_srtt = 0.0;
-    double tmp;
     if (t->status >= MLVPN_AUTHOK && t->timeout > 0) {
-        /* We don't want to monitor fallback only links inside the
-         * reorder timeout algorithm
-         */
-        if (!t->fallback_only && t->rtt_hit) {
-            tmp = t->srtt + (4 * t->rttvar);
-            max_srtt = max_srtt > tmp ? max_srtt : tmp;
-        }
         if ((t->last_keepalive_ack != 0) && (t->last_keepalive_ack + t->timeout) < now) {
             log_info("protocol", "%s timeout", t->name);
             mlvpn_rtun_status_down(t);
@@ -1189,8 +1182,31 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
         ev_io_start(EV_A_ &t->io_write);
     }
+    mlvpn_rtun_check_lossy(t);
+}
+
+static void
+mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents)
+{
+    mlvpn_tunnel_t *t;
+    double max_srtt = 0.0;
+    double tmp;
+
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+        if (t->status >= MLVPN_AUTHOK) {
+           /* We don't want to monitor fallback only links inside the
+            * reorder timeout algorithm
+            */
+            if (!t->fallback_only && t->rtt_hit) {
+                tmp = t->srtt + (4 * t->rttvar);
+                max_srtt = max_srtt > tmp ? max_srtt : tmp;
+            }
+        }
+    }
+
     /* Update the reorder algorithm */
-    if (t->rtt_hit && max_srtt > 0) {
+    if (max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
         max_srtt *= 2.0;
         log_debug("reorder", "adjusting reordering drain timeout to %.0fms",
@@ -1199,7 +1215,6 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     } else {
         reorder_drain_timeout.repeat = 0.8; /* Conservative 800ms shot */
     }
-    mlvpn_rtun_check_lossy(t);
 }
 
 static void
@@ -1475,6 +1490,10 @@ main(int argc, char **argv)
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);
+
+    ev_timer_init(&reorder_adjust_rtt_timeout,
+        mlvpn_rtun_adjust_reorder_timeout, 0., 1.0);
+    ev_timer_start(EV_A_ &reorder_adjust_rtt_timeout);
 
     priv_set_running_state();
 
