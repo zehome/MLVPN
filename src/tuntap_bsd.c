@@ -17,9 +17,6 @@
 int
 mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
-    circular_buffer_t *sbuf;
-    mlvpn_tunnel_t *rtun = NULL;
-    mlvpn_pkt_t *pkt;
     ssize_t ret;
     u_char data[DEFAULT_MTU];
     struct iovec iov[2];
