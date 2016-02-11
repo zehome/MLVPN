@@ -227,11 +227,11 @@ mlvpn_rtun_reorder_drain(uint32_t reorder)
 {
     int i;
     uint32_t drained = 0;
-    mlvpn_pkt_t *drained_pkts[128];
+    mlvpn_pkt_t *drained_pkts[1024];
     mlvpn_pkt_t *pkt;
     /* Try to drain packets */
     if (reorder) {
-        drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 128);
+        drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 1024);
         for(i = 0; i < drained; i++) {
             pkt = drained_pkts[i];
             mlvpn_rtun_inject_tuntap(pkt);
@@ -293,12 +293,24 @@ mlvpn_rtun_recv_data(mlvpn_tunnel_t *tun, mlvpn_pkt_t *inpkt)
         return 1;
     } else {
         mlvpn_pkt_t *pkt = mlvpn_freebuffer_get(freebuf);
+        if (!pkt) {
+            log_warnx("reorder", "freebuffer full: reorder_buffer_size must be increased.");
+            mlvpn_rtun_inject_tuntap(inpkt);
+            return 1;
+        }
         memcpy(pkt, inpkt, sizeof(mlvpn_pkt_t));
         ret = mlvpn_reorder_insert(reorder_buffer, pkt);
-        if (ret != 0) {
+        if (ret == -1) {
             log_warnx("net", "reorder_buffer_insert failed: %d", ret);
             mlvpn_reorder_reset(reorder_buffer);
             drained = mlvpn_rtun_reorder_drain(0);
+        } else if (ret == -2) {
+            /* We have received a packet out of order just
+             * after the forced drain (packet loss)
+             * Just inject the packet as is
+             */
+            mlvpn_rtun_inject_tuntap(inpkt);
+            return 1;
         } else {
             drained = mlvpn_rtun_reorder_drain(1);
         }
@@ -498,6 +510,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     memset(&proto, 0, sizeof(proto));
 
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
+    pkt->reorder = 1;
     if (pkt->type == MLVPN_PKT_DATA && pkt->reorder) {
         proto.data_seq = data_seq++;
     }
@@ -1208,7 +1221,7 @@ mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents)
     /* Update the reorder algorithm */
     if (max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
-        max_srtt *= 2.0;
+        max_srtt *= 2.2;
         log_debug("reorder", "adjusting reordering drain timeout to %.0fms",
             max_srtt);
         reorder_drain_timeout.repeat = max_srtt / 1000.0;
