@@ -23,7 +23,7 @@ The priv process only performs the tasks where it needs privileges:
   * open the mlvpn configuration file
   * name resolution (requires to be out of the chroot)
 
-The other process is run as an unprivileged used (usually _mlvpn or mlvpn),
+The other process is run as an unprivileged user (usually _mlvpn or mlvpn),
 in a chroot. It handles all the hard work exposed to the outside world.
 
 This is the same technique used in `OpenSSH <http://www.openssh.org>`_.
