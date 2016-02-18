@@ -370,10 +370,10 @@ Again I stripped the script to the minimum.
     if [ "$newstatus" = "tuntap_up" ]; then
         echo "$tuntap_intf setup"
         /sbin/ip link set dev $tuntap_intf mtu 1400 up
-        /sbin/ip route add proof.ovh.net dev $tuntap_intf
+        /sbin/route add proof.ovh.net dev $tuntap_intf
     elif [ "$newstatus" = "tuntap_down" ]; then
         echo "$tuntap_intf shutdown"
-        /sbin/ip route del proof.ovh.net dev $tuntap_intf
+        /sbin/route del proof.ovh.net dev $tuntap_intf
     elif [ "$newstatus" = "rtun_up" ]; then
         echo "rtun [${rtun}] is up"
     elif [ "$newstatus" = "rtun_down" ]; then
