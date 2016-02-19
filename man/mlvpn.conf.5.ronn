@@ -49,6 +49,9 @@ The **[general]** section is reserved for global configuration.
   - _interface_name_ = "mlvpn0"
     Set interface name to the specified value. (**LINUX ONLY**)
 
+  - _tuntap_ = "tun"
+    Tells mlvpn whether to create a tun (layer 3) or tap (layer 2) interface.
+
   - _password_
 
     **MANDATORY**
