@@ -91,6 +91,8 @@ cleartext_data = 0
 [dsl1]
 bindhost = "0.0.0.0"
 bindport = 5080
+#bindfib = 0
+# This FreeBSD/OpenBSD option allows to use different fib for each link
 #remotehost = "10.2.3.4"
 #remoteport = 5080
 #bandwidth_upload = 61440
