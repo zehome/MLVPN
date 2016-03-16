@@ -95,7 +95,7 @@ The **[general]** section is reserved for global configuration.
     **100 or more** disables the loss tolerence system.
 
 
-### TUNNELS
+### TUNNELS
 Each tunnel must be declared in it's own section.
 
 The section name is mapped to the tunnel name. Example: "[adsl1]", "[adsl2]".
@@ -105,6 +105,10 @@ The section name is mapped to the tunnel name. Example: "[adsl1]", "[adsl2]".
 
   - _bindport_ = 5080
     Bind on a specific port. (client/server)
+
+  - _bindfib_ = 0
+    Select the fib (FreeBSD/OpenBSD only) to use. Avoid to configure source-
+    routing on clients
 
   - _remotehost_ = "1.2.3.4"
     Address of the remote host. (client)
@@ -127,7 +131,7 @@ The section name is mapped to the tunnel name. Example: "[adsl1]", "[adsl2]".
     Links defined with fallback_only will be connected at all times,
     but will only be used if all other tunnels are down. (client)
 
-### FILTERS
+### FILTERS
 
 **[filters]** section associate a bpf(4) filter to a specific interface.
 Filters are used when aggregation is used but you want to pass some traffic

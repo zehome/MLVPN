@@ -146,6 +146,7 @@ Contributors
   * Frank Denis, contributor (documentation)
   * Nicolas Braud-Santoni, contributor (documentation)
   * Stuart Henderson, contributor (OpenBSD port/package)
+  * Olivier Cochard-Labbé, contributor (FreeBSD/OpenBSD fib routing)
 
 LICENSE
 =======

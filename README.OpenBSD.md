@@ -59,3 +59,7 @@ Run
 ```sh
 sudo /usr/local/sbin/mlvpn -c /etc/mlvpn/mlvpn.conf --user _mlvpn
 ```
+
+Don't forget you get the super easy way to configure source-routing
+with mlvpn on OpenBSD. Just create your routing tables with route(8) -T
+then use **bindfib** in mlvpn.conf.

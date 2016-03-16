@@ -91,6 +91,8 @@ cleartext_data = 0
 [dsl1]
 bindhost = "0.0.0.0"
 bindport = 5080
+# FreeBSD/OpenBSD: send packets to specified routing table (fib)
+#bindfib = 0
 #remotehost = "10.2.3.4"
 #remoteport = 5080
 #bandwidth_upload = 61440

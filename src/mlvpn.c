@@ -612,7 +612,7 @@ mlvpn_rtun_write(EV_P_ ev_io *w, int revents)
 
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
-               const char *bindaddr, const char *bindport,
+               const char *bindaddr, const char *bindport, uint32_t bindfib,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout,
                int fallback_only, uint32_t bandwidth,
@@ -668,6 +668,7 @@ mlvpn_rtun_new(const char *name,
         strlcpy(new->bindaddr, bindaddr, sizeof(new->bindaddr));
     if (bindport)
         strlcpy(new->bindport, bindport, sizeof(new->bindport));
+    new->bindfib = bindfib;
     if (destaddr)
         strlcpy(new->destaddr, destaddr, sizeof(new->destaddr));
     if (destport)
@@ -797,7 +798,9 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     int ret, fd = -1;
     char *addr, *port;
     struct addrinfo hints, *res;
-
+#if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
+    int fib = t->bindfib;
+#endif
     fd = t->fd;
     if (t->server_mode)
     {
@@ -832,6 +835,16 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
             log_warn(NULL, "%s socket creation error",
                 t->name);
         } else {
+            /* Setting fib/routing-table is supported on FreeBSD and OpenBSD only */
+#if defined(HAVE_FREEBSD)
+            if (fib > 0 && setsockopt(fd, SOL_SOCKET, SO_SETFIB, &fib, sizeof(fib)) < 0)
+#elif defined(HAVE_OPENBSD)
+            if (fib > 0 && setsockopt(fd, SOL_SOCKET, SO_RTABLE, &fib, sizeof(fib)) < 0)
+            {
+                log_warn(NULL, "Cannot set FIB %d for kernel socket", fib);
+                goto error;
+            }
+#endif
             t->fd = fd;
             break;
         }
