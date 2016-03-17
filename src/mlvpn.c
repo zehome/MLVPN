@@ -836,9 +836,11 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
             log_warn(NULL, "%s socket creation error",
                 t->name);
         } else {
-#if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
-            /* Setting SO_SETFIB (fib) supported on FreeBSD and OpenBSD only */
+            /* Setting fib/routing-table is supported on FreeBSD and OpenBSD only */
+#if defined(HAVE_FREEBSD)
             if (setsockopt(fd, SOL_SOCKET, SO_SETFIB, &fib, sizeof(fib)) < 0)
+#elif defined(HAVE_OPENBSD)
+            if (setsockopt(fd, SOL_SOCKET, SO_RTABLE, &fib, sizeof(fib)) < 0)
             {
                 log_warnx(NULL, "Cannot set FIB %d for kernel socket", fib);
                 goto error;
