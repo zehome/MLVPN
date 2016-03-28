@@ -37,9 +37,6 @@ __attribute__((__unused__)) static void foo(void){return;}]],
       AC_DEFINE(NO_ATTRIBUTE_ON_RETURN_TYPE, 1,
          [compiler does not accept __attribute__ on return types]) ]
 )
-if test "x$no_attrib_nonnull" != "x1" ; then
-    AC_DEFINE([HAVE_ATTRIBUTE__NONNULL__], [1], [Have attribute nonnull])
-fi
 
 AC_CHECK_DECLS(
     [res_init],
