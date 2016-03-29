@@ -1,39 +1,39 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <meta charset='utf-8'>
+    <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
-
     <title>MLVPN - MultiLink Virtual Public Network by zehome</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
   </head>
-
   <body>
-
-    <header>
-      <div class="container">
+    <div class="wrapper">
+      <header>
         <h1>MLVPN - MultiLink Virtual Public Network</h1>
-        <h2>Multi-link VPN (ADSL/SDSL/xDSL/Network aggregator)</h2>
+        <p>Multi-link VPN (ADSL/SDSL/xDSL/Network aggregator)</p>
 
-        <section id="downloads">
-          <a href="https://github.com/zehome/MLVPN/zipball/master" class="btn">Download as .zip</a>
-          <a href="https://github.com/zehome/MLVPN/tarball/master" class="btn">Download as .tar.gz</a>
-          <a href="https://github.com/zehome/MLVPN" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
-        </section>
-      </div>
-    </header>
+        <p class="view"><a href="https://github.com/zehome/MLVPN">View the Project on GitHub <small>zehome/MLVPN</small></a></p>
 
-    <div class="container">
-      <section id="main_content">
+
+        <ul>
+          <li><a href="https://github.com/zehome/MLVPN/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/zehome/MLVPN/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/zehome/MLVPN">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
         <h1></h1>
 
 <h1>
-<a id="mlvpn---multi-link-virtual-public-network" class="anchor" href="#mlvpn---multi-link-virtual-public-network" aria-hidden="true"><span class="octicon octicon-link"></span></a>MLVPN - Multi-Link Virtual Public Network</h1>
+<a id="mlvpn---multi-link-virtual-public-network" class="anchor" href="#mlvpn---multi-link-virtual-public-network" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>MLVPN - Multi-Link Virtual Public Network</h1>
 
-<p><a href="https://travis-ci.org/zehome/MLVPN"><img src="https://travis-ci.org/zehome/MLVPN.svg?branch=ev" alt="Build Status"></a>
+<p><a href="https://travis-ci.org/zehome/MLVPN"><img src="https://travis-ci.org/zehome/MLVPN.svg?branch=master" alt="Build Status"></a>
 <a href="https://scan.coverity.com/projects/4405"><img src="https://scan.coverity.com/projects/4405/badge.svg" alt="Coverity Status"></a></p>
 
 <p>author: Laurent Coustet </p>
@@ -41,9 +41,9 @@
 <p>Take a look at the official documentation on <a href="http://mlvpn.readthedocs.org/en/latest/">Read The Docs</a></p>
 
 <h1>
-<a id="introduction" class="anchor" href="#introduction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Introduction</h1>
+<a id="introduction" class="anchor" href="#introduction" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Introduction</h1>
 
-<p>MLVPN will do it's best to acheive the following tasks:</p>
+<p>MLVPN will do its best to achieve the following tasks:</p>
 
 <ul>
 <li>Bond your internet links to increase bandwidth (unlimited)</li>
@@ -56,52 +56,92 @@ strong cryptography.</li>
 </ul>
 
 <h1>
-<a id="quick-install" class="anchor" href="#quick-install" aria-hidden="true"><span class="octicon octicon-link"></span></a>Quick install</h1>
+<a id="quick-install" class="anchor" href="#quick-install" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Quick install</h1>
 
 <h2>
-<a id="install-debian-package" class="anchor" href="#install-debian-package" aria-hidden="true"><span class="octicon octicon-link"></span></a>Install debian package</h2>
+<a id="install-debian-package" class="anchor" href="#install-debian-package" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Install debian package</h2>
 
-<div class="highlight highlight-sh"><pre>sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
-<span class="pl-s3">echo</span> <span class="pl-s1"><span class="pl-pds">"</span>deb http://debian.mlvpn.fr unstable/<span class="pl-pds">"</span></span> <span class="pl-k">&gt;</span>/etc/apt/sources.list.d/mlvpn.list
+<div class="highlight highlight-source-shell"><pre>sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
+<span class="pl-c1">echo</span> <span class="pl-s"><span class="pl-pds">"</span>deb http://debian.mlvpn.fr unstable/<span class="pl-pds">"</span></span> <span class="pl-k">&gt;</span>/etc/apt/sources.list.d/mlvpn.list
 sudo apt-get update
 sudo apt-get install mlvpn</pre></div>
 
 <h2>
-<a id="install-freebsd-port" class="anchor" href="#install-freebsd-port" aria-hidden="true"><span class="octicon octicon-link"></span></a>Install FreeBSD port</h2>
+<a id="install-freebsd-port" class="anchor" href="#install-freebsd-port" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Install FreeBSD port</h2>
 
-<div class="highlight highlight-sh"><pre>pkg install git libev libsodium
+<div class="highlight highlight-source-shell"><pre>pkg install git libev libsodium
 git clone --branch freebsd https://github.com/zehome/MLVPN mlvpn
-<span class="pl-s3">cd</span> mlvpn
+<span class="pl-c1">cd</span> mlvpn
 make</pre></div>
 
 <h2>
-<a id="build-from-source" class="anchor" href="#build-from-source" aria-hidden="true"><span class="octicon octicon-link"></span></a>Build from source</h2>
+<a id="build-from-source" class="anchor" href="#build-from-source" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Build from source</h2>
 
-<div class="highlight highlight-sh"><pre>$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev
+<div class="highlight highlight-source-shell"><pre><span class="pl-c"># Debian</span>
+$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev
+<span class="pl-c"># OR ArchLinux</span>
+$ sudo pacman -S base-devel git libev libsodium
 $ ./autogen.sh
 $ ./configure
 $ make
 $ make install</pre></div>
 
 <h2>
-<a id="build-debian-package" class="anchor" href="#build-debian-package" aria-hidden="true"><span class="octicon octicon-link"></span></a>Build debian package</h2>
+<a id="build-debian-package" class="anchor" href="#build-debian-package" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Build debian package</h2>
 
-<div class="highlight highlight-sh"><pre>$ sudo apt-get install build-essential make autoconf
+<div class="highlight highlight-source-shell"><pre>$ sudo apt-get install build-essential make autoconf
 $ dpkg-buildpackage -us -uc -rfakeroot</pre></div>
 
+<h2>
+<a id="generating-a-static-binary" class="anchor" href="#generating-a-static-binary" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Generating a static binary</h2>
+
+<div class="highlight highlight-source-shell"><pre>apt-get install flex bison build-essential
+MLVPN_VERSION=2.3.0
+EV_VERSION=4.22
+LIBSODIUM_VERSION=1.0.8
+PCAP_VERSION=1.7.4
+wget http://dist.schmorp.de/libev/libev-<span class="pl-smi">${EV_VERSION}</span>.tar.gz
+wget https://github.com/jedisct1/libsodium/releases/download/1.0.8/libsodium-<span class="pl-smi">${LIBSODIUM_VERSION}</span>.tar.gz
+wget http://www.tcpdump.org/release/libpcap-<span class="pl-smi">${PCAP_VERSION}</span>.tar.gz
+tar xzf libev-<span class="pl-smi">${EV_VERSION}</span>.tar.gz
+tar xzf libsodium-<span class="pl-smi">${LIBSODIUM_VERSION}</span>.tar.gz
+tar xzf libpcap-<span class="pl-smi">${PCAP_VERSION}</span>.tar.gz
+
+<span class="pl-c1">echo</span> libev
+(<span class="pl-c1">cd</span> libev-<span class="pl-smi">${EV_VERSION}</span>
+./configure --enable-static --disable-shared --prefix <span class="pl-smi">$HOME</span>/libev/
+make -j4 install)
+
+<span class="pl-c1">echo</span> libsodium
+(<span class="pl-c1">cd</span> libsodium-<span class="pl-smi">${LIBSODIUM_VERSION}</span>
+./configure --enable-static --disable-shared --prefix=<span class="pl-smi">$HOME</span>/libsodium/
+make -j4 install)
+
+<span class="pl-c1">echo</span> libpcap
+(<span class="pl-c1">cd</span> libpcap-<span class="pl-smi">${LIBPCAP_VERSION}</span>
+./configure --disable-shared --prefix <span class="pl-smi">$HOME</span>/libpcap/
+make -j4 install)
+
+wget https://github.com/zehome/MLVPN/releases/download/<span class="pl-smi">${MLVPN_VERSION}</span>/mlvpn-<span class="pl-smi">${MLVPN_VERSION}</span>.tar.gz
+tar xzf mlvpn-<span class="pl-smi">${MLVPN_VERSION}</span>.tar.gz
+<span class="pl-c1">cd</span> mlvpn-<span class="pl-smi">${MLVPN_VERSION}</span>
+libpcap_LIBS=<span class="pl-s"><span class="pl-pds">"</span>-L<span class="pl-smi">${HOME}</span>/libpcap/lib -lpcap<span class="pl-pds">"</span></span> libpcap_CFLAGS=<span class="pl-s"><span class="pl-pds">"</span>-I<span class="pl-smi">${HOME}</span>/libpcap/include<span class="pl-pds">"</span></span> libsodium_LIBS=<span class="pl-s"><span class="pl-pds">"</span>-L<span class="pl-smi">${HOME}</span>/libsodium/lib -lsodium<span class="pl-pds">"</span></span> libsodium_CFLAGS=-I<span class="pl-smi">${HOME}</span>/libsodium/include libev_LIBS=<span class="pl-s"><span class="pl-pds">"</span>-L<span class="pl-smi">${HOME}</span>/libev/lib -lev<span class="pl-pds">"</span></span> libev_CFLAGS=-I<span class="pl-smi">${HOME}</span>/libev/include ./configure --enable-filters LDFLAGS=<span class="pl-s"><span class="pl-pds">"</span>-Wl,-Bdynamic<span class="pl-pds">"</span></span> --prefix=<span class="pl-smi">${HOME}</span>/mlvpn/
+make install</pre></div>
+
 <h1>
-<a id="dependencies" class="anchor" href="#dependencies" aria-hidden="true"><span class="octicon octicon-link"></span></a>Dependencies</h1>
+<a id="dependencies" class="anchor" href="#dependencies" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Dependencies</h1>
 
 <ul>
 <li>libev</li>
 <li>libsodium</li>
+<li>libpcap (optional)</li>
 </ul>
 
 <h1>
-<a id="security" class="anchor" href="#security" aria-hidden="true"><span class="octicon octicon-link"></span></a>Security</h1>
+<a id="security" class="anchor" href="#security" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Security</h1>
 
 <h2>
-<a id="privilege-separation" class="anchor" href="#privilege-separation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Privilege separation</h2>
+<a id="privilege-separation" class="anchor" href="#privilege-separation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Privilege separation</h2>
 
 <p>MLVPN uses privilege separation to keep high privileges operations
 away from the core routing stuff.</p>
@@ -112,7 +152,7 @@ avoid risks as much as possible.</p>
 <p>Read more about <a href="http://en.wikipedia.org/wiki/Privilege_separation">privilege separation</a></p>
 
 <h2>
-<a id="cryptography" class="anchor" href="#cryptography" aria-hidden="true"><span class="octicon octicon-link"></span></a>Cryptography</h2>
+<a id="cryptography" class="anchor" href="#cryptography" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Cryptography</h2>
 
 <ul>
 <li>Encryption: Salsa20 stream cipher</li>
@@ -122,12 +162,12 @@ avoid risks as much as possible.</p>
 <p>Read more on <a href="http://cr.yp.to/salsa20.html">salsa20</a> and <a href="http://doc.libsodium.org/">libsodium</a>.</p>
 
 <h1>
-<a id="principle-of-operations" class="anchor" href="#principle-of-operations" aria-hidden="true"><span class="octicon octicon-link"></span></a>Principle of operations</h1>
+<a id="principle-of-operations" class="anchor" href="#principle-of-operations" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Principle of operations</h1>
 
 <p><strong>TODO</strong></p>
 
 <h1>
-<a id="compatibility" class="anchor" href="#compatibility" aria-hidden="true"><span class="octicon octicon-link"></span></a>Compatibility</h1>
+<a id="compatibility" class="anchor" href="#compatibility" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Compatibility</h1>
 
 <p>Linux, OpenBSD, FreeBSD</p>
 
@@ -135,28 +175,37 @@ avoid risks as much as possible.</p>
 benefit from MLVPN on <em>ANY</em> operating system of course.</p>
 
 <h1>
-<a id="contributors" class="anchor" href="#contributors" aria-hidden="true"><span class="octicon octicon-link"></span></a>Contributors</h1>
+<a id="contributors" class="anchor" href="#contributors" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Contributors</h1>
 
 <ul>
 <li>Laurent Coustet, author and maintainer</li>
 <li>Philippe Pepiot, contributor (privilege separation, bugfix)</li>
 <li>Ghislain Lévèque, contributor (weight round robin)</li>
 <li>Fabien Dupont, contributor (bugfix)</li>
+<li>Thomas Soëte, contributor (bugfix)</li>
+<li>Frank Denis, contributor (documentation)</li>
+<li>Nicolas Braud-Santoni, contributor (documentation)</li>
+<li>Stuart Henderson, contributor (OpenBSD port/package)</li>
+<li>Olivier Cochard-Labbé, contributor (FreeBSD/OpenBSD fib routing)</li>
 </ul>
 
 <h1>
-<a id="license" class="anchor" href="#license" aria-hidden="true"><span class="octicon octicon-link"></span></a>LICENSE</h1>
+<a id="license" class="anchor" href="#license" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>LICENSE</h1>
 
 <p>See LICENSE file.</p>
 
 <h1>
-<a id="documentation" class="anchor" href="#documentation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Documentation</h1>
+<a id="documentation" class="anchor" href="#documentation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Documentation</h1>
 
 <p>Documentation is available on <a href="http://mlvpn.readthedocs.org/en/latest/">Read The Docs</a>.<br>
 The manpage is also authored in Markdown, and converted using <a href="http://rtomayko.github.com/ronn/">ronn</a>.</p>
       </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/zehome">zehome</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
     </div>
-
+    <script src="javascripts/scale.fix.js"></script>
     
   </body>
 </html>
