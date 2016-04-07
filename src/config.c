@@ -22,6 +22,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <ifaddrs.h>
 
 #include "includes.h"
 #include "mlvpn.h"
@@ -35,6 +36,11 @@ extern struct mlvpn_options_s mlvpn_options;
 extern struct mlvpn_filters_s mlvpn_filters;
 extern struct tuntap_s tuntap;
 extern struct mlvpn_reorder_buffer *reorder_buffer;
+
+char *ip_from_if(char *ifname);
+// we'll declair this here, so that any device name used instead of an IP
+// address gets translated before we go anywhere else...
+
 
 /* Config file reading / re-read.
  * config_file_fd: fd opened in priv_open_config
@@ -311,6 +317,10 @@ mlvpn_config(int config_file_fd, int first_time)
                         config, lastSection, "remoteport", &dstport, NULL,
                         "No remote port specified.\n", 1);
                 }
+
+                bindaddr=ip_from_if(bindaddr);
+                
+                
                 _conf_set_uint_from_conf(
                     config, lastSection, "bandwidth_upload", &bwlimit, 0,
                     NULL, 0);
@@ -484,4 +494,44 @@ mlvpn_config(int config_file_fd, int first_time)
 error:
     log_warnx("config", "parse error");
     return 1;
+}
+
+
+/* This is a filter function, it takes an name, if the name turns out to be an
+ * interface, it translates it to it's IP address,
+ * the resulting filtered name is returned (whether it has matched an interface
+ * or not */
+char *ip_from_if(char *ifname) 
+{
+  
+    struct ifaddrs *ifaddr, *ifa;
+    int s;
+    char host[NI_MAXHOST];
+    
+    if (getifaddrs(&ifaddr) == -1) 
+    {
+      log_warn(NULL, "unable to collect ifaddrs");
+      return ifname;
+    }
+
+
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) 
+    {
+        if (ifa->ifa_addr == NULL)
+            continue;  
+
+        s=getnameinfo(ifa->ifa_addr,sizeof(struct sockaddr_in),host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+
+        if((strcmp(ifa->ifa_name,ifname)==0)&&(ifa->ifa_addr->sa_family==AF_INET))
+        {
+            if (s == 0)
+            {
+              if (ifname) free(ifname);
+              ifname = strdup(host);
+            }
+        }
+    }
+
+    freeifaddrs(ifaddr);
+    return ifname;
 }
