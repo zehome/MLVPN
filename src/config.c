@@ -34,7 +34,6 @@ extern char *status_command;
 extern struct mlvpn_options_s mlvpn_options;
 extern struct mlvpn_filters_s mlvpn_filters;
 extern struct tuntap_s tuntap;
-extern struct mlvpn_reorder_buffer *reorder_buffer;
 
 /* Config file reading / re-read.
  * config_file_fd: fd opened in priv_open_config
@@ -172,19 +171,11 @@ mlvpn_config(int config_file_fd, int first_time)
                         reorder_buffer_size);
                     if (reorder_buffer_size != 0 &&
                             mlvpn_options.reorder_buffer_size != 0) {
-                        mlvpn_reorder_free(reorder_buffer);
-                        reorder_buffer = NULL;
+                        log_warn("config", "TODO: reorder_buffer_size can't be changed");
                     }
                     mlvpn_options.reorder_buffer_size = reorder_buffer_size;
                     if (mlvpn_options.reorder_buffer_size > 0) {
-                        if (reorder_buffer) {
-                            mlvpn_reorder_free(reorder_buffer);
-                        }
-                        reorder_buffer = mlvpn_reorder_create(
-                            mlvpn_options.reorder_buffer_size);
-                        if (reorder_buffer == NULL) {
-                            fatal("config", "reorder_buffer allocation failed");
-                        }
+                        log_warn("config", "TODO: reorder_buffer_size can't be changed");
                     }
                 }
 

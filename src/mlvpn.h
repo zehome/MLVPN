@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <sys/queue.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -18,7 +17,6 @@
 /* Many thanks Fabien Dupont! */
 #ifdef HAVE_LINUX
  /* Absolutely essential to have it there for IFNAMSIZ */
- #include <sys/types.h>
  #include <netdb.h>
  #include <linux/if.h>
 #endif
@@ -52,7 +50,12 @@
 /* Number of packets in the queue. Each pkt is ~ 1520 */
 /* 1520 * 128 ~= 24 KBytes of data maximum per channel VMSize */
 #define PKTBUFSIZE 1024
-
+/* Memory pool used by reorder buffers 
+ * using about 2KB of memory per entry
+ */
+#define MEMORYPOOL_MAX_SIZE 32768
+#define MEMORYPOOL_INCREMENT 512
+ 
 /* tuntap interface name size */
 #ifndef IFNAMSIZ
  #define IFNAMSIZ 16
@@ -80,8 +83,9 @@
 /* Protocol version of mlvpn
  * version 0: mlvpn 2.0 to 2.1 
  * version 1: mlvpn 2.2+ (add reorder field in mlvpn_proto_t)
+ * version 2: mlvpn 2.4 (reordering by flow)
  */
-#define MLVPN_PROTOCOL_VERSION 1
+#define MLVPN_PROTOCOL_VERSION 2
 
 struct mlvpn_options_s
 {
@@ -148,11 +152,8 @@ typedef struct mlvpn_tunnel_s
     int fallback_only;    /* if set, this link will be used when all others are down */
     uint32_t loss_tolerence; /* How much loss is acceptable before the link is discarded */
     uint64_t seq;
-    uint64_t expected_receiver_seq;
     uint64_t saved_timestamp;
     uint64_t saved_timestamp_received_at;
-    uint64_t seq_last;
-    uint64_t seq_vect;
     int rtt_hit;
     double srtt;
     double rttvar;
@@ -189,7 +190,6 @@ struct mlvpn_filters_s {
 int mlvpn_config(int config_file_fd, int first_time);
 int mlvpn_sock_set_nonblocking(int fd);
 
-int mlvpn_loss_ratio(mlvpn_tunnel_t *tun);
 int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
 mlvpn_tunnel_t *mlvpn_rtun_choose();

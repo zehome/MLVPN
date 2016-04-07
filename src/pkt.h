@@ -18,7 +18,7 @@ typedef struct {
     uint16_t len;
     uint8_t type;
     uint8_t reorder;
-    uint64_t seq;
+    uint32_t seq;
     char data[DEFAULT_MTU];
 } mlvpn_pkt_t;
 
@@ -29,12 +29,13 @@ typedef struct {
     uint16_t version: 4; /* protocol version */
     uint16_t flags: 6;   /* protocol options */
     uint16_t reorder: 1; /* do reordering or not */
-    uint16_t unused: 5;  /* not used for now */
+    uint16_t pad1: 5;
     uint16_t timestamp;
     uint16_t timestamp_reply;
     uint32_t flow_id;
-    uint64_t seq;         /* Stream sequence per flow (for crypto) */
-    uint64_t data_seq;    /* data packets global sequence */
+    uint64_t seq;         /* sequence per session (for crypto) */
+    uint32_t data_seq;    /* data packet sequence */
+    uint32_t pad2;        /* padding for protocol compatiblity */
     char data[DEFAULT_MTU];
 } __attribute__((packed)) mlvpn_proto_t;
 

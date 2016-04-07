@@ -389,7 +389,7 @@ priv_init(char *argv[], char *username)
             if (script_argc <= 0)
                 _exit(0);
 
-            if ((script_argv = (char **)calloc(script_argc + 1, sizeof(char *))) == NULL)
+            if ((script_argv = calloc(script_argc + 1, sizeof(char *))) == NULL)
                 _exit(0);
 
             /* read script argumuments */
@@ -397,7 +397,7 @@ priv_init(char *argv[], char *username)
                 must_read(socks[0], &len, sizeof(len));
                 if (len <= 0)
                     _exit(0);
-                if ((script_argv[i] = (char *)malloc(len)) == NULL)
+                if ((script_argv[i] = malloc(len)) == NULL)
                     _exit(0);
                 must_read(socks[0], script_argv[i], len);
                 script_argv[i][len-1] = '\0';
@@ -408,13 +408,13 @@ priv_init(char *argv[], char *username)
             must_read(socks[0], &env_len, sizeof(env_len));
             if (env_len <= 0)
                 _exit(0);
-            if ((script_env = (char **)calloc(env_len + 1, sizeof(char *))) == NULL)
+            if ((script_env = calloc(env_len + 1, sizeof(char *))) == NULL)
                 _exit(0);
             for(i = 0; i < env_len; i++) {
                 must_read(socks[0], &len, sizeof(len));
                 if (len <= 0)
                     _exit(0);
-                if ((script_env[i] = (char *)malloc(len)) == NULL)
+                if ((script_env[i] = malloc(len)) == NULL)
                     _exit(0);
                 must_read(socks[0], script_env[i], len);
                 script_env[i][len - 1] = '\0';
@@ -490,7 +490,7 @@ root_launch_script(char *setup_script, int argc, char **argv, char **env)
          */
         reset_default_signals();
         closefrom(3);
-        newargs = (char **)calloc(argc + 2, sizeof(char *));
+        newargs = calloc(argc + 2, sizeof(char *));
         if (! newargs)
             err(1, "memory allocation failed");
         newargs[0] = setup_script;
@@ -651,13 +651,13 @@ priv_getaddrinfo(char *host, char *serv, struct addrinfo **addrinfo,
 
     for (i=0; i < ret_len; i++)
     {
-        new = (struct addrinfo *)malloc(sizeof(struct addrinfo));
+        new = malloc(sizeof(struct addrinfo));
         must_read(priv_fd, &new->ai_flags, sizeof(new->ai_flags));
         must_read(priv_fd, &new->ai_family, sizeof(new->ai_family));
         must_read(priv_fd, &new->ai_socktype, sizeof(new->ai_socktype));
         must_read(priv_fd, &new->ai_protocol, sizeof(new->ai_protocol));
         must_read(priv_fd, &new->ai_addrlen, sizeof(new->ai_addrlen));
-        new->ai_addr = (struct sockaddr *)malloc(new->ai_addrlen);
+        new->ai_addr = malloc(new->ai_addrlen);
         must_read(priv_fd, new->ai_addr, new->ai_addrlen);
         new->ai_canonname = NULL;
         new->ai_next = NULL;

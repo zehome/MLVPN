@@ -40,18 +40,18 @@
 #include <sys/time.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
 #include <netinet/tcp.h>
+#include <netinet/udp.h>
 #include <netdb.h>
-#include <ev.h>
 
 #include "includes.h"
 #include "mlvpn.h"
+#include "flow.h"
 #include "tool.h"
 #include "setproctitle.h"
 #include "crypto.h"
-#ifdef ENABLE_CONTROL
-#include "control.h"
-#endif
 #include "tuntap_generic.h"
 
 /* Linux specific things */
@@ -70,13 +70,17 @@ struct tuntap_s tuntap;
 char *_progname;
 static char **saved_argv;
 struct ev_loop *loop;
-static ev_timer reorder_drain_timeout;
 static ev_timer reorder_adjust_rtt_timeout;
 char *status_command = NULL;
 char *process_title = NULL;
 int logdebug = 0;
 
-static uint64_t data_seq = 0;
+/* Current latency in milliseconds */
+unsigned int latency = 0;
+/* SECURITY: used for cryptography (nonce)
+ * random() (init) + nonce_seq (increasing)
+ */
+static uint64_t nonce_seq = 0;
 
 struct mlvpn_status_s mlvpn_status = {
     .start_time = 0,
@@ -113,9 +117,6 @@ struct mlvpn_filters_s mlvpn_filters = {
 };
 #endif
 
-struct mlvpn_reorder_buffer *reorder_buffer;
-freebuffer_t *freebuf;
-
 static char *optstr = "c:n:u:hvVD:";
 static struct option long_options[] = {
     {"config",        required_argument, 0, 'c' },
@@ -134,7 +135,7 @@ static struct option long_options[] = {
 static int mlvpn_rtun_start(mlvpn_tunnel_t *t);
 static void mlvpn_rtun_read(EV_P_ ev_io *w, int revents);
 static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
-static uint32_t mlvpn_rtun_reorder_drain(uint32_t reorder);
+static uint32_t mlvpn_rtun_reorder_drain(struct mlvpn_flow *flow, uint32_t reorder);
 static void mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents);
@@ -215,72 +216,75 @@ void mlvpn_rtun_inject_tuntap(mlvpn_pkt_t *pkt)
 static void
 mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents)
 {
-    log_debug("reorder", "reorder timeout. Packet loss?");
-    mlvpn_rtun_reorder_drain(0);
-    if (freebuf->used == 0) {
-        ev_timer_stop(EV_A_ w);
-    }
+    struct mlvpn_flow *flow = w->data;
+    log_debug("reorder", "reorder timeout. loss?");
+    mlvpn_rtun_reorder_drain(flow, 0);
 }
 
 static uint32_t
-mlvpn_rtun_reorder_drain(uint32_t reorder)
+mlvpn_rtun_reorder_drain(struct mlvpn_flow *flow, uint32_t reorder)
 {
     int i;
     uint32_t drained = 0;
+    /* TODO: reorder_buffer size can't exceed 1024 */
     mlvpn_pkt_t *drained_pkts[1024];
     mlvpn_pkt_t *pkt;
     /* Try to drain packets */
-    if (reorder) {
-        drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 1024);
-        for(i = 0; i < drained; i++) {
-            pkt = drained_pkts[i];
-            mlvpn_rtun_inject_tuntap(pkt);
-            mlvpn_freebuffer_free(freebuf, drained_pkts[i]);
-        }
-    } else {
-        while ((pkt = mlvpn_freebuffer_drain_used(freebuf)) != NULL) {
-            drained++;
-            mlvpn_rtun_inject_tuntap(pkt);
-        }
-        mlvpn_freebuffer_reset(freebuf);
-        mlvpn_reorder_reset(reorder_buffer);
+    drained = mlvpn_reorder_drain(
+        flow->reorder, drained_pkts, 1024);
+    for(i = 0; i < drained; i++) {
+        pkt = drained_pkts[i];
+        mlvpn_rtun_inject_tuntap(pkt);
+        free(drained_pkts[i]);
     }
-    if (freebuf->used == 0) {
-        ev_timer_stop(EV_A_ &reorder_drain_timeout);
+    if (! reorder) {
+        mlvpn_reorder_reset(flow->reorder);
+    }
+    if (mlvpn_reorder_empty(flow->reorder)) {
+        ev_timer_stop(EV_A_ &flow->reorder_timeout);
     }
     return drained;
 }
 
-/* Count the loss on the last 64 packets */
-static void
-mlvpn_loss_update(mlvpn_tunnel_t *tun, uint64_t seq)
+struct mlvpn_flow *
+mlvpn_flow_get(const mlvpn_pkt_t *pkt)
 {
-    if (seq > tun->seq_last + 64) {
-        /* consider a connection reset. */
-        tun->seq_vect = (uint64_t) -1;
-        tun->seq_last = seq;
-    } else if (seq > tun->seq_last) {
-        /* new sequence number -- recent message arrive */
-        tun->seq_vect <<= seq - tun->seq_last;
-        tun->seq_vect |= 1;
-        tun->seq_last = seq;
-    } else if (seq >= tun->seq_last - 63) {
-        tun->seq_vect |= (1 << (tun->seq_last - seq));
+    struct ip *iphdr;
+    struct tcphdr *tcphdr;
+    struct udphdr *udphdr;
+    struct mlvpn_flow inflow;
+    struct mlvpn_flow *flow;
+    if (pkt->len < sizeof(struct ip))
+        return NULL;
+    iphdr = (struct ip *)pkt->data;
+    if (iphdr->ip_v != 4)
+        return NULL;
+    inflow.src_ip = iphdr->ip_src.s_addr;
+    inflow.dest_ip = iphdr->ip_dst.s_addr;
+    inflow.protocol = iphdr->ip_p;
+    switch (inflow.protocol) {
+        case IPPROTO_TCP:
+            if (pkt->len >= (sizeof(struct ip) + sizeof(struct tcphdr))) {
+                tcphdr = (struct tcphdr *)(pkt->data+(iphdr->ip_hl*4));
+                inflow.src_port = tcphdr->th_sport;
+                inflow.dest_port = tcphdr->th_dport;
+            }
+            break;
+        case IPPROTO_UDP:
+            if (pkt->len >= (sizeof(struct ip) + sizeof(struct udphdr))) {
+                udphdr = (struct udphdr *)(pkt->data+(iphdr->ip_hl*4));
+                inflow.src_port = udphdr->uh_sport;
+                inflow.dest_port = udphdr->uh_dport;
+            }
+            break;
     }
-}
-
-int
-mlvpn_loss_ratio(mlvpn_tunnel_t *tun)
-{
-    int loss = 0;
-    int i;
-    /* Count zeroes */
-    for (i = 0; i < 64; i++) {
-        if (! (1 & (tun->seq_vect >> i))) {
-            loss++;
-        }
+    flow = mlvpn_flow_find(&inflow);
+    if (! flow) {
+        flow = mlvpn_flow_new(&inflow);
+        ev_init(&flow->reorder_timeout,
+            &mlvpn_rtun_reorder_drain_timeout);
     }
-    return loss * 100 / 64;
+    return flow;
 }
 
 static int
@@ -288,38 +292,54 @@ mlvpn_rtun_recv_data(mlvpn_tunnel_t *tun, mlvpn_pkt_t *inpkt)
 {
     int ret;
     uint32_t drained;
-    if (reorder_buffer == NULL || !inpkt->reorder) {
+    mlvpn_pkt_t *pkt = NULL;
+    struct mlvpn_flow *flow;
+
+    /* TODO: check configuration for reordering (enabled or not) */
+    if (!inpkt->reorder) {
         mlvpn_rtun_inject_tuntap(inpkt);
         return 1;
     } else {
-        mlvpn_pkt_t *pkt = mlvpn_freebuffer_get(freebuf);
-        if (!pkt) {
-            log_warnx("reorder", "freebuffer full: reorder_buffer_size must be increased.");
-            mlvpn_rtun_inject_tuntap(inpkt);
-            return 1;
-        }
+        /* TODO: check performance of this */
+        pkt = malloc(sizeof(mlvpn_pkt_t));
+        if (! pkt)
+            fatalx("malloc");
         memcpy(pkt, inpkt, sizeof(mlvpn_pkt_t));
-        ret = mlvpn_reorder_insert(reorder_buffer, pkt);
+        flow = mlvpn_flow_get(pkt);
+        if (!flow) {
+            log_warnx("flow", "flow not found, reordering disabled");
+            goto error;
+        }
+        if (!flow->reorder) {
+            log_warnx("flow", "reorder buffer not found");
+            goto error;
+        }
+        ret = mlvpn_reorder_insert(flow->reorder, pkt);
         if (ret == -1) {
-            log_warnx("net", "reorder_buffer_insert failed: %d", ret);
-            mlvpn_reorder_reset(reorder_buffer);
-            drained = mlvpn_rtun_reorder_drain(0);
+            log_warnx("reorder", "reorder insert failed: %d", ret);
+            drained = mlvpn_rtun_reorder_drain(flow, 0);
         } else if (ret == -2) {
             /* We have received a packet out of order just
              * after the forced drain (packet loss)
              * Just inject the packet as is
              */
-            mlvpn_rtun_inject_tuntap(inpkt);
-            return 1;
+            drained = mlvpn_rtun_reorder_drain(flow, 0);
         } else {
-            drained = mlvpn_rtun_reorder_drain(1);
+            drained = mlvpn_rtun_reorder_drain(flow, 1);
         }
-        if (freebuf->used > 0) {
-            ev_timer_again(EV_A_ &reorder_drain_timeout);
+        if (! mlvpn_reorder_empty(flow->reorder)) {
+            flow->reorder_timeout.repeat = (latency / 1000.0);
+            ev_timer_again(EV_A_ &flow->reorder_timeout);
         }
         //log_debug("reorder", "drained %d packets", drained);
     }
     return drained;
+error:
+    if (pkt) {
+        free(pkt);
+    }
+    mlvpn_rtun_inject_tuntap(inpkt);
+    return 1;
 }
 
 
@@ -379,7 +399,7 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
                 memcpy(tun->addrinfo->ai_addr, &clientaddr, addrlen);
             }
         }
-        log_debug("net", "< %s recv %d bytes (type=%d, seq=%"PRIu64", reorder=%d)",
+        log_debug("net", "< %s recv %d bytes (type=%d, seq=%"PRIu32", reorder=%d)",
             tun->name, (int)len, decap_pkt.type, decap_pkt.seq, decap_pkt.reorder);
 
         if (decap_pkt.type == MLVPN_PKT_DATA) {
@@ -464,10 +484,9 @@ mlvpn_protocol_read(
 #endif
     decap_pkt->len = rlen;
     decap_pkt->type = proto.flags;
-    if (proto.version >= 1) {
+    if (proto.version >= 2) {
         decap_pkt->reorder = proto.reorder;
-        decap_pkt->seq = be64toh(proto.data_seq);
-        mlvpn_loss_update(tun, decap_pkt->seq);
+        decap_pkt->seq = be32toh(proto.data_seq);
     } else {
         decap_pkt->reorder = 0;
         decap_pkt->seq = 0;
@@ -491,8 +510,8 @@ mlvpn_protocol_read(
                 tun->srtt = (1 - alpha) * tun->srtt + (alpha * R);
             }
         }
-        log_debug("rtt", "%ums srtt %ums loss ratio: %d",
-            (unsigned int)R, (unsigned int)tun->srtt, mlvpn_loss_ratio(tun));
+        log_debug("rtt", "%ums srtt %ums",
+            (unsigned int)R, (unsigned int)tun->srtt);
     }
     return 0;
 fail:
@@ -503,23 +522,28 @@ static int
 mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 {
     unsigned char nonce[crypto_NONCEBYTES];
+    uint32_t pktseq = 0;
     ssize_t ret;
     size_t wlen;
     mlvpn_proto_t proto;
+    struct mlvpn_flow *flow;
     uint64_t now64 = mlvpn_timestamp64(ev_now(EV_DEFAULT_UC));
     memset(&proto, 0, sizeof(proto));
 
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
-    pkt->reorder = 1;
-    if (pkt->type == MLVPN_PKT_DATA && pkt->reorder) {
-        proto.data_seq = data_seq++;
+    flow = mlvpn_flow_get(pkt);
+    if (flow != NULL) {
+        pkt->reorder = 1;
+        pkt->seq = flow->seq++;
+    } else {
+        pkt->reorder = 0;
+        pkt->seq = 0;
     }
     wlen = PKTHDRSIZ(proto) + pkt->len;
     proto.len = pkt->len;
     proto.flags = pkt->type;
-    if (pkt->reorder) {
-        proto.seq = tun->seq++;
-    }
+    proto.seq = nonce_seq++;
+    proto.data_seq = htobe32(pkt->seq);
     proto.flow_id = tun->flow_id;
     proto.version = MLVPN_PROTOCOL_VERSION;
     proto.reorder = pkt->reorder;
@@ -565,7 +589,6 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
 #endif
     proto.len = htobe16(proto.len);
     proto.seq = htobe64(proto.seq);
-    proto.data_seq = htobe64(proto.data_seq);
     proto.flow_id = htobe32(proto.flow_id);
     proto.timestamp = htobe16(proto.timestamp);
     proto.timestamp_reply = htobe16(proto.timestamp_reply);
@@ -585,8 +608,8 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
             log_warnx("net", "%s write error %d/%u",
                 tun->name, (int)ret, (unsigned int)wlen);
         } else {
-            log_debug("net", "> %s sent %d bytes (size=%d, type=%d, seq=%"PRIu64", reorder=%d)",
-                tun->name, (int)ret, pkt->len, pkt->type, pkt->seq, pkt->reorder);
+            log_debug("net", "> %s sent %d bytes (size=%d, type=%d, seq=%"PRIu32", reorder=%d)",
+                tun->name, (int)ret, pkt->len, pkt->type, pktseq, pkt->reorder);
         }
     }
 
@@ -652,14 +675,11 @@ mlvpn_rtun_new(const char *name,
     new->sentbytes = 0;
     new->recvbytes = 0;
     new->seq = 0;
-    new->expected_receiver_seq = 0;
     new->saved_timestamp = -1;
     new->saved_timestamp_received_at = 0;
     new->srtt = 1000;
     new->rttvar = 500;
     new->rtt_hit = 0;
-    new->seq_last = 0;
-    new->seq_vect = (uint64_t) -1;
     new->flow_id = crypto_nonce_random();
     new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
@@ -707,8 +727,11 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
             LIST_REMOVE(tmp, entries);
             if (tmp->name)
                 free(tmp->name);
-            if (tmp->addrinfo)
-                freeaddrinfo(tmp->addrinfo);
+            if (tmp->addrinfo) {
+                if (tmp->addrinfo->ai_addr)
+                    free(tmp->addrinfo->ai_addr);
+                free(tmp->addrinfo);
+            }
             mlvpn_pktbuffer_free(tmp->sbuf);
             mlvpn_pktbuffer_free(tmp->hpsbuf);
             /* Safety */
@@ -783,7 +806,11 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
        until getting a valid listening socket. */
     log_info(NULL, "%s bind to %s", t->name, *t->bindaddr ? t->bindaddr : "any");
     n = bind(fd, res->ai_addr, res->ai_addrlen);
-    freeaddrinfo(res);
+    if (res) {
+        if (res->ai_addr)
+            free(res->ai_addr);
+        free(res);
+    }
     if (n < 0)
     {
         log_warn(NULL, "%s bind error", t->name);
@@ -970,10 +997,7 @@ mlvpn_rtun_status_up(mlvpn_tunnel_t *t)
         cmdargs[2] = NULL;
         priv_run_script(2, cmdargs, env_len, env);
         mlvpn_status.initialized = 1;
-        if (reorder_buffer != NULL) {
-            mlvpn_rtun_reorder_drain(0);
-            mlvpn_reorder_reset(reorder_buffer);
-        }
+        /* TODO: reorder and flow reset ? */
     }
     mlvpn_free_script_env(env);
     update_process_title();
@@ -1009,10 +1033,7 @@ mlvpn_rtun_status_down(mlvpn_tunnel_t *t)
             mlvpn_status.initialized = 0;
         }
         mlvpn_free_script_env(env);
-        if (reorder_buffer != NULL) {
-            mlvpn_rtun_reorder_drain(0);
-            mlvpn_reorder_reset(reorder_buffer);
-        }
+        /* TODO: reorder and flow reset ? */
     }
     update_process_title();
 }
@@ -1154,42 +1175,6 @@ mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t)
 }
 
 static void
-mlvpn_rtun_check_lossy(mlvpn_tunnel_t *tun)
-{
-    int loss = mlvpn_loss_ratio(tun);
-    int status_changed = 0;
-    if (loss >= tun->loss_tolerence && tun->status == MLVPN_AUTHOK) {
-        log_info("rtt", "%s packet loss reached threashold: %d%%/%d%%",
-            tun->name, loss, tun->loss_tolerence);
-        tun->status = MLVPN_LOSSY;
-        status_changed = 1;
-    } else if (loss < tun->loss_tolerence && tun->status == MLVPN_LOSSY) {
-        log_info("rtt", "%s packet loss acceptable again: %d%%/%d%%",
-            tun->name, loss, tun->loss_tolerence);
-        tun->status = MLVPN_AUTHOK;
-        status_changed = 1;
-    }
-    /* are all links in lossy mode ? switch to fallback ? */
-    if (status_changed) {
-        mlvpn_tunnel_t *t;
-        LIST_FOREACH(t, &rtuns, entries) {
-            if (! t->fallback_only && t->status != MLVPN_LOSSY) {
-                mlvpn_status.fallback_mode = 0;
-                mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
-                return;
-            }
-        }
-        if (mlvpn_options.fallback_available) {
-            log_info(NULL, "all tunnels are down or lossy, switch fallback mode");
-            mlvpn_status.fallback_mode = 1;
-            mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
-        } else {
-            log_info(NULL, "all tunnels are down or lossy but fallback is not available");
-        }
-    }
-}
-
-static void
 mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
 {
     mlvpn_tunnel_t *t = w->data;
@@ -1208,7 +1193,6 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
         ev_io_start(EV_A_ &t->io_write);
     }
-    mlvpn_rtun_check_lossy(t);
 }
 
 static void
@@ -1234,12 +1218,8 @@ mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents)
     /* Update the reorder algorithm */
     if (max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
-        max_srtt *= 2.2;
-        log_debug("reorder", "adjusting reordering drain timeout to %.0fms",
-            max_srtt);
-        reorder_drain_timeout.repeat = max_srtt / 1000.0;
-    } else {
-        reorder_drain_timeout.repeat = 0.8; /* Conservative 800ms shot */
+        log_debug("reorder", "latency mesured: %.0fms", max_srtt);
+        latency = (unsigned int)max_srtt;
     }
 }
 
@@ -1353,9 +1333,6 @@ main(int argc, char **argv)
     ev_signal signal_hup;
     ev_signal signal_sigquit, signal_sigint, signal_sigterm;
     extern char *__progname;
-#ifdef ENABLE_CONTROL
-    struct mlvpn_control control;
-#endif
     /* uptime statistics */
     if (time(&mlvpn_status.start_time) == -1)
         log_warn(NULL, "start_time time() failed");
@@ -1486,7 +1463,7 @@ main(int argc, char **argv)
         update_process_title();
 
     LIST_INIT(&rtuns);
-    freebuf = mlvpn_freebuffer_init(512);
+    mlvpn_flowlist_init();
 
     /* Kill me if my root process dies ! */
 #ifdef HAVE_LINUX
@@ -1512,7 +1489,6 @@ main(int argc, char **argv)
     /* This is a dummy value which will be overwritten when the first
      * SRTT values will be available
      */
-    ev_init(&reorder_drain_timeout, &mlvpn_rtun_reorder_drain_timeout);
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);
@@ -1522,17 +1498,6 @@ main(int argc, char **argv)
     ev_timer_start(EV_A_ &reorder_adjust_rtt_timeout);
 
     priv_set_running_state();
-
-#ifdef ENABLE_CONTROL
-    /* Initialize mlvpn remote control system */
-    strlcpy(control.fifo_path, mlvpn_options.control_unix_path,
-        sizeof(control.fifo_path));
-    control.mode = MLVPN_CONTROL_READWRITE;
-    control.fifo_mode = 0600;
-    control.bindaddr = strdup(mlvpn_options.control_bind_host);
-    control.bindport = strdup(mlvpn_options.control_bind_port);
-    mlvpn_control_init(&control);
-#endif
 
     /* re-compute rtun weight based on bandwidth allocation */
     mlvpn_rtun_recalc_weight();
@@ -1552,6 +1517,7 @@ main(int argc, char **argv)
 
     ev_run(loop, 0);
 
+    mlvpn_flowlist_free();
     free(_progname);
     return 0;
 }

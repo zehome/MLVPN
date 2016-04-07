@@ -32,30 +32,11 @@
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <inttypes.h>
-#include <string.h>
-#include <sys/queue.h>
-
+#include "includes.h"
 #include "reorder.h"
 #include "log.h"
+#include <string.h>
 
-/* A generic circular buffer */
-struct cir_buffer {
-    unsigned int size;   /**< Number of pkts that can be stored */
-    unsigned int mask;   /**< [buffer_size - 1]: used for wrap-around */
-    unsigned int head;   /**< insertion point in buffer */
-    unsigned int tail;   /**< extraction point in buffer */
-    mlvpn_pkt_t **pkts;
-};
-
-/* The reorder buffer data structure itself */
-struct mlvpn_reorder_buffer {
-    uint64_t min_seqn;  /**< Lowest seq. number that can be in the buffer */
-    unsigned int memsize; /**< memory area size of reorder buffer */
-    struct cir_buffer ready_buf; /**< temp buffer for dequeued pkts */
-    struct cir_buffer order_buf; /**< buffer used to reorder pkts */
-    int is_initialized;
-};
 
 struct mlvpn_reorder_buffer *
 mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,
@@ -91,7 +72,7 @@ mlvpn_reorder_create(unsigned int size)
     const unsigned int bufsize = sizeof(struct mlvpn_reorder_buffer) +
                     (2 * size * sizeof(mlvpn_pkt_t *));
     /* Allocate memory to store the reorder buffer structure. */
-    b = calloc(1, bufsize);
+    b = malloc(bufsize);
     if (b == NULL) {
         log_crit("reorder", "Memzone allocation failed");
     } else {
@@ -117,7 +98,7 @@ mlvpn_reorder_free(struct mlvpn_reorder_buffer *b)
 
 
 static unsigned
-mlvpn_reorder_fill_overflow(struct mlvpn_reorder_buffer *b, unsigned n)
+mlvpn_reorder_fill_overflow(struct mlvpn_reorder_buffer *b, unsigned int n)
 {
     /*
      * 1. Move all ready pkts that fit to the ready_buf
@@ -170,14 +151,14 @@ mlvpn_reorder_fill_overflow(struct mlvpn_reorder_buffer *b, unsigned n)
 int
 mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
 {
-    uint64_t offset;
+    uint32_t offset;
     uint32_t position;
     struct cir_buffer *order_buf = &b->order_buf;
 
     if (!b->is_initialized) {
         b->min_seqn = pkt->seq;
         b->is_initialized = 1;
-        log_debug("reorder", "initial sequence: %"PRIu64"", pkt->seq);
+        log_debug("reorder", "initial sequence: %"PRIu32"", pkt->seq);
     }
 
     /*
@@ -211,9 +192,10 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
     if (offset < b->order_buf.size) {
         position = (order_buf->head + offset) & order_buf->mask;
         order_buf->pkts[position] = pkt;
+        b->used++;
     } else if (offset < 2 * b->order_buf.size) {
-        if (mlvpn_reorder_fill_overflow(b, offset + 1 - order_buf->size)
-                < (offset + 1 - order_buf->size)) {
+        if (mlvpn_reorder_fill_overflow(b, offset + 1 - order_buf->size) <
+                (offset + 1 - order_buf->size)) {
             /* Put in handling for enqueue straight to output */
             return -1;
         }
@@ -222,7 +204,8 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
         order_buf->pkts[position] = pkt;
     } else {
         /* Put in handling for enqueue straight to output */
-        log_debug("reorder", "packet sequence out of range");
+        log_debug("reorder", "out of range: %d (win: %d->%d)",
+            pkt->seq, b->min_seqn, b->min_seqn + b->order_buf.size);
         return -2;
     }
     return 0;
@@ -230,7 +213,7 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
 
 unsigned int
 mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
-        unsigned max_pkts)
+        unsigned int max_pkts)
 {
     unsigned int drain_cnt = 0;
 
@@ -238,7 +221,8 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
             *ready_buf = &b->ready_buf;
 
     /* Try to fetch requested number of pkts from ready buffer */
-    while ((drain_cnt < max_pkts) && (ready_buf->tail != ready_buf->head)) {
+    while ((drain_cnt < max_pkts) &&
+            (ready_buf->tail != ready_buf->head)) {
         pkts[drain_cnt++] = ready_buf->pkts[ready_buf->tail];
         ready_buf->tail = (ready_buf->tail + 1) & ready_buf->mask;
     }
@@ -254,5 +238,12 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
         b->min_seqn++;
         order_buf->head = (order_buf->head + 1) & order_buf->mask;
     }
+    b->used -= drain_cnt;
     return drain_cnt;
+}
+
+unsigned int
+mlvpn_reorder_empty(struct mlvpn_reorder_buffer *b)
+{
+    return b->used == 0 ? 1 : 0;
 }

@@ -20,6 +20,7 @@ mlvpn_SOURCES = \
     reorder.h reorder.c \
     timestamp.h timestamp.c \
     tuntap_generic.c tuntap_generic.h \
+    flow.c flow.h \
     mlvpn.c mlvpn.h
 
 # There are better ways to do that, using a "compat" library
@@ -48,10 +49,6 @@ if BSD
 mlvpn_SOURCES += tuntap_bsd.c
 endif
 
-if ENABLE_CONTROL
-mlvpn_SOURCES += control.c control.h
-endif
-
 # Always include thoses files for distribution
 EXTRA_DIST = \
     closefrom.c \
@@ -61,8 +58,7 @@ EXTRA_DIST = \
     vis.c vis.h \
     tuntap_linux.c \
     tuntap_bsd.c \
-    systemd.c systemd.h \
-    control.c control.h
+    systemd.c systemd.h
 
 mlvpn_LDADD=-lm $(libsodium_LIBS) $(libev_LIBS)
 mlvpn_CFLAGS=$(CFLAGS) $(libsodium_CFLAGS) $(libev_CFLAGS)

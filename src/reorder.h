@@ -48,7 +48,25 @@
  */
 
 
-struct mlvpn_reorder_buffer;
+
+/* A generic circular buffer */
+struct cir_buffer {
+    unsigned int size;   /**< Number of pkts that can be stored */
+    unsigned int mask;   /**< [buffer_size - 1]: used for wrap-around */
+    unsigned int head;   /**< insertion point in buffer */
+    unsigned int tail;   /**< extraction point in buffer */
+    mlvpn_pkt_t **pkts;
+};
+
+/* The reorder buffer data structure itself */
+struct mlvpn_reorder_buffer {
+    uint32_t min_seqn;  /**< Lowest seq. number that can be in the buffer */
+    unsigned int memsize; /**< memory area size of reorder buffer */
+    struct cir_buffer ready_buf; /**< temp buffer for dequeued pkts */
+    struct cir_buffer order_buf; /**< buffer used to reorder pkts */
+    unsigned int used; /* number of packets in queue */
+    int is_initialized;
+};
 
 /**
  * Create a new reorder buffer instance
@@ -148,6 +166,17 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt);
  */
 unsigned int
 mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
-        unsigned max_pkts);
+        unsigned int max_pkts);
+
+/**
+ * Is the reorder buffer empty
+ *
+ * @param b
+ *   Reorder buffer instance from which packets are to be drained
+ * @return
+ *   1 if the buffer is empty, 0 otherwise
+ */
+unsigned int
+mlvpn_reorder_empty(struct mlvpn_reorder_buffer *b);
 
 #endif /* MLVPN_REORDER_H */
