@@ -10,8 +10,5 @@
 #if !defined(HAVE_ATTRIBUTE__BOUNDED__) && !defined(__bounded__)
 # define __bounded__(x, y, z)
 #endif
-#if !defined(HAVE_ATTRIBUTE__NONNULL__) && !defined(__nonnull__)
-# define __nonnull__(x)
-#endif
 
 #endif

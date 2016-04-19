@@ -799,7 +799,9 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     int fib = 0;
     char *addr, *port;
     struct addrinfo hints, *res;
-
+#if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
+    int fib = t->bindfib;
+#endif
     fd = t->fd;
     if (t->server_mode)
     {
@@ -838,11 +840,11 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
         } else {
             /* Setting fib/routing-table is supported on FreeBSD and OpenBSD only */
 #if defined(HAVE_FREEBSD)
-            if (setsockopt(fd, SOL_SOCKET, SO_SETFIB, &fib, sizeof(fib)) < 0)
+            if (fib > 0 && setsockopt(fd, SOL_SOCKET, SO_SETFIB, &fib, sizeof(fib)) < 0)
 #elif defined(HAVE_OPENBSD)
-            if (setsockopt(fd, SOL_SOCKET, SO_RTABLE, &fib, sizeof(fib)) < 0)
+            if (fib > 0 && setsockopt(fd, SOL_SOCKET, SO_RTABLE, &fib, sizeof(fib)) < 0)
             {
-                log_warnx(NULL, "Cannot set FIB %d for kernel socket", fib);
+                log_warn(NULL, "Cannot set FIB %d for kernel socket", fib);
                 goto error;
             }
 #endif
