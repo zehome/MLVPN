@@ -796,7 +796,6 @@ static int
 mlvpn_rtun_start(mlvpn_tunnel_t *t)
 {
     int ret, fd = -1;
-    int fib = 0;
     char *addr, *port;
     struct addrinfo hints, *res;
 #if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
@@ -807,11 +806,9 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     {
         addr = t->bindaddr;
         port = t->bindport;
-        fib = t->bindfib;
     } else {
         addr = t->destaddr;
         port = t->destport;
-        fib = t->bindfib;
     }
 
     /* Initialize hints */
