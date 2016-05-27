@@ -48,6 +48,10 @@ if BSD
 mlvpn_SOURCES += tuntap_bsd.c
 endif
 
+if DARWIN
+mlvpn_SOURCES += tuntap_darwin.c
+endif
+
 if ENABLE_CONTROL
 mlvpn_SOURCES += control.c control.h
 endif

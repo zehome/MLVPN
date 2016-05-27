@@ -41,6 +41,8 @@
 #endif
 #ifdef HAVE_FREEBSD
  #define _NSIG _SIG_MAXSIG
+#elif defined(HAVE_DARWIN)
+ #define _NSIG NSIG
 #endif
 
 #include "privsep.h"

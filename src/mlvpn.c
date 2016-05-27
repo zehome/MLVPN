@@ -65,6 +65,16 @@
 #include <sys/endian.h>
 #endif
 
+#ifdef HAVE_DARWIN
+#include <libkern/OSByteOrder.h>
+#define be16toh OSSwapBigToHostInt16
+#define be32toh OSSwapBigToHostInt32
+#define be64toh OSSwapBigToHostInt64
+#define htobe16 OSSwapHostToBigInt16
+#define htobe32 OSSwapHostToBigInt32
+#define htobe64 OSSwapHostToBigInt64
+#endif
+
 /* GLOBALS */
 struct tuntap_s tuntap;
 char *_progname;
