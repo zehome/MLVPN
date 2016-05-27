@@ -92,7 +92,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     {
         snprintf(devname, 5, "%s%d",
                  tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
-        snprintf(tuntap->devname, 10, "/dev/%s", devname);
+        snprintf(tuntap->devname, sizeof(tuntap->devname), "/dev/%s", devname);
 
         if ((fd = priv_open_tun(tuntap->type,
                 tuntap->devname, tuntap->maxmtu)) > 0 )
