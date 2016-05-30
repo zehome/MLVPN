@@ -84,6 +84,10 @@ case $host_os in
         AC_DEFINE(HAVE_BSD, 1, [BSD])
         bsd=true
     ;;
+    *darwin*)
+        AC_DEFINE(HAVE_DARWIN, 1, [DARWIN])
+        darwin=true
+    ;;
     *)
         AC_MSG_ERROR("Unsupported operating system.")
     ;;
@@ -91,6 +95,7 @@ esac
 
 AM_CONDITIONAL([LINUX], [test x$linux = xtrue])
 AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
+AM_CONDITIONAL([DARWIN], [test x$darwin = xtrue])
 
 dnl Checks for library functions. Please keep in alphabetical order
 AC_CHECK_FUNCS([ \
