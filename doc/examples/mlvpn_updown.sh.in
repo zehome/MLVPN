@@ -68,10 +68,13 @@ route_add()
     family=$1
     route=$2
     if [ "$unamestr" = "Linux" ]; then
+        via=""
         if [ "$family" = "4" ]; then
-            ip -4 route add $route via $IP4_GATEWAY dev $DEVICE
+            [ -z $IP4_GATEWAY ] || via="via $IP4_GATEWAY"
+            ip -4 route add $route $via dev $DEVICE
         elif [ "$family" = "6" ]; then
-            ip -6 route add $route via $IP6_GATEWAY dev $DEVICE
+            [ -z $IP6_GATEWAY ] || via="via $IP6_GATEWAY"
+            ip -6 route add $route $via dev $DEVICE
         fi
     else
         if [ "$family" = "4" ]; then
