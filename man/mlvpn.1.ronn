@@ -54,7 +54,7 @@ if you want good balancing of the links.
 
   * `--quiet`, `-q`:
     decrease verbosity
-    The verbosity will print usefull messages and errors only.
+    The verbosity will print useful messages and errors only.
     If `--quiet` is specified, then only errors will be shown / logged
 
   * `--yes-run-as-root`:
