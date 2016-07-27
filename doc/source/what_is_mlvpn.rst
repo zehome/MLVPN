@@ -33,6 +33,10 @@ Limitations
 
 Non equivalent links (3G/4G and *DSL or WIFI and *DSL)
 ======================================================
+
+Note: make sure you set the bandwidth_upload on each link, otherwise each link
+will only receive as much traffic as the slowest link can handle.
+
 mlvpn can aggregate very different links if reordering is enabled.
 
 If you have a high latency 3G/4G link and a DSL connection, then
