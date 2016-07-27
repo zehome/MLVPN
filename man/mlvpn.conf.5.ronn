@@ -122,7 +122,11 @@ The section name is mapped to the tunnel name. Example: "[adsl1]", "[adsl2]".
     Bandwidth is specified in Bytes (1 KiB is 1024 Bytes).
 
     This is used to setup the weighted round-robin balancing algorithm.
-    Set 0 if both links are similar. (client/server)
+
+    If not specified, each link will only receive as much traffic as the
+    slowest link can handle.
+
+    Set to 0 if both links have the same bandwidth. (client/server)
 
   - _timeout_ = 25
     Override **[general]** timeout for this link. (client/server)
