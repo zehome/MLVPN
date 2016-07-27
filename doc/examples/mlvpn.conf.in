@@ -95,6 +95,8 @@ bindport = 5080
 #bindfib = 0
 #remotehost = "10.2.3.4"
 #remoteport = 5080
+## Bandwidth of this link, in bytes/s. If not specified, each link will only
+## receive as much traffic as the slowest link can handle.
 #bandwidth_upload = 61440
 #timeout = 25
 
