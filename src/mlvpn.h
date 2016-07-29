@@ -76,7 +76,7 @@
  */
 #define MLVPN_IO_TIMEOUT_INCREMENT 2
 
-#define NEXT_KEEPALIVE(now, t) (now + 2)
+#define NEXT_KEEPALIVE(now, t) (now + 1)
 /* Protocol version of mlvpn
  * version 0: mlvpn 2.0 to 2.1 
  * version 1: mlvpn 2.2+ (add reorder field in mlvpn_proto_t)
