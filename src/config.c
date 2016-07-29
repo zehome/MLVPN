@@ -156,9 +156,9 @@ mlvpn_config(int config_file_fd, int first_time)
                 _conf_set_uint_from_conf(
                     config, lastSection, "timeout", &default_timeout, 60,
                     NULL, 0);
-                if (default_timeout < 5) {
-                    log_warnx("config", "timeout capped to 5 seconds");
-                    default_timeout = 5;
+                if (default_timeout < 2) {
+                    log_warnx("config", "timeout capped to 2 seconds");
+                    default_timeout = 2;
                 }
 
                 _conf_set_uint_from_conf(
@@ -317,9 +317,9 @@ mlvpn_config(int config_file_fd, int first_time)
                 _conf_set_uint_from_conf(
                     config, lastSection, "timeout", &timeout, default_timeout,
                     NULL, 0);
-                if (timeout < 5) {
-                    log_warnx("config", "timeout capped to 5 seconds");
-                    timeout = 5;
+                if (timeout < 2) {
+                    log_warnx("config", "timeout capped to 2 seconds");
+                    timeout = 2;
                 }
                 _conf_set_uint_from_conf(
                     config, lastSection, "loss_tolerence", &loss_tolerence,
