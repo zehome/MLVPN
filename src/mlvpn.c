@@ -82,6 +82,7 @@ static char **saved_argv;
 struct ev_loop *loop;
 static ev_timer reorder_drain_timeout;
 static ev_timer reorder_adjust_rtt_timeout;
+static ev_timer reset_wrr_timeout;
 char *status_command = NULL;
 char *process_title = NULL;
 int logdebug = 0;
@@ -148,6 +149,7 @@ static uint32_t mlvpn_rtun_reorder_drain(uint32_t reorder);
 static void mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents);
+static void mlvpn_reset_wrr_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t);
 static void mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t);
 static int mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
@@ -1128,10 +1130,10 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
 }
 
 mlvpn_tunnel_t *
-mlvpn_rtun_choose()
+mlvpn_rtun_choose(uint32_t len)
 {
     mlvpn_tunnel_t *tun;
-    tun = mlvpn_rtun_wrr_choose();
+    tun = mlvpn_rtun_wrr_choose(len);
     return tun;
 }
 
@@ -1251,6 +1253,12 @@ mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents)
     } else {
         reorder_drain_timeout.repeat = 0.8; /* Conservative 800ms shot */
     }
+}
+
+static void
+mlvpn_reset_wrr_timeout(EV_P_ ev_timer *w, int revents)
+{
+    mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
 }
 
 static void
@@ -1530,6 +1538,10 @@ main(int argc, char **argv)
     ev_timer_init(&reorder_adjust_rtt_timeout,
         mlvpn_rtun_adjust_reorder_timeout, 0., 1.0);
     ev_timer_start(EV_A_ &reorder_adjust_rtt_timeout);
+
+    ev_timer_init(&reset_wrr_timeout,
+        mlvpn_reset_wrr_timeout, 0., 1.0);
+    ev_timer_start(EV_A_ &reset_wrr_timeout);
 
     priv_set_running_state();
 

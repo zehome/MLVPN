@@ -35,8 +35,24 @@ static int wrr_min_index()
 /* initialize wrr system */
 int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
 {
+    int tunnels = 0;
     mlvpn_tunnel_t *t;
-    wrr.len = 0;
+    // TODO: add tunnels in the right order to |head| to begin with
+    log_debug("wrr_reset", "begin");
+    LIST_FOREACH(t, head, entries) {
+        log_debug("wrr_reset", "checking tunnel");
+        if (t->fallback_only != use_fallbacks) {
+            continue;
+        }
+        /* Don't select "LOSSY" tunnels, except if we are in fallback mode */
+        if ((t->fallback_only && t->status >= MLVPN_AUTHOK) ||
+            (t->status == MLVPN_AUTHOK))
+        {
+            tunnels++;
+        }
+    }
+    log_debug("wrr_reset", "done, found %d tunnels", tunnels);
+    wrr.len = tunnels;
     LIST_FOREACH(t, head, entries)
     {
         if (t->fallback_only != use_fallbacks) {
@@ -48,9 +64,9 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
         {
             if (wrr.len >= MAX_TUNNELS)
                 fatalx("You have too much tunnels declared");
-            wrr.tunnel[wrr.len] = t;
-            wrr.tunval[wrr.len] = 0.0;
-            wrr.len++;
+            tunnels--;
+            wrr.tunnel[tunnels] = t;
+            wrr.tunval[tunnels] = 0.0;
         }
     }
 
@@ -58,23 +74,22 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
 }
 
 mlvpn_tunnel_t *
-mlvpn_rtun_wrr_choose()
+mlvpn_rtun_wrr_choose(uint32_t len)
 {
-    int i;
-    int idx;
-
-    if (wrr.len == 0)
-        return NULL;
-
-    idx = wrr_min_index();
-    if (idx < 0)
-        fatalx("Programming error: wrr_min_index < 0!");
-
-    for(i = 0; i < wrr.len; i++)
-    {
-        if (wrr.tunval[i] > 0)
-            wrr.tunval[i] -= 1;
+    int i = 0;
+    /* Iterate through tunnels in order of priority */
+    for (i = 0; i < wrr.len; i++) {
+        log_debug("wrr", "check tunnel %d/%d with %f+%u bytes used of %d total",
+                i, wrr.len, wrr.tunval[i], len, wrr.tunnel[i]->bandwidth);
+        /* Skip tunnels which have exhausted their bandwidth in this timeslot */
+        if ((wrr.tunval[i] + len) >= wrr.tunnel[i]->bandwidth) {
+            log_debug("wrr", "bandwidth exhausted!");
+            continue;
+        }
+        wrr.tunval[i] += len;
+        return wrr.tunnel[i];
     }
-    wrr.tunval[idx] = (double) 100.0 / wrr.tunnel[idx]->weight;
-    return wrr.tunnel[idx];
+    log_debug("wrr", "no tunnel found for packet of len %u", len);
+    /* Discard the packet in mlvpn_tuntap_generic_read() */
+    return NULL;
 }
