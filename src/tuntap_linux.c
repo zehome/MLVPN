@@ -18,8 +18,13 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     u_char data[DEFAULT_MTU];
     ret = read(tuntap->fd, &data, DEFAULT_MTU);
     if (ret < 0) {
-        /* read error on tuntap is not recoverable. We must die. */
-        fatal("tuntap", "unrecoverable read error");
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            /* read error on tuntap is not recoverable. We must die. */
+            fatal("tuntap", "unrecoverable read error");
+        } else {
+            /* false reading from libev read would block, we can't read */
+            return 0;
+        }
     } else if (ret == 0) { /* End of file */
         fatalx("tuntap device closed");
     } else if (ret > tuntap->maxmtu)  {
@@ -34,7 +39,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 int
 mlvpn_tuntap_write(struct tuntap_s *tuntap)
 {
-    int len;
+    ssize_t ret;
     mlvpn_pkt_t *pkt;
     circular_buffer_t *buf = tuntap->sbuf;
 
@@ -43,22 +48,21 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
         fatalx("tuntap_write called with empty buffer");
 
     pkt = mlvpn_pktbuffer_read(buf);
-    len = write(tuntap->fd, pkt->data, pkt->len);
-    if (len < 0)
+    ret = write(tuntap->fd, pkt->data, pkt->len);
+    if (ret < 0)
     {
         log_warn("tuntap", "%s write error", tuntap->devname);
     } else {
-        if (len != pkt->len)
+        if (ret != pkt->len)
         {
-            log_warnx("tuntap", "%s write error: %d/%d bytes sent",
-               tuntap->devname, len, pkt->len);
+            log_warnx("tuntap", "%s write error: %zd/%d bytes sent",
+               tuntap->devname, ret, pkt->len);
         } else {
-            log_debug("tuntap", "%s > sent %d bytes",
-               tuntap->devname, len);
+            log_debug("tuntap", "%s > sent %zd bytes",
+               tuntap->devname, ret);
         }
     }
-
-    return len;
+    return ret;
 }
 
 int

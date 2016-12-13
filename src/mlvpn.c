@@ -1518,6 +1518,7 @@ main(int argc, char **argv)
         fatalx("cannot create tunnel device");
     else
         log_info(NULL, "created interface `%s'", tuntap.devname);
+    mlvpn_sock_set_nonblocking(tuntap.fd);
 
     /* This is a dummy value which will be overwritten when the first
      * SRTT values will be available
