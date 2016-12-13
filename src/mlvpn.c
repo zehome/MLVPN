@@ -547,7 +547,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.timestamp = mlvpn_timestamp16(now64);
 #ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
-        memcpy(&proto.data, &pkt->data, wlen);
+        memcpy(&proto.data, &pkt->data, pkt->len);
     } else {
         if (wlen + crypto_PADSIZE > sizeof(proto.data)) {
             log_warnx("protocol", "%s packet too long: %u/%d (packet=%d)",
@@ -571,7 +571,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
         wlen += crypto_PADSIZE;
     }
 #else
-    memcpy(&proto.data, &pkt->data, wlen);
+    memcpy(&proto.data, &pkt->data, pkt->len);
 #endif
     proto.len = htobe16(proto.len);
     proto.seq = htobe64(proto.seq);
