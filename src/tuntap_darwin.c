@@ -14,7 +14,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
     ssize_t ret;
     u_char data[DEFAULT_MTU];
-    ret = read(tuntap->fd, &data, DEFAULT_MTU);
+    ret = read(tuntap->fd, &data, tuntap->maxmtu);
     if (ret < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             /* read error on tuntap is not recoverable. We must die. */

@@ -25,7 +25,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     iov[0].iov_base = &type;
     iov[0].iov_len = sizeof(type);
     iov[1].iov_base = &data;
-    iov[1].iov_len = DEFAULT_MTU;
+    iov[1].iov_len = tuntap->maxmtu;
     ret = readv(tuntap->fd, iov, 2);
     if (ret < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
