@@ -478,7 +478,7 @@ mlvpn_control_read(struct mlvpn_control *ctrl)
 
     ret = read(ctrl->clientfd, ctrl->rbuf + ctrl->rbufpos,
                MLVPN_CTRL_BUFSIZ - ctrl->rbufpos);
-    if (len > 0)
+    if (ret > 0)
     {
         ctrl->last_activity = time((time_t *)NULL);
         log_debug("control", "received %zd bytes", ret);
