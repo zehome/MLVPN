@@ -265,30 +265,44 @@ mlvpn_rtun_reorder_drain(uint32_t reorder)
 static void
 mlvpn_loss_update(mlvpn_tunnel_t *tun, uint64_t seq)
 {
-    if (seq > tun->seq_last + 64) {
-        /* consider a connection reset. */
-        tun->seq_vect = (uint64_t) -1;
-        tun->seq_last = seq;
-    } else if (seq > tun->seq_last) {
-        /* new sequence number -- recent message arrive */
-        tun->seq_vect <<= seq - tun->seq_last;
-        tun->seq_vect |= 1;
-        tun->seq_last = seq;
-    } else if (seq >= tun->seq_last - 63) {
-        tun->seq_vect |= (1 << (tun->seq_last - seq));
+// If a tunnel moves forward, leaving a 'hole' - then we GUESS the hole is for
+// the other tunnel, and if it's not filled in, will be a loss marked for the
+// other tunnel.
+  
+  mlvpn_tunnel_t *t;
+  LIST_FOREACH(t, &rtuns, entries) {
+    
+    if (seq > t->seq_last + 64) {
+      /* consider a connection reset. */
+      t->seq_vect = (uint64_t) -1;
+      t->seq_last = seq;
+    } else if (seq > t->seq_last) {
+      /* new sequence number -- recent message arrive */
+      t->seq_vect <<= seq - t->seq_last;
+      if (t==tun) {
+        t->seq_vect |= ~((long long)-1<<(seq - t->seq_last));
+        // If I move it forward, I claim all the other holes are somebody elses
+        // problem to fill in...., so not my error !
+      } else {
+        t->seq_vect |= 1;
+      }
+      t->seq_last = seq;
+    } else if (seq >= t->seq_last - 63) {
+      t->seq_vect |= (1 << (t->seq_last - seq));
     }
+  } 
 }
 
 int
 mlvpn_loss_ratio(mlvpn_tunnel_t *tun)
 {
     int loss = 0;
-    int i;
+    unsigned int i;
     /* Count zeroes */
     for (i = 0; i < 64; i++) {
-        if (! (1 & (tun->seq_vect >> i))) {
-            loss++;
-        }
+      if ( (1 & (tun->seq_vect >> i)) == 0 ) {
+        loss++;
+      }
     }
     return loss * 100 / 64;
 }
