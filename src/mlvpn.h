@@ -47,7 +47,7 @@
 #include "timestamp.h"
 
 #define MLVPN_MAXHNAMSTR 256
-#define MLVPN_MAXPORTSTR 5
+#define MLVPN_MAXPORTSTR 6
 
 /* Number of packets in the queue. Each pkt is ~ 1520 */
 /* 1520 * 128 ~= 24 KBytes of data maximum per channel VMSize */

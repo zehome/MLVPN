@@ -474,15 +474,15 @@ mlvpn_control_read_check(struct mlvpn_control *ctrl)
 int
 mlvpn_control_read(struct mlvpn_control *ctrl)
 {
-    int len;
+    ssize_t ret;
 
-    len = read(ctrl->clientfd, ctrl->rbuf + ctrl->rbufpos,
+    ret = read(ctrl->clientfd, ctrl->rbuf + ctrl->rbufpos,
                MLVPN_CTRL_BUFSIZ - ctrl->rbufpos);
-    if (len > 0)
+    if (ret > 0)
     {
         ctrl->last_activity = time((time_t *)NULL);
-        log_debug("control", "received %d bytes", len);
-        ctrl->rbufpos += len;
+        log_debug("control", "received %zd bytes", ret);
+        ctrl->rbufpos += ret;
         if (ctrl->rbufpos >= MLVPN_CTRL_BUFSIZ)
         {
             log_warnx("control", "overflow on read buffer");
@@ -492,9 +492,11 @@ mlvpn_control_read(struct mlvpn_control *ctrl)
 
         /* Parse the message */
         while (mlvpn_control_read_check(ctrl) != 0);
-    } else if (len < 0) {
+    } else if (ret < 0) {
         log_warn("control", "read error on %d", ctrl->clientfd);
-        mlvpn_control_close_client(ctrl);
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            mlvpn_control_close_client(ctrl);
+        }
     } else {
         /* End of file */
         ctrl->clientfd = -1;
@@ -529,23 +531,24 @@ mlvpn_control_write(struct mlvpn_control *ctrl, void *buf, size_t len)
 int
 mlvpn_control_send(struct mlvpn_control *ctrl)
 {
-    int len;
+    ssize_t ret;
 
     if (ctrl->wbufpos <= 0)
     {
         log_warnx("control", "nothing to write. THIS IS A BUG");
         return -1;
     }
-    len = write(ctrl->clientfd, ctrl->wbuf, ctrl->wbufpos);
-    if (len < 0)
+    ret = write(ctrl->clientfd, ctrl->wbuf, ctrl->wbufpos);
+    if (ret < 0)
     {
         log_warn("control", "write error on %d",
             ctrl->clientfd);
         mlvpn_control_close_client(ctrl);
     } else {
-        ctrl->wbufpos -= len;
-        if (ctrl->wbufpos > 0)
-            memmove(ctrl->wbuf, ctrl->wbuf+len, ctrl->wbufpos);
+        ctrl->wbufpos -= ret;
+        if (ctrl->wbufpos > 0) {
+            memmove(ctrl->wbuf, ctrl->wbuf+ret, ctrl->wbufpos);
+        }
     }
 
     if (ctrl->close_after_write && ctrl->wbufpos <= 0)
@@ -555,6 +558,6 @@ mlvpn_control_send(struct mlvpn_control *ctrl)
         ev_io_stop(EV_DEFAULT_UC, &ctrl->client_io_write);
     }
 
-    return len;
+    return ret;
 }
 

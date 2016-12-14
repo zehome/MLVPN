@@ -12,7 +12,7 @@ AC_CONFIG_FILES([Makefile
                  man/Makefile])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([CONFIGURE_ARGS], [$ac_configure_args])
-AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
+AM_INIT_AUTOMAKE([foreign -Wall -Wextra silent-rules])
 
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES(yes)])
@@ -84,6 +84,10 @@ case $host_os in
         AC_DEFINE(HAVE_BSD, 1, [BSD])
         bsd=true
     ;;
+    *darwin*)
+        AC_DEFINE(HAVE_DARWIN, 1, [DARWIN])
+        darwin=true
+    ;;
     *)
         AC_MSG_ERROR("Unsupported operating system.")
     ;;
@@ -91,6 +95,7 @@ esac
 
 AM_CONDITIONAL([LINUX], [test x$linux = xtrue])
 AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
+AM_CONDITIONAL([DARWIN], [test x$darwin = xtrue])
 
 dnl Checks for library functions. Please keep in alphabetical order
 AC_CHECK_FUNCS([ \

@@ -15,7 +15,7 @@
 # rtun_up is called when successfully connected
 # rtun_down is called when disconnected
 
-# Environment variables are set by mlvpn, reflecting
+# Environment variables are set by mlvpn, reflecting
 # settings in mlvpn.conf
 # IP4=
 # IP6=
@@ -23,7 +23,7 @@
 # IP6_GATEWAY=
 # IP4_ROUTES=
 # IP6_ROUTES=
-# MTU=
+# MTU=
 # DEVICE=
 
 DEVICE="$1"
@@ -68,10 +68,13 @@ route_add()
     family=$1
     route=$2
     if [ "$unamestr" = "Linux" ]; then
+        via=""
         if [ "$family" = "4" ]; then
-            ip -4 route add $route via $IP4_GATEWAY dev $DEVICE
+            [ -z $IP4_GATEWAY ] || via="via $IP4_GATEWAY"
+            ip -4 route add $route $via dev $DEVICE
         elif [ "$family" = "6" ]; then
-            ip -6 route add $route via $IP6_GATEWAY dev $DEVICE
+            [ -z $IP6_GATEWAY ] || via="via $IP6_GATEWAY"
+            ip -6 route add $route $via dev $DEVICE
         fi
     else
         if [ "$family" = "4" ]; then

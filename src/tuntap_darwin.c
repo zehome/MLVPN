@@ -3,12 +3,7 @@
 #include <err.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <net/if.h>
-#include <net/if_types.h>
-#include <net/if_tun.h>
-#include <sys/uio.h>
+#include <net/if_utun.h>
 
 #include "buffer.h"
 #include "tuntap_generic.h"
@@ -19,14 +14,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
     ssize_t ret;
     u_char data[DEFAULT_MTU];
-    struct iovec iov[2];
-    uint32_t type;
-
-    iov[0].iov_base = &type;
-    iov[0].iov_len = sizeof(type);
-    iov[1].iov_base = &data;
-    iov[1].iov_len = tuntap->maxmtu;
-    ret = readv(tuntap->fd, iov, 2);
+    ret = read(tuntap->fd, &data, tuntap->maxmtu);
     if (ret < 0) {
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
             /* read error on tuntap is not recoverable. We must die. */
@@ -39,8 +27,8 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
         fatalx("tuntap device closed");
     } else if (ret > tuntap->maxmtu)  {
         log_warnx("tuntap",
-            "cannot send packet: too big %d/%d. truncating",
-            (uint32_t)ret, tuntap->maxmtu);
+            "cannot send packet: too big %zd/%d. truncating",
+            ret, tuntap->maxmtu);
         ret = tuntap->maxmtu;
     }
     return mlvpn_tuntap_generic_read(data, ret);
@@ -49,40 +37,32 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 int
 mlvpn_tuntap_write(struct tuntap_s *tuntap)
 {
-    ssize_t ret;
-    int datalen = 0;
+    ssize_t len;
     mlvpn_pkt_t *pkt;
     circular_buffer_t *buf = tuntap->sbuf;
-    uint32_t type;
-    struct iovec iov[2];
 
+    /* Safety checks */
     if (mlvpn_cb_is_empty(buf))
         fatalx("tuntap_write called with empty buffer");
 
     pkt = mlvpn_pktbuffer_read(buf);
-
-    type = htonl(AF_INET);
-
-    iov[0].iov_base = &type;
-    iov[0].iov_len = sizeof(type);
-    iov[1].iov_base = pkt->data;
-    iov[1].iov_len = pkt->len;
-
-    ret = writev(tuntap->fd, iov, 2);
-    if (ret < 0) {
+    ret = write(tuntap->fd, pkt->data, pkt->len);
+    if (ret < 0)
+    {
         log_warn("tuntap", "%s write error", tuntap->devname);
     } else {
-        datalen = ret - iov[0].iov_len;
-        if (datalen != pkt->len) {
-            log_warnx("tuntap", "%s write error: only %d/%d bytes sent",
-               tuntap->devname, datalen, pkt->len);
+        if (ret != pkt->len)
+        {
+            log_warnx("tuntap", "%s write error: %zd/%d bytes sent",
+               tuntap->devname, ret, pkt->len);
         } else {
-            log_debug("tuntap", "%s > sent %d bytes",
-               tuntap->devname, datalen);
+            log_debug("tuntap", "%s > sent %zd bytes",
+               tuntap->devname, ret);
         }
     }
-    return datalen;
+    return ret;
 }
+
 int
 mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
 {
@@ -90,9 +70,6 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     int fd;
     int i;
 
-    /* TODO: handle this by command line/config file ! */
-    /* FreeBSD/OpenBSD (and others maybe) supports each tun on different device. */
-    /* examples: /dev/tun0, /dev/tun2 (man 2 if_tun) */
     for (i=0; i < 32; i++)
     {
         snprintf(devname, 5, "%s%d",
@@ -114,8 +91,6 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     }
     tuntap->fd = fd;
 
-    /* geting the actual tun%d inside devname
-     * is required for hooks to work properly */
     strlcpy(tuntap->devname, devname, sizeof(tuntap->devname));
     return tuntap->fd;
 }
@@ -125,7 +100,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
  * Really open the tun device.
  * returns tun file descriptor.
  *
- * Compatibility: BSD
+ * Compatibility: Darwin
  */
 int
 root_tuntap_open(int tuntapmode, char *devname, int mtu)
@@ -133,37 +108,5 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
     int fd;
 
     fd = open(devname, O_RDWR);
-    if (fd >= 0)
-    {
-#ifdef HAVE_OPENBSD
-        struct tuninfo tuninfo;
-        tuninfo.mtu = mtu;
-        tuninfo.flags = IFF_POINTOPOINT;
-        tuninfo.baudrate = 0;
-        if (ioctl(fd, TUNSIFINFO, &tuninfo, sizeof(tuninfo)) < 0) {
-            warn("ioctl(TUNSIFMODE)");
-            close(fd);
-            return -1;
-        }
-#else
-        int flags;
-        flags = IFF_POINTOPOINT | IFF_MULTICAST;
-        if (ioctl(fd, TUNSIFMODE, &flags) < 0) {
-            warn("ioctl(TUNSIFMODE)");
-            close(fd);
-            return -1;
-        }
-
-        flags = 1;
-        if (ioctl(fd, TUNSIFHEAD, &flags) < 0)
-        {
-            warn("ioctl(TUNSIFHEAD)");
-            close(fd);
-            return -1;
-        }
-        /* TODO change MTU on FreeBSD */
-#endif
-    }
     return fd;
 }
-

@@ -451,7 +451,8 @@ mlvpn_config(int config_file_fd, int first_time)
     int found_in_config = 0;
     while (work)
     {
-        if (strncmp(work->section, "filters", 7) == 0) {
+        if (work->section != NULL &&
+                strncmp(work->section, "filters", 7) == 0) {
             memset(&filter, 0, sizeof(filter));
             if (pcap_compile(pcap_dead_p, &filter, work->conf->val,
                     1, PCAP_NETMASK_UNKNOWN) != 0) {

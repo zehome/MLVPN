@@ -65,6 +65,16 @@
 #include <sys/endian.h>
 #endif
 
+#ifdef HAVE_DARWIN
+#include <libkern/OSByteOrder.h>
+#define be16toh OSSwapBigToHostInt16
+#define be32toh OSSwapBigToHostInt32
+#define be64toh OSSwapBigToHostInt64
+#define htobe16 OSSwapHostToBigInt16
+#define htobe32 OSSwapHostToBigInt32
+#define htobe64 OSSwapHostToBigInt64
+#endif
+
 /* GLOBALS */
 struct tuntap_s tuntap;
 char *_progname;
@@ -537,7 +547,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.timestamp = mlvpn_timestamp16(now64);
 #ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
-        memcpy(&proto.data, &pkt->data, wlen);
+        memcpy(&proto.data, &pkt->data, pkt->len);
     } else {
         if (wlen + crypto_PADSIZE > sizeof(proto.data)) {
             log_warnx("protocol", "%s packet too long: %u/%d (packet=%d)",
@@ -561,7 +571,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
         wlen += crypto_PADSIZE;
     }
 #else
-    memcpy(&proto.data, &pkt->data, wlen);
+    memcpy(&proto.data, &pkt->data, pkt->len);
 #endif
     proto.len = htobe16(proto.len);
     proto.seq = htobe64(proto.seq);
@@ -1508,6 +1518,7 @@ main(int argc, char **argv)
         fatalx("cannot create tunnel device");
     else
         log_info(NULL, "created interface `%s'", tuntap.devname);
+    mlvpn_sock_set_nonblocking(tuntap.fd);
 
     /* This is a dummy value which will be overwritten when the first
      * SRTT values will be available

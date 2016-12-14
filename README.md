@@ -41,11 +41,22 @@ cd mlvpn
 make
 ```
 
+Install "static" package
+------------------------
+This is usefull on old systems. For example, for debian
+```
+wget https://github.com/zehome/MLVPN/releases/download/2.3.1/mlvpn_static_ev_4.22_libsodium_1.0.10.tar.gz
+tar -C / -xpzf mlvpn_static_ev_4.22_libsodium_1.0.10.tar.gz
+adduser --quiet --system --no-create-home --home /var/run/mlvpn --shell /usr/sbin/nologin mlvpn
+chmod +x /etc/init.d/mlvpn
+insserv mlvpn
+```
+
 Build from source
 -----------------
 ```sh
 # Debian
-$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev
+$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev
 # OR ArchLinux
 $ sudo pacman -S base-devel git libev libsodium
 $ ./autogen.sh
@@ -131,7 +142,7 @@ Principle of operations
 
 Compatibility
 =============
-Linux, OpenBSD, FreeBSD
+Linux, OpenBSD, FreeBSD, OSX
 
 Windows is *NOT* supported, but MLVPN runs on routers, so you can
 benefit from MLVPN on *ANY* operating system of course.
@@ -147,6 +158,7 @@ Contributors
   * Nicolas Braud-Santoni, contributor (documentation)
   * Stuart Henderson, contributor (OpenBSD port/package)
   * Olivier Cochard-Labbé, contributor (FreeBSD/OpenBSD fib routing)
+  * Michael Stapelberg, contributor (documentation)
 
 LICENSE
 =======

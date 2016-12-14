@@ -1,0 +1,75 @@
+image: debian:jessie
+variables:
+  EV_VERSION: "4.22"
+  LIBSODIUM_VERSION: "1.0.10"
+  PCAP_VERSION: "1.7.4"
+static_binary:
+  image: clarisys/debian32:etch
+  script:
+    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core
+    - mkdir dist
+    - wget http://dist.schmorp.de/libev/libev-${EV_VERSION}.tar.gz -O dist/libev-${EV_VERSION}.tar.gz
+    - wget --no-check-certificate https://github.com/jedisct1/libsodium/releases/download/${LIBSODIUM_VERSION}/libsodium-${LIBSODIUM_VERSION}.tar.gz -O dist/libsodium-${LIBSODIUM_VERSION}.tar.gz
+    - wget http://www.tcpdump.org/release/libpcap-${PCAP_VERSION}.tar.gz -O dist/libpcap-${PCAP_VERSION}.tar.gz 
+    - cd dist && tar xzf libev-${EV_VERSION}.tar.gz && cd -
+    - cd dist && tar xzf libsodium-${LIBSODIUM_VERSION}.tar.gz && cd -
+    - cd dist && tar xzf libpcap-${PCAP_VERSION}.tar.gz && cd -
+    - cd dist/libev-${EV_VERSION} && ./configure --enable-static --disable-shared --prefix $HOME/libev/ && make -j4 install && cd -
+    - cd dist/libsodium-${LIBSODIUM_VERSION} && ./configure --enable-static --disable-ssp --disable-shared --prefix=$HOME/libsodium/ && make -j4 install && cd -
+    - cd dist/libpcap-${PCAP_VERSION} && ./configure --disable-shared --prefix $HOME/libpcap/ && make -j4 install && cd -
+    - ./autogen.sh && libpcap_LIBS="-L${HOME}/libpcap/lib -lpcap" libpcap_CFLAGS="-I${HOME}/libpcap/include" libsodium_LIBS="-L${HOME}/libsodium/lib -lsodium" libsodium_CFLAGS=-I${HOME}/libsodium/include libev_LIBS="-L${HOME}/libev/lib -lev" libev_CFLAGS=-I${HOME}/libev/include ./configure --enable-filters LDFLAGS="-Wl,-Bdynamic" --prefix=/usr --sysconfdir=/etc --localstatedir=/var && make
+    - make install
+    - mkdir /etc/mlvpn
+    - cp /usr/share/doc/mlvpn/mlvpn.init.d /etc/init.d/mlvpn
+    - cp /usr/share/doc/mlvpn/mlvpn.default /etc/default/mlvpn
+    - cp /usr/share/doc/mlvpn/mlvpn_updown.sh /etc/mlvpn/
+    - cp /usr/share/doc/mlvpn/mlvpn.conf /etc/mlvpn/
+    - chmod 600 /etc/mlvpn/mlvpn.conf
+    - chmod 700 /etc/mlvpn/mlvpn_updown.sh
+    - tar cpzf mlvpn_static_ev_${EV_VERSION}_libsodium_${LIBSODIUM_VERSION}.tar.gz /etc/mlvpn /etc/init.d/mlvpn /etc/default/mlvpn /usr/share/doc/mlvpn /usr/sbin/mlvpn
+  tags: ["linux"]
+  artifacts:
+    paths:
+      - mlvpn_static_ev_${EV_VERSION}_libsodium_${LIBSODIUM_VERSION}.tar.gz
+
+static64_binary:
+  image: debian:wheezy
+  script:
+    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core
+    - mkdir dist
+    - wget http://dist.schmorp.de/libev/libev-${EV_VERSION}.tar.gz -O dist/libev-${EV_VERSION}.tar.gz
+    - wget --no-check-certificate https://github.com/jedisct1/libsodium/releases/download/${LIBSODIUM_VERSION}/libsodium-${LIBSODIUM_VERSION}.tar.gz -O dist/libsodium-${LIBSODIUM_VERSION}.tar.gz
+    - wget http://www.tcpdump.org/release/libpcap-${PCAP_VERSION}.tar.gz -O dist/libpcap-${PCAP_VERSION}.tar.gz 
+    - cd dist && tar xzf libev-${EV_VERSION}.tar.gz && cd -
+    - cd dist && tar xzf libsodium-${LIBSODIUM_VERSION}.tar.gz && cd -
+    - cd dist && tar xzf libpcap-${PCAP_VERSION}.tar.gz && cd -
+    - cd dist/libev-${EV_VERSION} && ./configure --enable-static --disable-shared --prefix $HOME/libev/ && make -j4 install && cd -
+    - cd dist/libsodium-${LIBSODIUM_VERSION} && ./configure --enable-static --disable-ssp --disable-shared --prefix=$HOME/libsodium/ && make -j4 install && cd -
+    - cd dist/libpcap-${PCAP_VERSION} && ./configure --disable-shared --prefix $HOME/libpcap/ && make -j4 install && cd -
+    - ./autogen.sh && libpcap_LIBS="-L${HOME}/libpcap/lib -lpcap" libpcap_CFLAGS="-I${HOME}/libpcap/include" libsodium_LIBS="-L${HOME}/libsodium/lib -lsodium" libsodium_CFLAGS=-I${HOME}/libsodium/include libev_LIBS="-L${HOME}/libev/lib -lev" libev_CFLAGS=-I${HOME}/libev/include ./configure --enable-filters LDFLAGS="-Wl,-Bdynamic" --prefix=/usr --sysconfdir=/etc --localstatedir=/var && make
+    - make install
+    - mkdir /etc/mlvpn
+    - cp /usr/share/doc/mlvpn/mlvpn.init.d /etc/init.d/mlvpn
+    - cp /usr/share/doc/mlvpn/mlvpn.default /etc/default/mlvpn
+    - cp /usr/share/doc/mlvpn/mlvpn_updown.sh /etc/mlvpn/
+    - cp /usr/share/doc/mlvpn/mlvpn.conf /etc/mlvpn/
+    - chmod 600 /etc/mlvpn/mlvpn.conf
+    - chmod 700 /etc/mlvpn/mlvpn_updown.sh
+    - tar cpzf mlvpn_static64_ev_${EV_VERSION}_libsodium_${LIBSODIUM_VERSION}.tar.gz /etc/mlvpn /etc/init.d/mlvpn /etc/default/mlvpn /usr/share/doc/mlvpn /usr/sbin/mlvpn
+  tags: ["linux"]
+  artifacts:
+    paths:
+      - mlvpn_static64_ev_${EV_VERSION}_libsodium_${LIBSODIUM_VERSION}.tar.gz
+
+debian_jessie_package:
+  image: debian:jessie
+  script:
+    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium13 libsodium-dev libpcap-dev libev-dev
+    - git-buildpackage
+  tags: ["linux"]
+  only:
+    - debian-unstable
+  artifacts:
+    paths:
+      - doc/examples/mlvpn.conf
+      - doc/examples/mlvpn_updown.sh
