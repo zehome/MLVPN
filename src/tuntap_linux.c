@@ -16,15 +16,16 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 {
     ssize_t ret;
     u_char data[DEFAULT_MTU];
+
     ret = read(tuntap->fd, &data, tuntap->maxmtu);
+      
+    if (ret<0 && (errno==EAGAIN || errno==EWOULDBLOCK)) {
+      return -1;
+    }
+    
     if (ret < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            /* read error on tuntap is not recoverable. We must die. */
-            fatal("tuntap", "unrecoverable read error");
-        } else {
-            /* false reading from libev read would block, we can't read */
-            return 0;
-        }
+        /* read error on tuntap is not recoverable. We must die. */
+        fatal("tuntap", "unrecoverable read error");
     } else if (ret == 0) { /* End of file */
         fatalx("tuntap device closed");
     } else if (ret > tuntap->maxmtu)  {
@@ -118,6 +119,9 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
             close(fd);
             return -1;
         }
+
+        int flags = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
         /* set tun MTU */
         if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
