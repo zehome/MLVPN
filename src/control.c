@@ -70,7 +70,8 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl);
     "   \"loss\": %u,\n" \
     "   \"disconnects\": %u,\n" \
     "   \"last_packet\": %u,\n" \
-    "   \"timeout\": %u\n" \
+    "   \"timeout\": %u,\n" \
+    "   \"weight\": %.3f\n" \
     "}%s\n"
 #define JSON_STATUS_ERROR_UNKNOWN_COMMAND "{\"error\": 'unknown command'}\n"
 
@@ -431,6 +432,7 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
                        t->disconnects,
                        (uint32_t)t->last_activity,
                        (uint32_t)t->timeout,
+                       t->weight,
                        (LIST_NEXT(t, entries) ? "," : "")
                       );
         mlvpn_control_write(ctrl, buf, ret);
