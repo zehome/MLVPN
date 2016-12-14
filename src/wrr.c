@@ -17,9 +17,9 @@ static struct mlvpn_wrr wrr = {
 
 static int wrr_min_index()
 {
-    double min = 100.0;
     int min_index = 0;
     int i;
+    double min = wrr.tunval[0];
 
     for(i = 0; i < wrr.len; i++)
     {
@@ -60,21 +60,24 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
 mlvpn_tunnel_t *
 mlvpn_rtun_wrr_choose()
 {
-    int i;
-    int idx;
-
-    if (wrr.len == 0)
-        return NULL;
-
-    idx = wrr_min_index();
-    if (idx < 0)
-        fatalx("Programming error: wrr_min_index < 0!");
-
-    for(i = 0; i < wrr.len; i++)
-    {
-        if (wrr.tunval[i] > 0)
-            wrr.tunval[i] -= 1;
+  int idx = wrr_min_index();
+  
+  double total=0;
+  for (int i = 0; i< wrr.len; i++) {
+    total+= wrr.tunnel[i]->weight;
+  }
+  
+  if (wrr.tunval[idx]<=0 || wrr.tunval[idx] > 10000) {
+    for (int i = 0; i< wrr.len; i++) {
+      if (wrr.tunnel[i]->weight) {
+        wrr.tunval[i]=total / wrr.tunnel[i]->weight;
+      } else {
+        wrr.tunval[i]=wrr.len; // handle initial setup fairly
+      }      
     }
-    wrr.tunval[idx] = (double) 100.0 / wrr.tunnel[idx]->weight;
-    return wrr.tunnel[idx];
+  } else {
+    wrr.tunval[idx]+=total / wrr.tunnel[idx]->weight;
+  }
+  
+  return wrr.tunnel[idx];
 }
