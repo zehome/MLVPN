@@ -514,6 +514,12 @@ mlvpn_protocol_read(
                 tun->rttvar = (1 - beta) * tun->rttvar + (beta * fabs(tun->srtt - R));
                 tun->srtt = (1 - alpha) * tun->srtt + (alpha * R);
             }
+            if (tun->srtt_av==0) {
+                tun->srtt_av=tun->srtt;
+            } else {
+                tun->srtt_av=((tun->srtt_av * 999)+tun->srtt) / 1000;
+            }
+            mlvpn_rtun_recalc_weight();
         }
         log_debug("rtt", "%ums srtt %ums loss ratio: %d",
             (unsigned int)R, (unsigned int)tun->srtt, mlvpn_loss_ratio(tun));
@@ -680,6 +686,7 @@ mlvpn_rtun_new(const char *name,
     new->saved_timestamp = -1;
     new->saved_timestamp_received_at = 0;
     new->srtt = 1000;
+    new->srtt_av = 0;
     new->rttvar = 500;
     new->rtt_hit = 0;
     new->seq_last = 0;
@@ -743,40 +750,71 @@ mlvpn_rtun_drop(mlvpn_tunnel_t *t)
     update_process_title();
 }
 
+
+static void
+mlvpn_rtun_recalc_weight_srtt()
+{
+    mlvpn_tunnel_t *t;
+    double totalsrtt=0;
+
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+      totalsrtt+=t->srtt_av;
+    }
+    double totalf=0;
+      
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+      if (t->srtt_av > 0)  {
+        totalf += totalsrtt / t->srtt_av;
+      }
+    }
+    
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+      double st=t->srtt_av;
+      if (st > 0)  {
+        // should be 1 / (t->srtt / totalsrtt)
+        // e.g. (1 / (srtt / totalsrtt)) * (100 / totalf)
+        t->weight=((totalsrtt * 100) / (st * totalf));
+        if (t->weight < 1) t->weight=1;
+        if (t->weight > 100) t->weight=100;
+        log_debug("wrr", "%s weight = %f%%", t->name, t->weight);
+      } 
+    }
+}
+
 /* Based on tunnel bandwidth, compute a "weight" value
  * to balance correctly the round robin rtun_choose.
  */
 static void
 mlvpn_rtun_recalc_weight()
 {
-    mlvpn_tunnel_t *t;
-    uint32_t bandwidth_total = 0;
-    int warned = 0;
-    /* If the bandwidth limit is not set on all interfaces, then
-     * it's impossible to balance correctly! */
+  mlvpn_tunnel_t *t;
+  int unset=0;
+  uint32_t bandwidth_total = 0;
+  
+  LIST_FOREACH(t, &rtuns, entries)
+  {
+    if (t->bandwidth == 0)
+      unset++;
+    bandwidth_total += t->bandwidth;
+  }
+  if (unset) {
+    return mlvpn_rtun_recalc_weight_srtt();
+  } else {
     LIST_FOREACH(t, &rtuns, entries)
     {
-        if (t->bandwidth == 0)
-            warned++;
-        bandwidth_total += t->bandwidth;
+      /* useless, but we want to be sure not to divide by 0 ! */
+      if (t->bandwidth > 0 && bandwidth_total > 0)
+      {
+        t->weight = (((double)t->bandwidth /
+                          (double)bandwidth_total) * 100.0);
+        log_debug("wrr", "%s weight = %f (%u %u)", t->name, t->weight,
+                  t->bandwidth, bandwidth_total);
+      }
     }
-    if (warned && bandwidth_total > 0) {
-        log_warnx("config", "you must set the bandwidth on every tunnel");
-    }
-    if (warned == 0)
-    {
-        LIST_FOREACH(t, &rtuns, entries)
-        {
-            /* useless, but we want to be sure not to divide by 0 ! */
-            if (t->bandwidth > 0 && bandwidth_total > 0)
-            {
-                t->weight = (((double)t->bandwidth /
-                              (double)bandwidth_total) * 100.0);
-                log_debug("wrr", "%s weight = %f (%u %u)", t->name, t->weight,
-                    t->bandwidth, bandwidth_total);
-            }
-        }
-    }
+  }   
 }
 
 static int
