@@ -555,12 +555,17 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.reorder = pkt->reorder;
 
     /* we have a recent received timestamp */
-    if (now64 - tun->saved_timestamp_received_at < 1000 ) {
+    if (tun->saved_timestamp != -1) {
+      if (now64 - tun->saved_timestamp_received_at < 1000 ) {
         /* send "corrected" timestamp advanced by how long we held it */
         /* Cast to uint16_t there intentional */
         proto.timestamp_reply = tun->saved_timestamp + (now64 - tun->saved_timestamp_received_at);
         tun->saved_timestamp = -1;
         tun->saved_timestamp_received_at = 0;
+      } else {
+        proto.timestamp_reply = -1;
+        log_debug("rtt","(%s) No timestamp added, time too long! (%lu > 1000)",tun->name, tun->saved_timestamp + (now64 - tun->saved_timestamp_received_at ));
+      }
     } else {
         proto.timestamp_reply = -1;
     }

@@ -17,7 +17,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
     ssize_t ret;
     u_char data[DEFAULT_MTU];
 
-    ret = read(tuntap->fd, &data, tuntap->maxmtu);
+    ret = read(tuntap->fd, &data, DEFAULT_MTU);
       
     if (ret<0 && (errno==EAGAIN || errno==EWOULDBLOCK)) {
       return -1;
@@ -72,7 +72,7 @@ mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
     int fd;
 
     if ((fd = priv_open_tun(tuntap->type,
-           tuntap->devname, tuntap->maxmtu)) <= 0 )
+                            tuntap->devname, tuntap->maxmtu)) <= 0 )
         fatalx("failed to open /dev/net/tun read/write");
     tuntap->fd = fd;
     return fd;
