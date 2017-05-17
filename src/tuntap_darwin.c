@@ -37,7 +37,7 @@ mlvpn_tuntap_read(struct tuntap_s *tuntap)
 int
 mlvpn_tuntap_write(struct tuntap_s *tuntap)
 {
-    ssize_t len;
+    ssize_t ret;
     mlvpn_pkt_t *pkt;
     circular_buffer_t *buf = tuntap->sbuf;
 
