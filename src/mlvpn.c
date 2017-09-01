@@ -1470,13 +1470,12 @@ main(int argc, char **argv)
 
     if (mlvpn_options.change_process_title)
     {
+        __progname = "mlvpn";
         if (*mlvpn_options.process_name)
         {
-            __progname = strdup(mlvpn_options.process_name);
             process_title = mlvpn_options.process_name;
             setproctitle("%s [priv]", mlvpn_options.process_name);
         } else {
-            __progname = "mlvpn";
             process_title = "";
             setproctitle("[priv]");
         }
@@ -1485,7 +1484,7 @@ main(int argc, char **argv)
     if (crypto_init() == -1)
         fatal(NULL, "libsodium initialization failed");
 
-    log_init(mlvpn_options.debug, mlvpn_options.verbose, __progname);
+    log_init(mlvpn_options.debug, mlvpn_options.verbose, mlvpn_options.process_name);
 
 #ifdef HAVE_LINUX
     mlvpn_systemd_notify();
