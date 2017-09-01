@@ -86,37 +86,44 @@ mlvpn_tuntap_write(struct tuntap_s *tuntap)
 int
 mlvpn_tuntap_alloc(struct tuntap_s *tuntap)
 {
-    char devname[8];
+    char devname[16];
     int fd;
     int i;
 
     /* TODO: handle this by command line/config file ! */
     /* FreeBSD/OpenBSD (and others maybe) supports each tun on different device. */
     /* examples: /dev/tun0, /dev/tun2 (man 2 if_tun) */
-    for (i=0; i < 32; i++)
-    {
-        snprintf(devname, 5, "%s%d",
-                 tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
-        snprintf(tuntap->devname, sizeof(tuntap->devname), "/dev/%s", devname);
+    if (strcmp(tuntap->devname, "tun") == 0) {
+        for (i=0; i < 32; i++)
+        {
+            snprintf(devname, 16, "%s%d",
+                     tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun", i);
+            snprintf(tuntap->devname, sizeof(tuntap->devname), "/dev/%s", devname);
 
-        if ((fd = priv_open_tun(tuntap->type,
-                tuntap->devname, tuntap->maxmtu)) > 0 )
-            break;
-    }
-
-    if (fd <= 0)
-    {
-        log_warnx("tuntap",
-            "unable to open any /dev/%s0 to 32 read/write. "
-            "please check permissions.",
-            tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
-        return fd;
+            if ((fd = priv_open_tun(tuntap->type,
+                    tuntap->devname, tuntap->maxmtu)) > 0 )
+                break;
+        }
+        if (fd <= 0)
+        {
+            log_warnx("tuntap",
+                "unable to open any /dev/%s0 to 32 read/write. "
+                "please check permissions. (or try MAKEDEV ?)",
+                tuntap->type == MLVPN_TUNTAPMODE_TAP ? "tap" : "tun");
+            return fd;
+        } else {
+            strlcpy(tuntap->devname, devname, sizeof(tuntap->devname));
+        }
+    } else {
+        /* tunXX specified, try to open this one. */
+        snprintf(devname, 16, "/dev/%s", tuntap->devname);
+        fd = priv_open_tun(tuntap->type, devname, tuntap->maxmtu);
+        if (fd <= 0) {
+            log_warnx("tuntap", "unable to open /dev/%s read/write. MAKEDEV ?", tuntap->devname);
+            return fd;
+        }
     }
     tuntap->fd = fd;
-
-    /* geting the actual tun%d inside devname
-     * is required for hooks to work properly */
-    strlcpy(tuntap->devname, devname, sizeof(tuntap->devname));
     return tuntap->fd;
 }
 
