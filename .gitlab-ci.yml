@@ -61,11 +61,12 @@ static64_binary:
     paths:
       - mlvpn_static64_ev_${EV_VERSION}_libsodium_${LIBSODIUM_VERSION}.tar.gz
 
-debian_jessie_package:
-  image: debian:jessie
+.package_template: &package
+  image: debian:$DIST
+  before_script:
+    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium-dev libpcap-dev libev-dev ruby-ronn
   script:
-    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium13 libsodium-dev libpcap-dev libev-dev
-    - git-buildpackage
+    - gbp buildpackage --git-builder="debuild -i -I -us -uc"
   tags: ["linux"]
   only:
     - debian-unstable
@@ -73,18 +74,18 @@ debian_jessie_package:
     paths:
       - doc/examples/mlvpn.conf
       - doc/examples/mlvpn_updown.sh
+      - build/*.deb
+      - build/*.changes
+      - build/*.tar.*
+      - build/*.dsc
+
+debian_jessie_package:
+  <<: *package
+  variables:
+    DIST: jessie
 
 debian_stretch_package:
-  image: debian:stretch
-  script:
-    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium18 libsodium-dev libpcap-dev libev-dev ruby-ronn
-    - gbp buildpackage
-  tags: ["linux"]
-  only:
-    - debian-unstable
-  artifacts:
-    paths:
-      - doc/examples/mlvpn.conf
-      - doc/examples/mlvpn_updown.sh
-      - build/
+  <<: *package
+  variables:
+    DIST: stretch
 
