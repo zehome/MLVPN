@@ -66,7 +66,7 @@ static64_binary:
   before_script:
     - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium-dev libpcap-dev libev-dev ruby-ronn
   script:
-    - gbp buildpackage --git-builder="debuild -i -I -us -uc"
+    - gbp buildpackage --git-builder="debuild -i -I -us -uc" --git-ignore-branch
   tags: ["linux"]
   only:
     - debian-unstable
