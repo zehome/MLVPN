@@ -77,8 +77,8 @@ debian_jessie_package:
 debian_stretch_package:
   image: debian:stretch
   script:
-    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium18 libsodium-dev libpcap-dev libev-dev
-    - git-buildpackage
+    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium18 libsodium-dev libpcap-dev libev-dev ruby-ronn
+    - gbp buildpackage
   tags: ["linux"]
   only:
     - debian-unstable
@@ -86,4 +86,5 @@ debian_stretch_package:
     paths:
       - doc/examples/mlvpn.conf
       - doc/examples/mlvpn_updown.sh
+      - build/
 
