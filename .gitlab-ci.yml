@@ -77,7 +77,7 @@ debian_jessie_package:
 debian_stretch_package:
   image: debian:stretch
   script:
-    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium13 libsodium-dev libpcap-dev libev-dev
+    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium18 libsodium-dev libpcap-dev libev-dev
     - git-buildpackage
   tags: ["linux"]
   only:
