@@ -4,7 +4,7 @@ variables:
   LIBSODIUM_VERSION: "1.0.16"
   PCAP_VERSION: "1.7.4"
 static_binary:
-  image: clarisys/debian32:etch
+  image: clarisys/debian32:wheezy
   script:
     - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core
     - mkdir dist
