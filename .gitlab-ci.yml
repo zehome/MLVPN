@@ -1,7 +1,7 @@
 image: debian:jessie
 variables:
-  EV_VERSION: "4.22"
-  LIBSODIUM_VERSION: "1.0.10"
+  EV_VERSION: "4.24"
+  LIBSODIUM_VERSION: "1.0.16"
   PCAP_VERSION: "1.7.4"
 static_binary:
   image: clarisys/debian32:etch
@@ -73,3 +73,17 @@ debian_jessie_package:
     paths:
       - doc/examples/mlvpn.conf
       - doc/examples/mlvpn_updown.sh
+
+debian_stretch_package:
+  image: debian:stretch
+  script:
+    - apt-get -qy update && apt-get -qy install flex bison build-essential wget autoconf automake pkg-config m4 git-core devscripts debian-keyring gnupg libdistro-info-perl fakeroot pkg-config dh-autoreconf pbuilder dupload git-buildpackage debhelper libsodium13 libsodium-dev libpcap-dev libev-dev
+    - git-buildpackage
+  tags: ["linux"]
+  only:
+    - debian-unstable
+  artifacts:
+    paths:
+      - doc/examples/mlvpn.conf
+      - doc/examples/mlvpn_updown.sh
+
