@@ -65,12 +65,23 @@
 #include <sys/endian.h>
 #endif
 
+#ifdef HAVE_DARWIN
+#include <libkern/OSByteOrder.h>
+#define be16toh OSSwapBigToHostInt16
+#define be32toh OSSwapBigToHostInt32
+#define be64toh OSSwapBigToHostInt64
+#define htobe16 OSSwapHostToBigInt16
+#define htobe32 OSSwapHostToBigInt32
+#define htobe64 OSSwapHostToBigInt64
+#endif
+
 /* GLOBALS */
 struct tuntap_s tuntap;
 char *_progname;
 static char **saved_argv;
 struct ev_loop *loop;
 static ev_timer reorder_drain_timeout;
+static ev_timer reorder_adjust_rtt_timeout;
 char *status_command = NULL;
 char *process_title = NULL;
 int logdebug = 0;
@@ -106,9 +117,11 @@ struct mlvpn_options_s mlvpn_options = {
     .root_allowed = 0,
     .reorder_buffer_size = 0
 };
+#ifdef HAVE_FILTERS
 struct mlvpn_filters_s mlvpn_filters = {
     .count = 0
 };
+#endif
 
 struct mlvpn_reorder_buffer *reorder_buffer;
 freebuffer_t *freebuf;
@@ -134,6 +147,7 @@ static void mlvpn_rtun_write(EV_P_ ev_io *w, int revents);
 static uint32_t mlvpn_rtun_reorder_drain(uint32_t reorder);
 static void mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents);
+static void mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents);
 static void mlvpn_rtun_send_keepalive(ev_tstamp now, mlvpn_tunnel_t *t);
 static void mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t);
 static int mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf);
@@ -223,11 +237,11 @@ mlvpn_rtun_reorder_drain(uint32_t reorder)
 {
     int i;
     uint32_t drained = 0;
-    mlvpn_pkt_t *drained_pkts[128];
+    mlvpn_pkt_t *drained_pkts[1024];
     mlvpn_pkt_t *pkt;
     /* Try to drain packets */
     if (reorder) {
-        drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 128);
+        drained = mlvpn_reorder_drain(reorder_buffer, drained_pkts, 1024);
         for(i = 0; i < drained; i++) {
             pkt = drained_pkts[i];
             mlvpn_rtun_inject_tuntap(pkt);
@@ -289,12 +303,24 @@ mlvpn_rtun_recv_data(mlvpn_tunnel_t *tun, mlvpn_pkt_t *inpkt)
         return 1;
     } else {
         mlvpn_pkt_t *pkt = mlvpn_freebuffer_get(freebuf);
+        if (!pkt) {
+            log_warnx("reorder", "freebuffer full: reorder_buffer_size must be increased.");
+            mlvpn_rtun_inject_tuntap(inpkt);
+            return 1;
+        }
         memcpy(pkt, inpkt, sizeof(mlvpn_pkt_t));
         ret = mlvpn_reorder_insert(reorder_buffer, pkt);
-        if (ret != 0) {
+        if (ret == -1) {
             log_warnx("net", "reorder_buffer_insert failed: %d", ret);
             mlvpn_reorder_reset(reorder_buffer);
             drained = mlvpn_rtun_reorder_drain(0);
+        } else if (ret == -2) {
+            /* We have received a packet out of order just
+             * after the forced drain (packet loss)
+             * Just inject the packet as is
+             */
+            mlvpn_rtun_inject_tuntap(inpkt);
+            return 1;
         } else {
             drained = mlvpn_rtun_reorder_drain(1);
         }
@@ -494,6 +520,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     memset(&proto, 0, sizeof(proto));
 
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
+    pkt->reorder = 1;
     if (pkt->type == MLVPN_PKT_DATA && pkt->reorder) {
         proto.data_seq = data_seq++;
     }
@@ -520,7 +547,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.timestamp = mlvpn_timestamp16(now64);
 #ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
-        memcpy(&proto.data, &pkt->data, wlen);
+        memcpy(&proto.data, &pkt->data, pkt->len);
     } else {
         if (wlen + crypto_PADSIZE > sizeof(proto.data)) {
             log_warnx("protocol", "%s packet too long: %u/%d (packet=%d)",
@@ -544,7 +571,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
         wlen += crypto_PADSIZE;
     }
 #else
-    memcpy(&proto.data, &pkt->data, wlen);
+    memcpy(&proto.data, &pkt->data, pkt->len);
 #endif
     proto.len = htobe16(proto.len);
     proto.seq = htobe64(proto.seq);
@@ -595,7 +622,7 @@ mlvpn_rtun_write(EV_P_ ev_io *w, int revents)
 
 mlvpn_tunnel_t *
 mlvpn_rtun_new(const char *name,
-               const char *bindaddr, const char *bindport,
+               const char *bindaddr, const char *bindport, uint32_t bindfib,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout,
                int fallback_only, uint32_t bandwidth,
@@ -651,6 +678,7 @@ mlvpn_rtun_new(const char *name,
         strlcpy(new->bindaddr, bindaddr, sizeof(new->bindaddr));
     if (bindport)
         strlcpy(new->bindport, bindport, sizeof(new->bindport));
+    new->bindfib = bindfib;
     if (destaddr)
         strlcpy(new->destaddr, destaddr, sizeof(new->destaddr));
     if (destport)
@@ -780,7 +808,9 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     int ret, fd = -1;
     char *addr, *port;
     struct addrinfo hints, *res;
-
+#if defined(HAVE_FREEBSD) || defined(HAVE_OPENBSD)
+    int fib = t->bindfib;
+#endif
     fd = t->fd;
     if (t->server_mode)
     {
@@ -815,6 +845,16 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
             log_warn(NULL, "%s socket creation error",
                 t->name);
         } else {
+            /* Setting fib/routing-table is supported on FreeBSD and OpenBSD only */
+#if defined(HAVE_FREEBSD)
+            if (fib > 0 && setsockopt(fd, SOL_SOCKET, SO_SETFIB, &fib, sizeof(fib)) < 0)
+#elif defined(HAVE_OPENBSD)
+            if (fib > 0 && setsockopt(fd, SOL_SOCKET, SO_RTABLE, &fib, sizeof(fib)) < 0)
+            {
+                log_warn(NULL, "Cannot set FIB %d for kernel socket", fib);
+                goto error;
+            }
+#endif
             t->fd = fd;
             break;
         }
@@ -1164,16 +1204,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
 {
     mlvpn_tunnel_t *t = w->data;
     ev_tstamp now = ev_now(EV_DEFAULT_UC);
-    double max_srtt = 0.0;
-    double tmp;
     if (t->status >= MLVPN_AUTHOK && t->timeout > 0) {
-        /* We don't want to monitor fallback only links inside the
-         * reorder timeout algorithm
-         */
-        if (!t->fallback_only && t->rtt_hit) {
-            tmp = t->srtt + (4 * t->rttvar);
-            max_srtt = max_srtt > tmp ? max_srtt : tmp;
-        }
         if ((t->last_keepalive_ack != 0) && (t->last_keepalive_ack + t->timeout) < now) {
             log_info("protocol", "%s timeout", t->name);
             mlvpn_rtun_status_down(t);
@@ -1187,17 +1218,39 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
     if (!ev_is_active(&t->io_write) && ! mlvpn_cb_is_empty(t->hpsbuf)) {
         ev_io_start(EV_A_ &t->io_write);
     }
+    mlvpn_rtun_check_lossy(t);
+}
+
+static void
+mlvpn_rtun_adjust_reorder_timeout(EV_P_ ev_timer *w, int revents)
+{
+    mlvpn_tunnel_t *t;
+    double max_srtt = 0.0;
+    double tmp;
+
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+        if (t->status >= MLVPN_AUTHOK) {
+           /* We don't want to monitor fallback only links inside the
+            * reorder timeout algorithm
+            */
+            if (!t->fallback_only && t->rtt_hit) {
+                tmp = t->srtt + (4 * t->rttvar);
+                max_srtt = max_srtt > tmp ? max_srtt : tmp;
+            }
+        }
+    }
+
     /* Update the reorder algorithm */
-    if (t->rtt_hit && max_srtt > 0) {
+    if (max_srtt > 0) {
         /* Apply a factor to the srtt in order to get a window */
-        max_srtt *= 2.0;
+        max_srtt *= 2.2;
         log_debug("reorder", "adjusting reordering drain timeout to %.0fms",
             max_srtt);
         reorder_drain_timeout.repeat = max_srtt / 1000.0;
     } else {
         reorder_drain_timeout.repeat = 0.8; /* Conservative 800ms shot */
     }
-    mlvpn_rtun_check_lossy(t);
 }
 
 static void
@@ -1417,13 +1470,12 @@ main(int argc, char **argv)
 
     if (mlvpn_options.change_process_title)
     {
+        __progname = "mlvpn";
         if (*mlvpn_options.process_name)
         {
-            __progname = strdup(mlvpn_options.process_name);
             process_title = mlvpn_options.process_name;
             setproctitle("%s [priv]", mlvpn_options.process_name);
         } else {
-            __progname = "mlvpn";
             process_title = "";
             setproctitle("[priv]");
         }
@@ -1432,7 +1484,7 @@ main(int argc, char **argv)
     if (crypto_init() == -1)
         fatal(NULL, "libsodium initialization failed");
 
-    log_init(mlvpn_options.debug, mlvpn_options.verbose, __progname);
+    log_init(mlvpn_options.debug, mlvpn_options.verbose, mlvpn_options.process_name);
 
 #ifdef HAVE_LINUX
     mlvpn_systemd_notify();
@@ -1465,6 +1517,7 @@ main(int argc, char **argv)
         fatalx("cannot create tunnel device");
     else
         log_info(NULL, "created interface `%s'", tuntap.devname);
+    mlvpn_sock_set_nonblocking(tuntap.fd);
 
     /* This is a dummy value which will be overwritten when the first
      * SRTT values will be available
@@ -1473,6 +1526,10 @@ main(int argc, char **argv)
     ev_io_set(&tuntap.io_read, tuntap.fd, EV_READ);
     ev_io_set(&tuntap.io_write, tuntap.fd, EV_WRITE);
     ev_io_start(loop, &tuntap.io_read);
+
+    ev_timer_init(&reorder_adjust_rtt_timeout,
+        mlvpn_rtun_adjust_reorder_timeout, 0., 1.0);
+    ev_timer_start(EV_A_ &reorder_adjust_rtt_timeout);
 
     priv_set_running_state();
 

@@ -1,7 +1,7 @@
 =========================================
 MLVPN - Multi-Link Virtual Public Network
 =========================================
-[![Build Status](https://travis-ci.org/zehome/MLVPN.svg?branch=ev)](https://travis-ci.org/zehome/MLVPN)
+[![Build Status](https://travis-ci.org/zehome/MLVPN.svg?branch=master)](https://travis-ci.org/zehome/MLVPN)
 [![Coverity Status](https://scan.coverity.com/projects/4405/badge.svg)](https://scan.coverity.com/projects/4405)
 
 author: Laurent Coustet <ed arobase zehome.com>
@@ -10,7 +10,7 @@ Take a look at the official documentation on [Read The Docs](http://mlvpn.readth
 
 Introduction
 ============
-MLVPN will do it's best to acheive the following tasks:
+MLVPN will do its best to achieve the following tasks:
 
   * Bond your internet links to increase bandwidth (unlimited)
   * Secure your internet connection by actively monitoring
@@ -41,11 +41,22 @@ cd mlvpn
 make
 ```
 
+Install "static" package
+------------------------
+This is usefull on old systems. For example, for debian
+```
+wget https://github.com/zehome/MLVPN/releases/download/2.3.1/mlvpn_static_ev_4.22_libsodium_1.0.10.tar.gz
+tar -C / -xpzf mlvpn_static_ev_4.22_libsodium_1.0.10.tar.gz
+adduser --quiet --system --no-create-home --home /var/run/mlvpn --shell /usr/sbin/nologin mlvpn
+chmod +x /etc/init.d/mlvpn
+insserv mlvpn
+```
+
 Build from source
 -----------------
 ```sh
 # Debian
-$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev
+$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev
 # OR ArchLinux
 $ sudo pacman -S base-devel git libev libsodium
 $ ./autogen.sh
@@ -61,10 +72,48 @@ $ sudo apt-get install build-essential make autoconf
 $ dpkg-buildpackage -us -uc -rfakeroot
 ```
 
+Generating a static binary
+--------------------------
+```sh
+apt-get install flex bison build-essential
+MLVPN_VERSION=2.3.0
+EV_VERSION=4.22
+LIBSODIUM_VERSION=1.0.8
+PCAP_VERSION=1.7.4
+wget http://dist.schmorp.de/libev/libev-${EV_VERSION}.tar.gz
+wget https://github.com/jedisct1/libsodium/releases/download/1.0.8/libsodium-${LIBSODIUM_VERSION}.tar.gz
+wget http://www.tcpdump.org/release/libpcap-${PCAP_VERSION}.tar.gz
+tar xzf libev-${EV_VERSION}.tar.gz
+tar xzf libsodium-${LIBSODIUM_VERSION}.tar.gz
+tar xzf libpcap-${PCAP_VERSION}.tar.gz
+
+echo libev
+(cd libev-${EV_VERSION}
+./configure --enable-static --disable-shared --prefix $HOME/libev/
+make -j4 install)
+
+echo libsodium
+(cd libsodium-${LIBSODIUM_VERSION}
+./configure --enable-static --disable-shared --prefix=$HOME/libsodium/
+make -j4 install)
+
+echo libpcap
+(cd libpcap-${LIBPCAP_VERSION}
+./configure --disable-shared --prefix $HOME/libpcap/
+make -j4 install)
+
+wget https://github.com/zehome/MLVPN/releases/download/${MLVPN_VERSION}/mlvpn-${MLVPN_VERSION}.tar.gz
+tar xzf mlvpn-${MLVPN_VERSION}.tar.gz
+cd mlvpn-${MLVPN_VERSION}
+libpcap_LIBS="-L${HOME}/libpcap/lib -lpcap" libpcap_CFLAGS="-I${HOME}/libpcap/include" libsodium_LIBS="-L${HOME}/libsodium/lib -lsodium" libsodium_CFLAGS=-I${HOME}/libsodium/include libev_LIBS="-L${HOME}/libev/lib -lev" libev_CFLAGS=-I${HOME}/libev/include ./configure --enable-filters LDFLAGS="-Wl,-Bdynamic" --prefix=${HOME}/mlvpn/
+make install
+```
+
 Dependencies
 ============
   - libev
   - libsodium
+  - libpcap (optional)
 
 Security
 ========
@@ -93,7 +142,7 @@ Principle of operations
 
 Compatibility
 =============
-Linux, OpenBSD, FreeBSD
+Linux, OpenBSD, FreeBSD, OSX
 
 Windows is *NOT* supported, but MLVPN runs on routers, so you can
 benefit from MLVPN on *ANY* operating system of course.
@@ -108,6 +157,8 @@ Contributors
   * Frank Denis, contributor (documentation)
   * Nicolas Braud-Santoni, contributor (documentation)
   * Stuart Henderson, contributor (OpenBSD port/package)
+  * Olivier Cochard-Labbé, contributor (FreeBSD/OpenBSD fib routing)
+  * Michael Stapelberg, contributor (documentation)
 
 LICENSE
 =======

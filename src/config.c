@@ -62,7 +62,7 @@ mlvpn_config(int config_file_fd, int first_time)
     mlvpn_options.fallback_available = 0;
 
     /* reset all bpf filters on every interface */
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
     struct bpf_program filter;
     pcap_t *pcap_dead_p = pcap_open_dead(DLT_RAW, DEFAULT_MTU);
     memset(&mlvpn_filters, 0, sizeof(mlvpn_filters));
@@ -269,6 +269,7 @@ mlvpn_config(int config_file_fd, int first_time)
             } else if (strncmp(lastSection, "filters", 7) != 0) {
                 char *bindaddr;
                 char *bindport;
+                uint32_t bindfib = 0;
                 char *dstaddr;
                 char *dstport;
                 uint32_t bwlimit = 0;
@@ -284,6 +285,9 @@ mlvpn_config(int config_file_fd, int first_time)
                     _conf_set_str_from_conf(
                         config, lastSection, "bindport", &bindport, NULL,
                         "bind port is mandatory in server mode.\n", 1);
+                    _conf_set_uint_from_conf(
+                        config, lastSection, "bindfib", &bindfib, 0,
+                        NULL, 0);
                     _conf_set_str_from_conf(
                         config, lastSection, "remotehost", &dstaddr, NULL,
                         NULL, 0);
@@ -296,6 +300,9 @@ mlvpn_config(int config_file_fd, int first_time)
                         NULL, 0);
                     _conf_set_str_from_conf(
                         config, lastSection, "bindport", &bindport, NULL,
+                        NULL, 0);
+                     _conf_set_uint_from_conf(
+                        config, lastSection, "bindfib", &bindfib, 0,
                         NULL, 0);
                     _conf_set_str_from_conf(
                         config, lastSection, "remotehost", &dstaddr, NULL,
@@ -336,6 +343,7 @@ mlvpn_config(int config_file_fd, int first_time)
                               tmptun->name);
                         if ((! mystr_eq(tmptun->bindaddr, bindaddr)) ||
                                 (! mystr_eq(tmptun->bindport, bindport)) ||
+                                (tmptun->bindfib != bindfib) ||
                                 (! mystr_eq(tmptun->destaddr, dstaddr)) ||
                                 (! mystr_eq(tmptun->destport, dstport))) {
                             mlvpn_rtun_status_down(tmptun);
@@ -346,6 +354,9 @@ mlvpn_config(int config_file_fd, int first_time)
                         }
                         if (bindport) {
                             strlcpy(tmptun->bindport, bindport, sizeof(tmptun->bindport));
+                        }
+                        if (tmptun->bindfib != bindfib) {
+                            tmptun->bindfib = bindfib;
                         }
                         if (dstaddr) {
                             strlcpy(tmptun->destaddr, dstaddr, sizeof(tmptun->destaddr));
@@ -380,7 +391,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 {
                     log_info("config", "%s tunnel added", lastSection);
                     mlvpn_rtun_new(
-                        lastSection, bindaddr, bindport, dstaddr, dstport,
+                        lastSection, bindaddr, bindport, bindfib, dstaddr, dstport,
                         default_server_mode, timeout, fallback_only,
                         bwlimit, loss_tolerence);
                 }
@@ -425,12 +436,13 @@ mlvpn_config(int config_file_fd, int first_time)
         }
     }
 
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
     work = config;
     int found_in_config = 0;
     while (work)
     {
-        if (strncmp(work->section, "filters", 7) == 0) {
+        if (work->section != NULL &&
+                strncmp(work->section, "filters", 7) == 0) {
             memset(&filter, 0, sizeof(filter));
             if (pcap_compile(pcap_dead_p, &filter, work->conf->val,
                     1, PCAP_NETMASK_UNKNOWN) != 0) {
@@ -463,7 +475,7 @@ mlvpn_config(int config_file_fd, int first_time)
 
     //_conf_printConfig(config);
     _conf_freeConfig(config);
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
     pcap_close(pcap_dead_p);
 #endif
 

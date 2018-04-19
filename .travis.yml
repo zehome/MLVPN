@@ -1,16 +1,17 @@
 language: c
 os: linux
+sudo: required
+dist: trusty
 compiler:
   - gcc
   - clang
-sudo: false
 branches:
   only:
     - master
     - debian-unstable
     - coverity_scan
 before_install:
-  - wget https://download.libsodium.org/libsodium/releases/LATEST.tar.gz -O libsodium.tar.gz && tar xzf libsodium.tar.gz && cd libsodium-* && ./autogen.sh && ./configure --prefix=$HOME/libsodium && make check && make install 
+  - wget https://download.libsodium.org/libsodium/releases/LATEST.tar.gz -O libsodium.tar.gz && tar xzf libsodium.tar.gz && cd libsodium-* && ./autogen.sh && ./configure --prefix=$HOME/libsodium && make check && make install
 script:
   - export PATH=$PATH:$HOME/libsodium
   - ./autogen.sh && ./configure --prefix=$HOME/build_mlvpn && make V=1 && make install

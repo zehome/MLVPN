@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "MLVPN\.CONF" "5" "November 2015" "" ""
+.TH "MLVPN\.CONF" "5" "February 2016" "" ""
 .
 .SH "NAME"
 \fBmlvpn\.conf\fR \- MLVPN configuration
@@ -64,6 +64,9 @@ Triggered when the other side does not responds to keepalive packets\. Keepalive
 .
 .IP "\(bu" 4
 \fIinterface_name\fR = "mlvpn0" Set interface name to the specified value\. (\fBLINUX ONLY\fR)
+.
+.IP "\(bu" 4
+\fItuntap\fR = "tun" Tells mlvpn whether to create a tun (layer 3) or tap (layer 2) interface\.
 .
 .IP "\(bu" 4
 \fIpassword\fR

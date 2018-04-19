@@ -37,7 +37,7 @@
  #include <resolv.h>
 #endif
 
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
  #include <pcap/pcap.h>
 #endif
 
@@ -47,11 +47,11 @@
 #include "timestamp.h"
 
 #define MLVPN_MAXHNAMSTR 256
-#define MLVPN_MAXPORTSTR 5
+#define MLVPN_MAXPORTSTR 6
 
 /* Number of packets in the queue. Each pkt is ~ 1520 */
 /* 1520 * 128 ~= 24 KBytes of data maximum per channel VMSize */
-#define PKTBUFSIZE 128
+#define PKTBUFSIZE 1024
 
 /* tuntap interface name size */
 #ifndef IFNAMSIZ
@@ -138,6 +138,7 @@ typedef struct mlvpn_tunnel_s
     char *name;           /* tunnel name */
     char bindaddr[MLVPN_MAXHNAMSTR]; /* packets source */
     char bindport[MLVPN_MAXPORTSTR]; /* packets port source (or NULL) */
+    uint32_t bindfib;     /* FIB number to use */
     char destaddr[MLVPN_MAXHNAMSTR]; /* remote server ip (can be hostname) */
     char destport[MLVPN_MAXPORTSTR]; /* remote server port */
     int fd;               /* socket file descriptor */
@@ -177,7 +178,7 @@ typedef struct mlvpn_tunnel_s
     ev_timer io_timeout;
 } mlvpn_tunnel_t;
 
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
 struct mlvpn_filters_s {
     uint8_t count;
     struct bpf_program filter[255];
@@ -193,14 +194,14 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
 mlvpn_tunnel_t *mlvpn_rtun_choose();
 mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
-    const char *bindaddr, const char *bindport,
+    const char *bindaddr, const char *bindport, uint32_t bindfib,
     const char *destaddr, const char *destport,
     int server_mode, uint32_t timeout,
     int fallback_only, uint32_t bandwidth,
     uint32_t loss_tolerence);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
 int mlvpn_filters_add(const struct bpf_program *filter, mlvpn_tunnel_t *tun);
 mlvpn_tunnel_t *mlvpn_filters_choose(uint32_t pktlen, const u_char *pktdata);
 #endif

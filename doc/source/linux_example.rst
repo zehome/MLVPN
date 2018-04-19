@@ -16,7 +16,7 @@ Example case
                                                            +---------------+
                                               +----------->| Fast internet |--> OUT
                                               |            +---------------+
-                           mlvpn0: 10.42.42.1 |
+                                      mlvpn0  |
                                  +------------+-+
                        +-------->| MLVPN server |<--------+
                        |         +--------------+         |
@@ -35,7 +35,7 @@ Example case
                        |         +---+------+---+         |
                        +---------| MLVPN client |---------+
                                  +--------------+
-                        mlvpn0: 10.42.42.2 eth0: 192.168.0.1
+                            mlvpn0 ; eth0: 192.168.0.1
                                         ^
         +------+                        |
         | LAN  |------------------------+
@@ -48,7 +48,6 @@ In this setup we have multiple machines:
   * MLVPN server which has a fast internet connection (100Mbps)
 
     - Public IP Address: 128.128.128.128/32
-    - Private mlvpn IP address: 10.42.42.1/30
 
   * ADSL 1 router LOCAL IP address 192.168.1.1/24
   * ADSL 2 router LOCAL IP address 192.168.2.1/24
@@ -58,7 +57,6 @@ In this setup we have multiple machines:
     - Private IP address 192.168.1.2/24 to join ADSL1
     - Private IP address 192.168.2.2/24 to join ADSL2
     - Private IP address 192.168.0.1/24 for LAN clients
-    - Private IP address 10.42.42.2/30 on mlvpn0.
 
 Yeah seems a bit complicated, but that's not that hard after all, we just have 4 routers.
 
@@ -372,11 +370,10 @@ Again I stripped the script to the minimum.
     if [ "$newstatus" = "tuntap_up" ]; then
         echo "$tuntap_intf setup"
         /sbin/ip link set dev $tuntap_intf mtu 1400 up
-        /sbin/ip addr add 10.42.42.2/30 dev $tuntap_intf
-        /sbin/route add proof.ovh.net gw 10.42.42.2
+        /sbin/route add proof.ovh.net dev $tuntap_intf
     elif [ "$newstatus" = "tuntap_down" ]; then
         echo "$tuntap_intf shutdown"
-        /sbin/route del proof.ovh.net gw 10.42.42.2
+        /sbin/route del proof.ovh.net dev $tuntap_intf
     elif [ "$newstatus" = "rtun_up" ]; then
         echo "rtun [${rtun}] is up"
     elif [ "$newstatus" = "rtun_down" ]; then
@@ -430,16 +427,11 @@ mlvpn0_updown.sh
     if [ "$newstatus" = "tuntap_up" ]; then
         echo "$tuntap_intf setup"
         /sbin/ip link set dev $tuntap_intf mtu 1400 up
-        /sbin/ip addr add 10.42.42.1/30 dev $tuntap_intf
         # NAT thru our server (eth0 is our output interface on the server)
-        # mlvpn0 link
-        /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
         # LAN 192.168.0.0/24 from "client"
-        /sbin/ip route add 192.168.0.0/24 via 10.42.42.2
+        /sbin/ip route add 192.168.0.0/24 dev $tuntap_intf
         /sbin/iptables -t nat -A POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
     elif [ "$newstatus" = "tuntap_down" ]; then
-        /sbin/ip route del 192.168.0.0/24 via 10.42.42.2
-        /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 10.42.42.0/30 -j MASQUERADE
         /sbin/iptables -t nat -D POSTROUTING -o eth0 -s 192.168.0.0/24 -j MASQUERADE
     fi
     ) >> /var/log/mlvpn_commands.log 2>&1
@@ -482,10 +474,6 @@ Seems good. Let's test the ICMP echo reply. (ping)
 
 .. code-block:: sh
 
-    # Testing connectivity to the server (tunnel address space)
-    root@client:~ # ping -n -c2 -I10.42.42.2 10.42.42.1
-    # Testing connectivity to the server (LAN address space)
-    root@client:~ # ping -n -c1 -I192.168.0.1 10.42.42.1
     # Testing connectivity to the internet
     root@client:~ # ping -n -c1 -I192.168.0.1 proof.ovh.net
     # Download speed testing

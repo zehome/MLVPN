@@ -12,7 +12,7 @@ AC_CONFIG_FILES([Makefile
                  man/Makefile])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([CONFIGURE_ARGS], [$ac_configure_args])
-AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
+AM_INIT_AUTOMAKE([foreign -Wall -Wextra silent-rules])
 
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES(yes)])
@@ -37,9 +37,6 @@ __attribute__((__unused__)) static void foo(void){return;}]],
       AC_DEFINE(NO_ATTRIBUTE_ON_RETURN_TYPE, 1,
          [compiler does not accept __attribute__ on return types]) ]
 )
-if test "x$no_attrib_nonnull" != "x1" ; then
-    AC_DEFINE([HAVE_ATTRIBUTE__NONNULL__], [1], [Have attribute nonnull])
-fi
 
 AC_CHECK_DECLS(
     [res_init],
@@ -87,6 +84,10 @@ case $host_os in
         AC_DEFINE(HAVE_BSD, 1, [BSD])
         bsd=true
     ;;
+    *darwin*)
+        AC_DEFINE(HAVE_DARWIN, 1, [DARWIN])
+        darwin=true
+    ;;
     *)
         AC_MSG_ERROR("Unsupported operating system.")
     ;;
@@ -94,6 +95,7 @@ esac
 
 AM_CONDITIONAL([LINUX], [test x$linux = xtrue])
 AM_CONDITIONAL([BSD], [test x$bsd = xtrue])
+AM_CONDITIONAL([DARWIN], [test x$darwin = xtrue])
 
 dnl Checks for library functions. Please keep in alphabetical order
 AC_CHECK_FUNCS([ \
@@ -163,20 +165,21 @@ mlvpn_ARG_WITH([systemdtmpfilesdir], [Directory for systemd tmpfiles],
         [test -n "$with_systemdtmpfilesdir" -a "x$with_systemdtmpfilesdir" != xno ])
 
 dnl checks for libpcap
-# Default values
-AC_DEFINE([HAVE_LIBPCAP], [0], [])
-AM_CONDITIONAL([HAVE_LIBPCAP], [false])
-if test x"$ENABLE_FILTERS" = x"yes"; then
+# Default values
+AM_CONDITIONAL([HAVE_FILTERS], [false])
+AS_IF([test x"$enable_filters" = x"yes"], [
+    AM_CONDITIONAL([HAVE_FILTERS], [true])
+    AC_DEFINE([HAVE_FILTERS], [], [filters enabled])
     dnl checks for libpcap
     PKG_CHECK_MODULES([libpcap], [libpcap], [], [
         AC_CHECK_HEADERS([pcap.h], [], [AC_MSG_ERROR("pcap.h not found")])
         AC_CHECK_LIB([pcap], [pcap_open_dead], [
             libpcap_LIBS="-lpcap"
-            AC_DEFINE([HAVE_LIBPCAP], [1], [pcap_open_dead in -lpcap])
-            AM_CONDITIONAL([HAVE_LIBPCAP], [true])
-        ], [AC_MSG_ERROR("libpcap not found")])
+        ], [
+            AC_MSG_ERROR("libpcap not found")
+        ])
     ])
-fi
+])
 
 AC_CHECK_PROGS([RONN], [ronn], [])
 AM_CONDITIONAL(HAVE_RONN, [test x"$RONN" != "x"])

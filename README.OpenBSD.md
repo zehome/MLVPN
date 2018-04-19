@@ -24,7 +24,7 @@ Manual build
 
 ```sh
 export AUTOCONF_VERSION=2.69
-export AUTOMAKE_VERSION=1.14
+export AUTOMAKE_VERSION=1.15
 export CPPFLAGS="-I/usr/local/include $CPPFLAGS"
 export LDFLAGS="-L/usr/local/lib $LDFLAGS"
 git clone https://github.com/zehome/MLVPN mlvpn
@@ -32,23 +32,24 @@ cd mlvpn
 ./autogen.sh
 ./configure
 make
-sudo make install
+doas make install
 ```
 
 Manual installation
 ===================
 ```sh
-sudo make install
-sudo mkdir /etc/mlvpn
-sudo cp /usr/local/share/doc/mlvpn/mlvpn.conf /etc/mlvpn/
-sudo cp /usr/local/share/doc/mlvpn/mlvpn_updown.sh /etc/mlvpn/
-sudo chown -R root:wheel /etc/mlvpn
-sudo chmod 660 /etc/mlvpn/mlvpn.conf
-sudo chmod 700 /etc/mlvpn/mlvpn_updown.sh
+doas make install
+doas mkdir /etc/mlvpn
+doas cp /usr/local/share/doc/mlvpn/mlvpn.rc /etc/rc.d/mlvpn
+doas cp /usr/local/share/doc/mlvpn/mlvpn.conf /etc/mlvpn/
+doas cp /usr/local/share/doc/mlvpn/mlvpn_updown.sh /etc/mlvpn/
+doas chown -R root:wheel /etc/mlvpn
+doas chmod 660 /etc/mlvpn/mlvpn.conf
+doas chmod 700 /etc/mlvpn/mlvpn_updown.sh /etc/rc.d/mlvpn
 
 # Create a system user for mlvpn
-sudo groupadd _mlvpn
-sudo useradd -c "mlvpn Daemon" -d /var/empty -s /sbin/nologin -L daemon -g _mlvpn _mlvpn
+doas groupadd _mlvpn
+doas useradd -c "mlvpn Daemon" -d /var/empty -s /sbin/nologin -L daemon -g _mlvpn _mlvpn
 ```
 
 Edit **/etc/mlvpn/mlvpn.conf** for your needs.
@@ -57,5 +58,11 @@ Run
 ===
 
 ```sh
-sudo /usr/local/sbin/mlvpn -c /etc/mlvpn/mlvpn.conf --user _mlvpn
+doas mlvpn -c /etc/mlvpn/mlvpn.conf --user _mlvpn
+# or using rc.d:
+doas /etc/rc.d/mlvpn start
 ```
+
+Don't forget you get the super easy way to configure source-routing
+with mlvpn on OpenBSD. Just create your routing tables with route(8) -T
+then use **bindfib** in mlvpn.conf.

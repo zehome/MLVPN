@@ -170,7 +170,8 @@ mlvpn_reorder_fill_overflow(struct mlvpn_reorder_buffer *b, unsigned n)
 int
 mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
 {
-    uint32_t offset, position;
+    uint64_t offset;
+    uint32_t position;
     struct cir_buffer *order_buf = &b->order_buf;
 
     if (!b->is_initialized) {
@@ -221,7 +222,8 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
         order_buf->pkts[position] = pkt;
     } else {
         /* Put in handling for enqueue straight to output */
-        return -1;
+        log_debug("reorder", "packet sequence out of range");
+        return -2;
     }
     return 0;
 }

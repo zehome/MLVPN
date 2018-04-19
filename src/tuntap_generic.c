@@ -7,7 +7,7 @@ mlvpn_tuntap_generic_read(u_char *data, uint32_t len)
     mlvpn_tunnel_t *rtun = NULL;
     mlvpn_pkt_t *pkt;
 
-#ifdef ENABLE_FILTERS
+#ifdef HAVE_FILTERS
     rtun = mlvpn_filters_choose((uint32_t)len, data);
     if (rtun) {
         /* High priority buffer, not reorderd when a filter applies */

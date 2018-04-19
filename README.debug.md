@@ -4,7 +4,7 @@ Debugging mlvpn
 gdb
 ---
 ```shell
-sudo gdb -x gdb-cmds.txt --args -c test/client.conf -u ed -v --debug
+sudo gdb -x gdb-cmds.txt --args mlvpn -c test/client.conf -u ed -v --debug
 ```
 
 Debug tokens
