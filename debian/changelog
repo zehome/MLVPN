@@ -1,8 +1,8 @@
-mlvpn (2.3.3) unstable; urgency=medium
+mlvpn (2.3.3) stretch; urgency=medium
 
-  * Update to 2.3.3 
+  * Update to 2.3.3, debian stretch
 
- -- Laurent Coustet <laurent.coustet@clarisys.fr>  Thu, 19 Apr 2018 14:39:42 +0200
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Thu, 20 Apr 2018 09:35:24 +0200
 
 mlvpn (2.3.0~bpo70+1) wheezy-backports; urgency=medium
 
