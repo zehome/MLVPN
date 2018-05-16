@@ -163,7 +163,7 @@ typedef struct mlvpn_tunnel_s
     uint64_t sentbytes;   /* 64bit bytes sent counter */
     uint64_t recvbytes;   /* 64bit bytes recv counter */
     int64_t permitted;  /* how many bytes we can send */
-    double quota; /* how many bytes per second we can send */
+    uint32_t quota; /* how many bytes per second we can send */
     uint32_t timeout;     /* configured timeout in seconds */
     uint32_t bandwidth;   /* bandwidth in bytes per second */
     circular_buffer_t *sbuf;    /* send buffer */

@@ -1253,7 +1253,7 @@ void mlvpn_calc_bandwidth(uint32_t len)
     LIST_FOREACH(t, &rtuns, entries) {
       // permitted is in BYTES per second.
       if (t->quota) {
-        t->permitted+=((t->quota * diff)*1000.0)/8.0; // listed in kbps
+        t->permitted+=(((double)t->quota * diff)*1000.0)/8.0; // listed in kbps
       }
     }
     mlvpn_rtun_recalc_weight();
