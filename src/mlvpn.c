@@ -569,6 +569,7 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
       }
     } else {
       proto.timestamp_reply = -1;
+      log_debug("rtt","(%s) No timestamp added, time too long! (%lu > 1000)",tun->name, tun->saved_timestamp + (now64 - tun->saved_timestamp_received_at ));
     }
 
     proto.timestamp = mlvpn_timestamp16(now64);
