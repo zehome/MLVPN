@@ -155,7 +155,6 @@ typedef struct mlvpn_tunnel_s
     uint64_t seq_vect;
     int rtt_hit;
     double srtt;
-    double srtt_av;
     double rttvar;
     double weight;        /* For weight round robin */
     uint32_t flow_id;
@@ -163,6 +162,8 @@ typedef struct mlvpn_tunnel_s
     uint64_t recvpackets; /* 64bit packets recv counter */
     uint64_t sentbytes;   /* 64bit bytes sent counter */
     uint64_t recvbytes;   /* 64bit bytes recv counter */
+    int64_t permitted;  /* how many bytes we can send */
+    double quota; /* how many bytes per second we can send */
     uint32_t timeout;     /* configured timeout in seconds */
     uint32_t bandwidth;   /* bandwidth in bytes per second */
     circular_buffer_t *sbuf;    /* send buffer */
@@ -192,14 +193,15 @@ int mlvpn_sock_set_nonblocking(int fd);
 
 int mlvpn_loss_ratio(mlvpn_tunnel_t *tun);
 int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
+void mlvpn_rtun_set_weight(mlvpn_tunnel_t *t, double weight);
 mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
-mlvpn_tunnel_t *mlvpn_rtun_choose();
+mlvpn_tunnel_t *mlvpn_rtun_choose(uint32_t len);
 mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     const char *bindaddr, const char *bindport, uint32_t bindfib,
     const char *destaddr, const char *destport,
     int server_mode, uint32_t timeout,
     int fallback_only, uint32_t bandwidth,
-    uint32_t loss_tolerence);
+    uint32_t loss_tolerence, uint32_t quota);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 #ifdef HAVE_FILTERS

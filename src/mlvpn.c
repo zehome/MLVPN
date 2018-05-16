@@ -87,6 +87,9 @@ char *process_title = NULL;
 int logdebug = 0;
 
 static uint64_t data_seq = 0;
+ev_tstamp lastsent=0;
+uint64_t bandwidthdata=0;
+double bandwidth=0;
 
 struct mlvpn_status_s mlvpn_status = {
     .start_time = 0,
@@ -280,7 +283,7 @@ mlvpn_loss_update(mlvpn_tunnel_t *tun, uint64_t seq)
       /* new sequence number -- recent message arrive */
       t->seq_vect <<= seq - t->seq_last;
       if (t==tun) {
-        t->seq_vect |= ~((long long)-1<<(seq - t->seq_last));
+        t->seq_vect |= ~((uint64_t)-1<<(seq - t->seq_last));
         // If I move it forward, I claim all the other holes are somebody elses
         // problem to fill in...., so not my error !
       } else {
@@ -304,7 +307,7 @@ mlvpn_loss_ratio(mlvpn_tunnel_t *tun)
         loss++;
       }
     }
-    return loss * 100 / 64;
+    return (loss * 100) / 64;
 }
 
 static int
@@ -377,6 +380,9 @@ mlvpn_rtun_read(EV_P_ ev_io *w, int revents)
 
         tun->recvbytes += len;
         tun->recvpackets += 1;
+        if (tun->quota) {
+          tun->permitted -= len;
+        }
 
         if (! tun->addrinfo)
             fatalx("tun->addrinfo is NULL!");
@@ -462,6 +468,7 @@ mlvpn_protocol_read(
         log_warnx("protocol", "%s invalid packet size: %d", tun->name, rlen);
         goto fail;
     }
+
     proto.seq = be64toh(proto.seq);
     proto.timestamp = be16toh(proto.timestamp);
     proto.timestamp_reply = be16toh(proto.timestamp_reply);
@@ -514,12 +521,6 @@ mlvpn_protocol_read(
                 tun->rttvar = (1 - beta) * tun->rttvar + (beta * fabs(tun->srtt - R));
                 tun->srtt = (1 - alpha) * tun->srtt + (alpha * R);
             }
-            if (tun->srtt_av==0) {
-                tun->srtt_av=tun->srtt;
-            } else {
-                tun->srtt_av=((tun->srtt_av * 999)+tun->srtt) / 1000;
-            }
-            mlvpn_rtun_recalc_weight();
         }
         log_debug("rtt", "%ums srtt %ums loss ratio: %d",
             (unsigned int)R, (unsigned int)tun->srtt, mlvpn_loss_ratio(tun));
@@ -538,8 +539,8 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     mlvpn_proto_t proto;
     uint64_t now64 = mlvpn_timestamp64(ev_now(EV_DEFAULT_UC));
     memset(&proto, 0, sizeof(proto));
-
     mlvpn_pkt_t *pkt = mlvpn_pktbuffer_read(pktbuf);
+
     pkt->reorder = 1;
     if (pkt->type == MLVPN_PKT_DATA && pkt->reorder) {
         proto.data_seq = data_seq++;
@@ -555,15 +556,21 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     proto.reorder = pkt->reorder;
 
     /* we have a recent received timestamp */
-    if (now64 - tun->saved_timestamp_received_at < 1000 ) {
+    if (tun->saved_timestamp != -1) {
+      if (now64 - tun->saved_timestamp_received_at < 1000 ) {
         /* send "corrected" timestamp advanced by how long we held it */
         /* Cast to uint16_t there intentional */
         proto.timestamp_reply = tun->saved_timestamp + (now64 - tun->saved_timestamp_received_at);
         tun->saved_timestamp = -1;
         tun->saved_timestamp_received_at = 0;
-    } else {
+      } else {
         proto.timestamp_reply = -1;
+        log_debug("rtt","(%s) No timestamp added, time too long! (%lu > 1000)",tun->name, tun->saved_timestamp + (now64 - tun->saved_timestamp_received_at ));
+      }
+    } else {
+      proto.timestamp_reply = -1;
     }
+
     proto.timestamp = mlvpn_timestamp16(now64);
 #ifdef ENABLE_CRYPTO
     if (mlvpn_options.cleartext_data && pkt->type == MLVPN_PKT_DATA) {
@@ -610,6 +617,10 @@ mlvpn_rtun_send(mlvpn_tunnel_t *tun, circular_buffer_t *pktbuf)
     } else {
         tun->sentpackets++;
         tun->sentbytes += ret;
+        if (tun->quota) {
+          tun->permitted -= ret;
+        }
+
         if (wlen != ret)
         {
             log_warnx("net", "%s write error %d/%u",
@@ -646,7 +657,7 @@ mlvpn_rtun_new(const char *name,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout,
                int fallback_only, uint32_t bandwidth,
-               uint32_t loss_tolerence)
+               uint32_t loss_tolerence, uint32_t quota)
 {
     mlvpn_tunnel_t *new;
 
@@ -681,12 +692,13 @@ mlvpn_rtun_new(const char *name,
     new->sentpackets = 0;
     new->sentbytes = 0;
     new->recvbytes = 0;
+    new->permitted = 0;
+    new->quota = quota;
     new->seq = 0;
     new->expected_receiver_seq = 0;
     new->saved_timestamp = -1;
     new->saved_timestamp_received_at = 0;
     new->srtt = 1000;
-    new->srtt_av = 0;
     new->rttvar = 500;
     new->rtt_hit = 0;
     new->seq_last = 0;
@@ -759,26 +771,25 @@ mlvpn_rtun_recalc_weight_srtt()
 
     LIST_FOREACH(t, &rtuns, entries)
     {
-      totalsrtt+=t->srtt_av;
+      totalsrtt+=t->srtt;
     }
     double totalf=0;
       
     LIST_FOREACH(t, &rtuns, entries)
     {
-      if (t->srtt_av > 0)  {
-        totalf += totalsrtt / t->srtt_av;
+      if (t->srtt > 0)  {
+        totalf += totalsrtt / t->srtt;
       }
     }
-    
     LIST_FOREACH(t, &rtuns, entries)
     {
-      double st=t->srtt_av;
+      double st=t->srtt;
       if (st > 0)  {
         // should be 1 / (t->srtt / totalsrtt)
         // e.g. (1 / (srtt / totalsrtt)) * (100 / totalf)
-        t->weight=((totalsrtt * 100) / (st * totalf));
-        if (t->weight < 1) t->weight=1;
-        if (t->weight > 100) t->weight=100;
+        mlvpn_rtun_set_weight(t, ((totalsrtt * 100) / (st * totalf)));
+        if (t->weight < 1) mlvpn_rtun_set_weight(t,1);
+        if (t->weight > 100) mlvpn_rtun_set_weight(t,100);
         log_debug("wrr", "%s weight = %f%%", t->name, t->weight);
       } 
     }
@@ -788,12 +799,12 @@ mlvpn_rtun_recalc_weight_srtt()
  * to balance correctly the round robin rtun_choose.
  */
 static void
-mlvpn_rtun_recalc_weight()
+mlvpn_rtun_recalc_weight_bw()
 {
   mlvpn_tunnel_t *t;
   int unset=0;
   uint32_t bandwidth_total = 0;
-  
+
   LIST_FOREACH(t, &rtuns, entries)
   {
     if (t->bandwidth == 0)
@@ -808,14 +819,57 @@ mlvpn_rtun_recalc_weight()
       /* useless, but we want to be sure not to divide by 0 ! */
       if (t->bandwidth > 0 && bandwidth_total > 0)
       {
-        t->weight = (((double)t->bandwidth /
-                          (double)bandwidth_total) * 100.0);
+        mlvpn_rtun_set_weight(t, (((double)t->bandwidth /
+                                   (double)bandwidth_total) * 100.0));
         log_debug("wrr", "%s weight = %f (%u %u)", t->name, t->weight,
                   t->bandwidth, bandwidth_total);
       }
     }
   }   
 }
+
+
+/* Based on tunnel bandwidth, with priority compute a "weight" value
+ * to balance correctly the round robin rtun_choose.
+ */
+static void
+mlvpn_rtun_recalc_weight_prio()
+{
+  if (bandwidth<=0) {
+    mlvpn_rtun_recalc_weight_bw();
+  }
+  mlvpn_tunnel_t *t;
+  double bw;
+  bw=bandwidth*1.5;
+  double bwavailable=0;
+  LIST_FOREACH(t, &rtuns, entries) {
+    if (bw>0) {
+      bwavailable+=t->bandwidth;
+      bw-=t->bandwidth;
+    }
+  }
+  if (bwavailable<=0) {
+    mlvpn_rtun_recalc_weight_bw();
+  }
+  bw=bandwidth*1.5;
+  LIST_FOREACH(t, &rtuns, entries) {
+    if (bw>0) {
+      mlvpn_rtun_set_weight(t, (t->bandwidth*100) / bwavailable);
+      bw-=t->bandwidth;
+    } else {
+      mlvpn_rtun_set_weight(t, 0);
+    }
+  }
+}
+
+
+
+static void
+mlvpn_rtun_recalc_weight()
+{
+  mlvpn_rtun_recalc_weight_prio();
+}
+
 
 static int
 mlvpn_rtun_bind(mlvpn_tunnel_t *t)
@@ -1179,12 +1233,39 @@ mlvpn_rtun_tick_connect(mlvpn_tunnel_t *t)
     }
 }
 
-mlvpn_tunnel_t *
-mlvpn_rtun_choose()
+void mlvpn_calc_bandwidth(uint32_t len)
 {
-    mlvpn_tunnel_t *tun;
-    tun = mlvpn_rtun_wrr_choose();
-    return tun;
+  ev_tstamp now=ev_now(EV_A);
+  if (lastsent==0) lastsent=now;
+  ev_tstamp diff=now - lastsent;
+  bandwidthdata+=len;
+  if (diff>3.0) {
+    lastsent=now;
+    bandwidth=((((double)bandwidthdata*8) / diff))/1000; // kbits/sec
+//    printf("%10.1f %lu %5.2f\n",bandwidth, bandwidthdata, diff);
+    bandwidthdata=0;
+
+    // what we can do here is add any bandwidth allocation
+    // The allocation should be per second.
+    // permittedis in bytes.
+    mlvpn_tunnel_t *t;
+    LIST_FOREACH(t, &rtuns, entries) {
+      // permitted is in BYTES per second.
+      if (t->quota) {
+        t->permitted+=((t->quota * diff)*1000.0)/8.0; // listed in kbps
+      }
+    }
+    mlvpn_rtun_recalc_weight();
+  }
+}
+
+mlvpn_tunnel_t *
+mlvpn_rtun_choose(uint32_t len)
+{
+  mlvpn_calc_bandwidth(len);
+  mlvpn_tunnel_t *tun;
+  tun = mlvpn_rtun_wrr_choose(len);
+  return tun;
 }
 
 static void

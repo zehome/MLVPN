@@ -23,7 +23,8 @@ static int wrr_min_index()
 
     for(i = 0; i < wrr.len; i++)
     {
-        if (wrr.tunval[i] < min)
+      if ((wrr.tunval[i] < min) &&
+          (wrr.tunnel[i]->quota==0 || wrr.tunnel[i]->permitted>0))
         {
             min = wrr.tunval[i];
             min_index = i;
@@ -57,9 +58,20 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
     return 0;
 }
 
+void mlvpn_rtun_set_weight(mlvpn_tunnel_t *t, double weight)
+{
+  if (t->weight!=weight) {
+    t->weight=weight;
+    for (int i = 0; i< wrr.len; i++) {
+      wrr.tunval[i] = 0.0;
+    }
+  }
+}
+
 mlvpn_tunnel_t *
 mlvpn_rtun_wrr_choose()
 {
+
   int idx = wrr_min_index();
   
   double total=0;
