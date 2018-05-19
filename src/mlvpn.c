@@ -851,7 +851,7 @@ mlvpn_rtun_recalc_weight_prio()
   double bwneeded=bandwidth*1.5;
   bw=bwneeded;
   LIST_FOREACH(t, &rtuns, entries) {
-    if (bw>0 && (t->permitted > (t->bandwidth*3)) && (t->status >= MLVPN_AUTHOK)) {
+    if (bw>0 && (t->quota==0 || t->permitted > (t->bandwidth*3)) && (t->status >= MLVPN_AUTHOK)) {
       if (t->bandwidth > bw) {
         mlvpn_rtun_set_weight(t, (bw*100) / bwneeded);
       } else {
