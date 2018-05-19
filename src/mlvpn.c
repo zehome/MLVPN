@@ -847,20 +847,25 @@ mlvpn_rtun_recalc_weight_prio()
     return mlvpn_rtun_recalc_weight_bw();
   }
   mlvpn_tunnel_t *t;
-  double bw;
   double bwneeded=bandwidth*1.5;
-  bw=bwneeded;
+  double bw=bwneeded;
   LIST_FOREACH(t, &rtuns, entries) {
+    if ((t->quota == 0) && (t->status >= MLVPN_AUTHOK)) {
+      mlvpn_rtun_set_weight(t, (t->bandwidth*80) / bwneeded);
+      bw-=(t->bandwidth*0.8);
+    } else {
     if (bw>0 && (t->quota==0 || t->permitted > (t->bandwidth*3)) && (t->status >= MLVPN_AUTHOK)) {
-      if (t->bandwidth > bw) {
+      if (t->bandwidth*0.8 > bw) {
         mlvpn_rtun_set_weight(t, (bw*100) / bwneeded);
       } else {
-        mlvpn_rtun_set_weight(t, (t->bandwidth*100) / bwneeded);
+        mlvpn_rtun_set_weight(t, (t->bandwidth*80) / bwneeded);
       }
-      bw-=t->bandwidth;
+      bw-=(t->bandwidth*0.8);
     } else {
       mlvpn_rtun_set_weight(t, 0);
-    }    
+    }
+    }
+    
   }
   if (bw==bwneeded) {
     return mlvpn_rtun_recalc_weight_bw();
