@@ -90,6 +90,7 @@ static uint64_t data_seq = 0;
 ev_tstamp lastsent=0;
 uint64_t bandwidthdata=0;
 double bandwidth=0;
+uint64_t permitted_preset=0;
 
 struct mlvpn_status_s mlvpn_status = {
     .start_time = 0,
@@ -129,7 +130,7 @@ struct mlvpn_filters_s mlvpn_filters = {
 struct mlvpn_reorder_buffer *reorder_buffer;
 freebuffer_t *freebuf;
 
-static char *optstr = "c:n:u:hvVD:";
+static char *optstr = "c:n:u:hvVD:p:";
 static struct option long_options[] = {
     {"config",        required_argument, 0, 'c' },
     {"debug",         no_argument,       0, 2   },
@@ -141,6 +142,7 @@ static struct option long_options[] = {
     {"quiet",         no_argument,       0, 'q' },
     {"version",       no_argument,       0, 'V' },
     {"yes-run-as-root",no_argument,      0, 3   },
+    {"permitted",     required_argument, 0, 'p' },
     {0,               0,                 0, 0 }
 };
 
@@ -184,6 +186,7 @@ usage(char **argv)
             " -v --verbose          increase verbosity\n"
             " -q --quiet            decrease verbosity\n"
             " -V, --version         output version information and exit\n"
+            " -p, --permitted       Set all tunnels with a quota to this value of permitted bytes\n"
             "\n"
             "For more details see mlvpn(1) and mlvpn.conf(5).\n", argv[0]);
     exit(2);
@@ -693,7 +696,11 @@ mlvpn_rtun_new(const char *name,
     new->sentpackets = 0;
     new->sentbytes = 0;
     new->recvbytes = 0;
-    new->permitted = 0;
+    if (quota) {
+      new->permitted = permitted_preset;
+    } else {
+      new->permitted = 0;
+    }
     new->quota = quota;
     new->seq = 0;
     new->expected_receiver_seq = 0;
@@ -837,29 +844,26 @@ static void
 mlvpn_rtun_recalc_weight_prio()
 {
   if (bandwidth<=0) {
-    mlvpn_rtun_recalc_weight_bw();
+    return mlvpn_rtun_recalc_weight_bw();
   }
   mlvpn_tunnel_t *t;
   double bw;
-  bw=bandwidth*1.5;
-  double bwavailable=0;
+  double bwneeded=bandwidth*1.5;
+  bw=bwneeded;
   LIST_FOREACH(t, &rtuns, entries) {
-    if (bw>0) {
-      bwavailable+=t->bandwidth;
-      bw-=t->bandwidth;
-    }
-  }
-  if (bwavailable<=0) {
-    mlvpn_rtun_recalc_weight_bw();
-  }
-  bw=bandwidth*1.5;
-  LIST_FOREACH(t, &rtuns, entries) {
-    if (bw>0) {
-      mlvpn_rtun_set_weight(t, (t->bandwidth*100) / bwavailable);
+    if (bw>0 && (t->permitted > (t->bandwidth*3)) && (t->status >= MLVPN_AUTHOK)) {
+      if (t->bandwidth > bw) {
+        mlvpn_rtun_set_weight(t, (bw*100) / bwneeded);
+      } else {
+        mlvpn_rtun_set_weight(t, (t->bandwidth*100) / bwneeded);
+      }
       bw-=t->bandwidth;
     } else {
       mlvpn_rtun_set_weight(t, 0);
-    }
+    }    
+  }
+  if (bw==bwneeded) {
+    return mlvpn_rtun_recalc_weight_bw();
   }
 }
 
@@ -1566,6 +1570,10 @@ main(int argc, char **argv)
             break;
         case 'q': /* --quiet */
             mlvpn_options.verbose--;
+            break;
+        case 'p': /* preset the current 'permitted' values (for all tunnels with
+                   * a quota, which is a pritty rubish plan*/
+            permitted_preset=atoll(optarg);
             break;
         case 'h': /* --help */
         default:
