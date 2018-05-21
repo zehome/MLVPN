@@ -88,7 +88,8 @@ mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,
   b->list=NULL;
   b->tail=&b->list;
   b->list_size=0;
-
+  b->is_initialized = 0;
+  
   return b;
 }
 struct mlvpn_reorder_buffer*
