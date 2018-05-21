@@ -232,6 +232,7 @@ static void
 mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents)
 {
     log_debug("reorder", "reorder timeout. Packet loss?");
+    printf("Reorder timeout\n");
     mlvpn_rtun_reorder_drain(0);
     if (freebuf->used == 0) {
         ev_timer_stop(EV_A_ w);
@@ -847,7 +848,7 @@ mlvpn_rtun_recalc_weight_prio()
     return mlvpn_rtun_recalc_weight_bw();
   }
   mlvpn_tunnel_t *t;
-  double bwneeded=bandwidth*1.5;
+  double bwneeded=bandwidth*2;
   double bw=bwneeded;
   LIST_FOREACH(t, &rtuns, entries) {
     if ((t->quota == 0) && (t->status >= MLVPN_AUTHOK)) {

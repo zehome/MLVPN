@@ -39,6 +39,8 @@
 #include "reorder.h"
 #include "log.h"
 
+#define MARK
+
 /* A generic circular buffer */
 struct cir_buffer {
     unsigned int size;   /**< Number of pkts that can be stored */
@@ -48,6 +50,15 @@ struct cir_buffer {
     mlvpn_pkt_t **pkts;
 };
 
+#ifdef MARK
+struct pktlist 
+{
+  mlvpn_pkt_t *pkt;
+  struct pktlist **prev;
+  struct pktlist *next;
+};
+#endif
+
 /* The reorder buffer data structure itself */
 struct mlvpn_reorder_buffer {
     uint64_t min_seqn;  /**< Lowest seq. number that can be in the buffer */
@@ -55,7 +66,154 @@ struct mlvpn_reorder_buffer {
     struct cir_buffer ready_buf; /**< temp buffer for dequeued pkts */
     struct cir_buffer order_buf; /**< buffer used to reorder pkts */
     int is_initialized;
+  
+#ifdef MARK
+  struct pktlist *pool;
+  struct pktlist *list;
+  struct pktlist **tail;
+  int list_size;
+  int max_size;
+#endif
 };
+
+
+#ifdef MARK
+
+struct mlvpn_reorder_buffer *
+mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,
+        unsigned int size)
+{
+  b->max_size=size;
+  b->pool=NULL;
+  b->list=NULL;
+  b->tail=&b->list;
+  b->list_size=0;
+
+  return b;
+}
+struct mlvpn_reorder_buffer*
+mlvpn_reorder_create(unsigned int size)
+{
+  struct mlvpn_reorder_buffer *b = malloc(sizeof(struct mlvpn_reorder_buffer));
+  mlvpn_reorder_init(b, 0, size);
+  return b;
+}
+void
+mlvpn_reorder_reset(struct mlvpn_reorder_buffer *b)
+{
+  *b->tail=b->pool;
+  b->pool=b->list;
+  b->list=NULL;
+  b->tail=&b->list;
+  b->list_size=0;
+}
+void mlvpn_reorder_free(struct mlvpn_reorder_buffer *b)
+{
+  struct pktlist *l,*n;
+  for (l=b->list;l;l=n) {n=l->next;free(l);}
+  for (l=b->pool;l;l=n) {n=l->next;free(l);}
+  free(b);
+}
+
+int
+mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
+{
+    struct pktlist *p;
+    if (b->pool) {
+      p=b->pool;
+      b->pool=b->pool->next;
+    } else {
+      p=malloc(sizeof (struct pktlist));
+    }
+    p->pkt=pkt;
+    
+    if (!b->is_initialized) {
+        b->min_seqn = pkt->seq;
+        b->is_initialized = 1;
+        log_debug("reorder", "initial sequence: %"PRIu64"", pkt->seq);
+    }
+
+    
+    /*
+     * calculate the offset from the head pointer we need to go.
+     * The subtraction takes care of the sequence number wrapping.
+     * For example (using 16-bit for brevity):
+     *  min_seqn  = 0xFFFD
+     *  pkt_seq   = 0x0010
+     *  offset    = 0x0010 - 0xFFFD = 0x13
+     * Then we cast to a signed int, if the subtraction ends up in a large
+     * number, that will be seen as negative when casted....
+     */
+    struct pktlist *l;
+    for (l=b->list;l && ((int64_t)(pkt->seq - l->pkt->seq)>0);l=l->next);
+    if (!l) {
+      p->prev=b->tail;
+      p->next=NULL;
+      *b->tail=p;
+      b->tail=&p->next;
+    } else {
+      p->prev=l->prev;
+      *l->prev=p;
+      p->next=l;
+      l->prev=&p->next;
+    }
+    b->list_size++;
+
+    if (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq) > 0)) {
+      printf("got old (insert) %d\n",(int)(b->min_seqn - b->list->pkt->seq));
+      b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
+    }
+
+    return 0;
+}
+
+      
+unsigned int
+mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
+        unsigned max_pkts)
+{
+
+  unsigned int drain_cnt = 0;
+
+//  offset = pkt->seq - b->min_seqn;
+
+
+  if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
+    printf("Skipping %d\n",(int)(b->list->pkt->seq - b->min_seqn));
+    b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
+  }
+  
+  if (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq) > 0)) {
+    printf("got old (drain) %d\n",(int)(b->min_seqn - b->list->pkt->seq));
+    b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
+  }
+  
+  while (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq)>=0) && (drain_cnt < max_pkts)) {
+    pkts[drain_cnt++]=b->list->pkt;
+    struct pktlist *l=b->list;
+    b->list=l->next;
+    if (b->list) b->list->prev=&b->list;
+    else b->tail=&b->list;
+    l->next=b->pool;
+    b->pool=l;
+    b->list_size--;
+
+    b->min_seqn=l->pkt->seq + 1;
+
+// do we need to do this again here?
+/*    if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
+      printf("Skipping %d\n",(int)(b->list->pkt->seq - b->min_seqn));
+      b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
+      }*/
+
+  }
+  return drain_cnt;
+}
+  
+#else   
+
+
+// OLD CODE....
 
 struct mlvpn_reorder_buffer *
 mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,
@@ -256,3 +414,4 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
     }
     return drain_cnt;
 }
+#endif
