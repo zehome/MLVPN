@@ -51,6 +51,7 @@ struct cir_buffer {
 };
 
 #ifdef MARK
+#include "mlvpn.h"
 struct pktlist 
 {
   mlvpn_pkt_t *pkt;
@@ -134,6 +135,7 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
         log_debug("reorder", "initial sequence: %"PRIu64"", pkt->seq);
     }
 
+//    printf("Insert %lu\n",pkt->seq);
     
     /*
      * calculate the offset from the head pointer we need to go.
@@ -160,7 +162,7 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
     }
     b->list_size++;
 
-    if (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq) > 0)) {
+    if (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq) > b->max_size)) {
       printf("got old (insert) %d\n",(int)(b->min_seqn - b->list->pkt->seq));
       b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
     }
@@ -178,9 +180,33 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
 
 //  offset = pkt->seq - b->min_seqn;
 
+//  printf("min_seqn %lu, top %lu\n",b->min_seqn, b->list->pkt->seq);
 
+  uint64_t old=0,new=0;
+  mlvpn_tunnel_t *t;
+  old=rtuns.lh_first->seq;
+  new=rtuns.lh_first->seq;
+  LIST_FOREACH(t, &rtuns, entries) {
+    if ((int64_t)(t->seq - old) > 0) old=t->seq;
+    if ((int64_t)(new - t->seq) > 0) new=t->seq;
+  }
+//  No point being behind the oldest tunnel !
+  if (b->list && ((int64_t)(old - b->min_seqn) > 0)) {
+    printf("Skipping (no old tunnels)  %d\n",(int)(old - b->min_seqn));
+    b->min_seqn=b->list->pkt->seq;
+  }
+  
+
+//    no point being older than the newest thing in - max_size
+  if (b->list && ((int64_t)(new - b->min_seqn) > b->max_size)) {
+    printf("Skipping (newest is too far ahead) %d\n",(int)(old - b->min_seqn));
+    b->min_seqn=b->list->pkt->seq;
+  }
+  
+
+  
   if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
-    printf("Skipping %d\n",(int)(b->list->pkt->seq - b->min_seqn));
+    printf("Skipping (whole) %d\n",(int)(b->list->pkt->seq - b->min_seqn));
     b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
   }
   
@@ -189,7 +215,7 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
     b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
   }
   
-  while (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq)>=0) && (drain_cnt < max_pkts)) {
+  while (b->list && ((b->list_size>(b->max_size*2)) || ((int64_t)(b->min_seqn - b->list->pkt->seq)>=0)) && (drain_cnt < max_pkts)) {
     pkts[drain_cnt++]=b->list->pkt;
     struct pktlist *l=b->list;
     b->list=l->next;
@@ -202,12 +228,13 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
     b->min_seqn=l->pkt->seq + 1;
 
 // do we need to do this again here?
-/*    if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
-      printf("Skipping %d\n",(int)(b->list->pkt->seq - b->min_seqn));
+    if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
+      printf("Skipping (whole - b) %d\n",(int)(b->list->pkt->seq - b->min_seqn));
       b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
-      }*/
+    }
 
   }
+//  printf("Draining %d\n",drain_cnt);
   return drain_cnt;
 }
   

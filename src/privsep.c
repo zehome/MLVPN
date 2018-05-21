@@ -159,7 +159,7 @@ priv_init(char *argv[], char *username)
             if (is_root && pw)
             {
                 if (chroot(pw->pw_dir) != 0)
-                    err(1, "unable to chroot");
+                    err(1, "unable to chroot...");
             }
 
             /* May be usefull to chose chdir directory ? */
