@@ -51,11 +51,11 @@ struct cir_buffer {
 };
 
 #ifdef MARK
-#include "mlvpn.h"
+//#include "mlvpn.h"
 struct pktlist 
 {
   mlvpn_pkt_t *pkt;
-  struct pktlist **prev;
+  struct pktlist *last;
   struct pktlist *next;
 };
 #endif
@@ -71,8 +71,9 @@ struct mlvpn_reorder_buffer {
 #ifdef MARK
   struct pktlist *pool;
   struct pktlist *list;
-  struct pktlist **tail;
+  struct pktlist *tail;
   int list_size;
+  int list_size_av;
   int max_size;
 #endif
 };
@@ -84,11 +85,12 @@ struct mlvpn_reorder_buffer *
 mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,
         unsigned int size)
 {
-  b->max_size=size;
+  b->max_size=10;
   b->pool=NULL;
   b->list=NULL;
-  b->tail=&b->list;
+  b->tail=NULL;
   b->list_size=0;
+  b->list_size_av=size;
   b->is_initialized = 0;
   
   return b;
@@ -103,10 +105,12 @@ mlvpn_reorder_create(unsigned int size)
 void
 mlvpn_reorder_reset(struct mlvpn_reorder_buffer *b)
 {
-  *b->tail=b->pool;
-  b->pool=b->list;
+  if (b->tail) {
+    b->tail->next=b->pool;
+    b->pool=b->list;
+  }
   b->list=NULL;
-  b->tail=&b->list;
+  b->tail=NULL;
   b->list_size=0;
 }
 void mlvpn_reorder_free(struct mlvpn_reorder_buffer *b)
@@ -135,7 +139,6 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
         log_debug("reorder", "initial sequence: %"PRIu64"", pkt->seq);
     }
 
-//    printf("Insert %lu\n",pkt->seq);
     
     /*
      * calculate the offset from the head pointer we need to go.
@@ -148,23 +151,35 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
      * number, that will be seen as negative when casted....
      */
     struct pktlist *l;
-    for (l=b->list;l && ((int64_t)(pkt->seq - l->pkt->seq)>0);l=l->next);
+    for (l=b->list;l && ((int64_t)(pkt->seq - l->pkt->seq)<=0);l=l->next){}
     if (!l) {
-      p->prev=b->tail;
-      p->next=NULL;
-      *b->tail=p;
-      b->tail=&p->next;
+      if (b->tail) {
+        p->last=b->tail;
+        b->tail->next=p;
+        b->tail=p;
+        p->next=NULL;
+      } else {
+        p->last=NULL;
+        p->next=NULL;
+        b->list=p;
+        b->tail=p;
+      }
     } else {
-      p->prev=l->prev;
-      *l->prev=p;
+      p->last=l->last;
+      if (p->last) {
+        p->last->next=p;
+      } else {
+        b->list=p;
+      }
       p->next=l;
-      l->prev=&p->next;
+      l->last=p;
     }
+    
     b->list_size++;
+//    printf("Insert    %lu  list size %d min %lu\n",pkt->seq, b->list_size, b->min_seqn);
 
-    if (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq) > b->max_size)) {
-      printf("got old (insert) %d\n",(int)(b->min_seqn - b->list->pkt->seq));
-      b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
+    if (b->tail && ((int64_t)(b->min_seqn - b->tail->pkt->seq) > 0)) {
+//      printf("got old (insert) consider increasing buffer by %d\n",(int)(b->min_seqn - b->tail->pkt->seq));
     }
 
     return 0;
@@ -182,7 +197,7 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
 
 //  printf("min_seqn %lu, top %lu\n",b->min_seqn, b->list->pkt->seq);
 
-  uint64_t old=0,new=0;
+/*  uint64_t old=0,new=0;
   mlvpn_tunnel_t *t;
   old=rtuns.lh_first->seq;
   new=rtuns.lh_first->seq;
@@ -202,39 +217,52 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
     printf("Skipping (newest is too far ahead) %d\n",(int)(old - b->min_seqn));
     b->min_seqn=b->list->pkt->seq;
   }
-  
+*/
 
-  
+/*  
   if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
     printf("Skipping (whole) %d\n",(int)(b->list->pkt->seq - b->min_seqn));
     b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
-  }
-  
-  if (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq) > 0)) {
+  } else
+*/
+/*  if (b->list && ((int64_t)(b->min_seqn - b->list->pkt->seq) > 0)) {
     printf("got old (drain) %d\n",(int)(b->min_seqn - b->list->pkt->seq));
     b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
   }
+*/
   
-  while (b->list && ((b->list_size>(b->max_size*2)) || ((int64_t)(b->min_seqn - b->list->pkt->seq)>=0)) && (drain_cnt < max_pkts)) {
-    pkts[drain_cnt++]=b->list->pkt;
-    struct pktlist *l=b->list;
-    b->list=l->next;
-    if (b->list) b->list->prev=&b->list;
-    else b->tail=&b->list;
+  while (b->tail && ((b->list_size>((b->list_size_av*2))) || ((int64_t)(b->min_seqn - b->tail->pkt->seq)>=0)) && (drain_cnt < max_pkts)) {
+    struct pktlist *l=b->tail;
+    pkts[drain_cnt++]=l->pkt;
+    if (l->last) {
+      b->tail=l->last;
+      b->tail->next=NULL;
+    } else {
+      b->list=NULL;
+      b->tail=NULL;
+    }
     l->next=b->pool;
     b->pool=l;
     b->list_size--;
 
-    b->min_seqn=l->pkt->seq + 1;
+    b->min_seqn=l->pkt->seq+1;
 
 // do we need to do this again here?
-    if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
-      printf("Skipping (whole - b) %d\n",(int)(b->list->pkt->seq - b->min_seqn));
+/*    if (b->list && ((int64_t)(b->list->pkt->seq - b->min_seqn) > b->max_size)) {
+      printf("Skipping (hole - b) %d\n",(int)(b->list->pkt->seq - b->min_seqn));
       b->min_seqn=b->list->pkt->seq; // we have a whole, skip over !!!
-    }
-
+      }
+*/
+    
   }
-//  printf("Draining %d\n",drain_cnt);
+  if (drain_cnt > 1) {
+    b->list_size_av = ((b->list_size_av*9) + (b->list_size + drain_cnt) + 5)/10;
+//    printf("%d\n",b->list_size_av);
+  }
+  
+//  if (b->tail) b->min_seqn++;
+  
+//  printf("Drain %d %lu  list size %d min %lu\n",drain_cnt, pkts[0]->seq, b->list_size, b->min_seqn);
   return drain_cnt;
 }
   
