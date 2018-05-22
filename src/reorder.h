@@ -150,4 +150,10 @@ unsigned int
 mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
         unsigned max_pkts);
 
+
+/* skip over any holes in the buffer to try and force more data to be available
+ * to drain */
+void mlvpn_reorder_skip(struct mlvpn_reorder_buffer *b);
+
+
 #endif /* MLVPN_REORDER_H */

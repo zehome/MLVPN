@@ -90,7 +90,7 @@ mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,
   b->list=NULL;
   b->tail=NULL;
   b->list_size=0;
-  b->list_size_av=size;
+  b->list_size_av=10;
   b->is_initialized = 0;
   
   return b;
@@ -178,13 +178,19 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
     b->list_size++;
 //    printf("Insert    %lu  list size %d min %lu\n",pkt->seq, b->list_size, b->min_seqn);
 
-    if (b->tail && ((int64_t)(b->min_seqn - b->tail->pkt->seq) > 0)) {
+//    if (b->tail && ((int64_t)(b->min_seqn - b->tail->pkt->seq) > 0)) {
 //      printf("got old (insert) consider increasing buffer by %d\n",(int)(b->min_seqn - b->tail->pkt->seq));
-    }
+//    }
 
     return 0;
 }
 
+void mlvpn_reorder_skip(struct mlvpn_reorder_buffer *b)
+{
+    b->min_seqn=b->tail->pkt->seq; // Jump over any hole !!!!
+}
+
+  
       
 unsigned int
 mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
