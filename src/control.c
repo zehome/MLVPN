@@ -68,6 +68,7 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl);
     "   \"bandwidth\": %u,\n" \
     "   \"srtt\": %u,\n" \
     "   \"loss\": %u,\n" \
+    "   \"permitted\": %u,\n" \
     "   \"disconnects\": %u,\n" \
     "   \"last_packet\": %u,\n" \
     "   \"timeout\": %u,\n" \
@@ -428,8 +429,8 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
                        t->recvbytes,
                        0,
                        (uint32_t)t->srtt,
-                       (uint32_t)t->permitted,
-//                       mlvpn_loss_ratio(t),
+                       mlvpn_loss_ratio(t),
+                       (uint32_t)t->permitted/1000000,
                        t->disconnects,
                        (uint32_t)t->last_activity,
                        (uint32_t)t->timeout,

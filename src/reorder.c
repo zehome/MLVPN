@@ -39,7 +39,7 @@
 #include "reorder.h"
 #include "log.h"
 
-#define MARK
+//#define MARK
 
 /* A generic circular buffer */
 struct cir_buffer {
