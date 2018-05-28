@@ -51,7 +51,7 @@ struct cir_buffer {
 };
 
 #ifdef MARK
-//#include "mlvpn.h"
+
 struct pktlist 
 {
   mlvpn_pkt_t *pkt;
@@ -90,7 +90,7 @@ mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,
   b->list=NULL;
   b->tail=NULL;
   b->list_size=0;
-  b->list_size_av=size;
+  b->list_size_av=10;
   b->is_initialized = 0;
   
   return b;
@@ -179,12 +179,21 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
 //    printf("Insert    %lu  list size %d min %lu\n",pkt->seq, b->list_size, b->min_seqn);
 
     if (b->tail && ((int64_t)(b->min_seqn - b->tail->pkt->seq) > 0)) {
-//      printf("got old (insert) consider increasing buffer by %d\n",(int)(b->min_seqn - b->tail->pkt->seq));
+      log_debug("reorder", "got old (insert) consider increasing buffer (%d behind)\n",(int)(b->min_seqn - b->tail->pkt->seq));
     }
 
     return 0;
 }
 
+void mlvpn_reorder_skip(struct mlvpn_reorder_buffer *b)
+{
+  printf("number in list %u list_size_av %u min %lu tail %lu\n",b->list_size, b->list_size_av, b->min_seqn, b->tail->pkt->seq);
+  if (b->tail) {
+    b->min_seqn=b->tail->pkt->seq; // Jump over any hole !!!!
+  }
+}
+
+  
       
 unsigned int
 mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
@@ -256,8 +265,24 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
     
   }
   if (drain_cnt > 1) {
+    int last=b->list_size_av;
     b->list_size_av = ((b->list_size_av*9) + (b->list_size + drain_cnt) + 5)/10;
-//    printf("%d\n",b->list_size_av);
+    if (b->list_size_av > 64) {
+      b->list_size_av = 64;
+      if (b->list_size_av != last ) {
+        log_info("reorder", "List size reached limit (64)\n");
+      }
+    } 
+    if (b->list_size_av < 4) {
+      b->list_size_av = 4;
+      if (b->list_size_av != last ) {
+        log_debug("reorder", "List size reached limit (4)\n");
+      }
+    } 
+//    if (b->list_size_av != last ) {
+//      log_debug("reorder", "Changed in list_size_av %d\n",b->list_size_av);
+//      printf("reorder:  Changed in list_size_av %d\n",b->list_size_av);
+//    }
   }
   
 //  if (b->tail) b->min_seqn++;
@@ -270,6 +295,9 @@ mlvpn_reorder_drain(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t **pkts,
 
 
 // OLD CODE....
+void mlvpn_reorder_skip(struct mlvpn_reorder_buffer *b)
+{
+}
 
 struct mlvpn_reorder_buffer *
 mlvpn_reorder_init(struct mlvpn_reorder_buffer *b, unsigned int bufsize,

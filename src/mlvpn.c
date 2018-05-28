@@ -233,7 +233,8 @@ mlvpn_rtun_reorder_drain_timeout(EV_P_ ev_timer *w, int revents)
 {
     log_debug("reorder", "reorder timeout. Packet loss?");
 //    printf("Reorder timeout\n");
-    mlvpn_rtun_reorder_drain(0);
+    mlvpn_reorder_skip(reorder_buffer);
+    mlvpn_rtun_reorder_drain(1);  // MARK = 1, old = 0
     if (freebuf->used == 0) {
         ev_timer_stop(EV_A_ w);
     }
