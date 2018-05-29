@@ -430,7 +430,7 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
                        0,
                        (uint32_t)t->srtt,
                        mlvpn_loss_ratio(t),
-                       (uint32_t)t->permitted/1000000,
+                       (uint32_t)(t->permitted/1000000),
                        t->disconnects,
                        (uint32_t)t->last_activity,
                        (uint32_t)t->timeout,

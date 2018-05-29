@@ -39,7 +39,7 @@
 #include "reorder.h"
 #include "log.h"
 
-//#define MARK
+#define MARK
 
 /* A generic circular buffer */
 struct cir_buffer {
@@ -187,7 +187,7 @@ mlvpn_reorder_insert(struct mlvpn_reorder_buffer *b, mlvpn_pkt_t *pkt)
 
 void mlvpn_reorder_skip(struct mlvpn_reorder_buffer *b)
 {
-  printf("number in list %u list_size_av %u min %lu tail %lu\n",b->list_size, b->list_size_av, b->min_seqn, b->tail->pkt->seq);
+//  printf("number in list %u list_size_av %u min %lu tail %lu\n",b->list_size, b->list_size_av, b->min_seqn, b->tail->pkt->seq);
   if (b->tail) {
     b->min_seqn=b->tail->pkt->seq; // Jump over any hole !!!!
   }
