@@ -477,7 +477,7 @@ mlvpn_protocol_read(
     if (proto.version >= 1) {
         decap_pkt->reorder = proto.reorder;
         decap_pkt->seq = be64toh(proto.data_seq);
-        mlvpn_loss_update(tun, decap_pkt->seq);
+        mlvpn_loss_update(tun, proto.seq);
     } else {
         decap_pkt->reorder = 0;
         decap_pkt->seq = 0;
@@ -501,8 +501,9 @@ mlvpn_protocol_read(
                 tun->srtt = (1 - alpha) * tun->srtt + (alpha * R);
             }
         }
-        log_debug("rtt", "%ums srtt %ums loss ratio: %d",
-            (unsigned int)R, (unsigned int)tun->srtt, mlvpn_loss_ratio(tun));
+        log_debug("rtt", "%s %ums srtt %ums loss ratio: %d seqvect: %016lx",
+            tun->name, (unsigned int)R, (unsigned int)tun->srtt,
+            mlvpn_loss_ratio(tun), tun->seq_vect);
     }
     return 0;
 fail:
