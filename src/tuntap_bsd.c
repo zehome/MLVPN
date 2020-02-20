@@ -145,6 +145,7 @@ root_tuntap_open(int tuntapmode, char *devname, int mtu)
 #ifdef HAVE_OPENBSD
         struct tuninfo tuninfo;
         tuninfo.mtu = mtu;
+        tuninfo.type = IFT_TUNNEL;
         tuninfo.flags = IFF_POINTOPOINT;
         tuninfo.baudrate = 0;
         if (ioctl(fd, TUNSIFINFO, &tuninfo, sizeof(tuninfo)) < 0) {

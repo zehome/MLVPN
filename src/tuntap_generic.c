@@ -3,7 +3,7 @@
 int
 mlvpn_tuntap_generic_read(u_char *data, uint32_t len)
 {
-    circular_buffer_t *sbuf;
+    circular_buffer_t *sbuf = NULL;
     mlvpn_tunnel_t *rtun = NULL;
     mlvpn_pkt_t *pkt;
 
