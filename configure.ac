@@ -12,13 +12,13 @@ AC_CONFIG_FILES([Makefile
                  man/Makefile])
 AC_CONFIG_MACRO_DIR([m4])
 AC_SUBST([CONFIGURE_ARGS], [$ac_configure_args])
-AM_INIT_AUTOMAKE([foreign -Wall -Wextra silent-rules])
+AM_INIT_AUTOMAKE([foreign -Wall silent-rules])
 
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES(yes)])
 
 # Checks
-AC_PROG_CC
+AC_PROG_CC([cc clang gcc])
 AC_PROG_CC_C99
 AC_PROG_SED
 
