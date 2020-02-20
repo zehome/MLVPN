@@ -18,6 +18,6 @@ Homepage: http://www.mlvpn.fr/
 
 Package: mlvpn
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, net-tools, adduser, passwd
+Depends: ${shlibs:Depends}, ${misc:Depends}, net-tools, adduser, passwd, lsb-base
 Description: MultiLink Virtual Public Network aggregator.
  MLVPN aggregates multiple links into one tun/tap tunnel.

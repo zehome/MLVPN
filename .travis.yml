@@ -2,9 +2,6 @@ language: c
 os: linux
 sudo: required
 dist: xenial
-compiler:
-  - gcc
-  - clang
 branches:
   only:
     - master
@@ -14,7 +11,6 @@ jobs:
     - stage: "Package"
       name: "Debian packages"
       script:
-        - apt-get build-dep .
         - gbp buildpackage
 env:
   global:
@@ -22,7 +18,16 @@ env:
 addons:
   apt:
     packages:
+    - cdbs
+    - debhelper
+    - dh-autoreconf
+    - fakeroot
     - git-buildpackage
+    - libev-dev
+    - libpcap-dev
+    - libsodium-dev
+    - pkg-config
+    - ruby-ronn
   coverity_scan:
     project:
       name: "zehome/MLVPN"
