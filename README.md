@@ -1,6 +1,5 @@
-=========================================
-MLVPN - Multi-Link Virtual Public Network
-=========================================
+# MLVPN - Multi-Link Virtual Public Network
+
 [![Build Status](https://travis-ci.org/zehome/MLVPN.svg?branch=master)](https://travis-ci.org/zehome/MLVPN)
 [![Coverity Status](https://scan.coverity.com/projects/4405/badge.svg)](https://scan.coverity.com/projects/4405)
 
@@ -8,8 +7,8 @@ author: Laurent Coustet <ed arobase zehome.com>
 
 Take a look at the official documentation on [Read The Docs](http://mlvpn.readthedocs.org/en/latest/)
 
-Introduction
-============
+## Introduction
+
 MLVPN will do its best to achieve the following tasks:
 
   * Bond your internet links to increase bandwidth (unlimited)
@@ -20,11 +19,9 @@ MLVPN will do its best to achieve the following tasks:
     strong cryptography.
   * Scriptable automation and monitoring.
 
-Quick install
-=============
+## Quick install
 
-Install debian package
-----------------------
+### Install debian package
 ```sh
 sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
 echo "deb http://debian.mlvpn.fr unstable/" >/etc/apt/sources.list.d/mlvpn.list
@@ -32,8 +29,7 @@ sudo apt-get update
 sudo apt-get install mlvpn
 ```
 
-Install FreeBSD port
---------------------
+### Install FreeBSD port
 ```sh
 pkg install git libev libsodium
 git clone --branch freebsd https://github.com/zehome/MLVPN mlvpn
@@ -41,8 +37,7 @@ cd mlvpn
 make
 ```
 
-Install "static" package
-------------------------
+### Install "static" package
 This is usefull on old systems. For example, for debian
 ```
 wget https://github.com/zehome/MLVPN/releases/download/2.3.1/mlvpn_static_ev_4.22_libsodium_1.0.10.tar.gz
@@ -52,8 +47,7 @@ chmod +x /etc/init.d/mlvpn
 insserv mlvpn
 ```
 
-Build from source
------------------
+### Build from source
 ```sh
 # Debian
 $ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev
@@ -65,15 +59,13 @@ $ make
 $ make install
 ```
 
-Build debian package
---------------------
+### Build debian package
 ```sh
 $ sudo apt-get install build-essential make autoconf
 $ dpkg-buildpackage -us -uc -rfakeroot
 ```
 
-Generating a static binary
---------------------------
+### Generating a static binary
 ```sh
 apt-get install flex bison build-essential
 MLVPN_VERSION=2.3.0
@@ -109,17 +101,14 @@ libpcap_LIBS="-L${HOME}/libpcap/lib -lpcap" libpcap_CFLAGS="-I${HOME}/libpcap/in
 make install
 ```
 
-Dependencies
-============
+## Dependencies
   - libev
   - libsodium
   - libpcap (optional)
 
-Security
-========
+## Security
 
-Privilege separation
---------------------
+### Privilege separation
 MLVPN uses privilege separation to keep high privileges operations
 away from the core routing stuff.
 
@@ -128,27 +117,20 @@ avoid risks as much as possible.
 
 Read more about [privilege separation](http://en.wikipedia.org/wiki/Privilege_separation)
 
-Cryptography
-------------
+### Cryptography
   * Encryption: Salsa20 stream cipher
   * Authentication: Poly1305 MAC
 
 Read more on [salsa20](http://cr.yp.to/salsa20.html) and [libsodium](http://doc.libsodium.org/).
 
 
-Principle of operations
-=======================
-**TODO**
-
-Compatibility
-=============
+## Compatibility
 Linux, OpenBSD, FreeBSD, OSX
 
 Windows is *NOT* supported, but MLVPN runs on routers, so you can
 benefit from MLVPN on *ANY* operating system of course.
 
-Contributors
-============
+## Contributors
   * Laurent Coustet, author and maintainer
   * Philippe Pepiot, contributor (privilege separation, bugfix)
   * Ghislain Lévèque, contributor (weight round robin)
@@ -160,11 +142,9 @@ Contributors
   * Olivier Cochard-Labbé, contributor (FreeBSD/OpenBSD fib routing)
   * Michael Stapelberg, contributor (documentation)
 
-LICENSE
-=======
+## LICENSE
 See LICENSE file.
 
-Documentation
-=============
-Documentation is available on [Read The Docs](http://mlvpn.readthedocs.org/en/latest/).  
+## Documentation
+Documentation is available on [Read The Docs](http://mlvpn.readthedocs.org/en/latest/).
 The manpage is also authored in Markdown, and converted using [ronn](http://rtomayko.github.com/ronn/).

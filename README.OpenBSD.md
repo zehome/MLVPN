@@ -1,8 +1,6 @@
-Building mlvpn on OpenBSD
-=========================
+# Building mlvpn on OpenBSD
 
-Since OpenBSD 5.9
-=================
+## Since OpenBSD 5.9
 In OpenBSD 5.9 and later, thanks yo Stuart Henderson @sthen,
 you can install mlvpn like any other OpenBSD package:
 
@@ -11,20 +9,18 @@ pkg_add mlvpn
 /etc/rc.d/mlvpn start
 ```
 
-Install requirements
-====================
+## Install requirements
 ```sh
 pkg_add git autoconf automake libev libsodium
 ```
 .. note: For OpenBSD 5.6 and older, you need to build libsodium
          from source, because the version provided is too old.
 
-Manual build
-============
+## Manual build
 
 ```sh
 export AUTOCONF_VERSION=2.69
-export AUTOMAKE_VERSION=1.15
+export AUTOMAKE_VERSION=1.16
 export CPPFLAGS="-I/usr/local/include $CPPFLAGS"
 export LDFLAGS="-L/usr/local/lib $LDFLAGS"
 git clone https://github.com/zehome/MLVPN mlvpn
@@ -35,8 +31,8 @@ make
 doas make install
 ```
 
-Manual installation
-===================
+## Manual installation
+
 ```sh
 doas make install
 doas mkdir /etc/mlvpn
@@ -54,8 +50,7 @@ doas useradd -c "mlvpn Daemon" -d /var/empty -s /sbin/nologin -L daemon -g _mlvp
 
 Edit **/etc/mlvpn/mlvpn.conf** for your needs.
 
-Run
-===
+## Run
 
 ```sh
 doas mlvpn -c /etc/mlvpn/mlvpn.conf --user _mlvpn
