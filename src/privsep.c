@@ -810,6 +810,7 @@ may_read(int fd, void *buf, size_t n)
         case -1:
             if (errno == EINTR || errno == EAGAIN)
                 continue;
+            // fall through
         case 0:
             return (1);
         default:
@@ -834,6 +835,7 @@ must_read(int fd, void *buf, size_t n)
         case -1:
             if (errno == EINTR || errno == EAGAIN)
                 continue;
+            // fall through
         case 0:
             _exit(0);
         default:
@@ -857,6 +859,7 @@ must_write(int fd, void *buf, size_t n)
         case -1:
             if (errno == EINTR || errno == EAGAIN)
                 continue;
+            // fall through
         case 0:
             _exit(0);
         default:
