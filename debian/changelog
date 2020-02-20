@@ -1,0 +1,106 @@
+mlvpn (2.3.4) unstable; urgency=medium
+
+  * Update to 2.3.4
+  * Send keepalives every 1s, detect timeouts at 2s (@stapelberg)
+  * Fix calculation of loss ration with sequence of tunnel (@flohoff)
+  * Fix compiler warning (switch fall through)
+  * Fix: ERRMSGSIZ should be greather than PATHMAX
+  * OpenBSD: fix bad usage of TUNSIFINFO: missing type
+
+ -- Laurent Coustet <ed@zehome.com>  Thu, 20 Feb 2020 20:25:08 +0100
+
+mlvpn (2.3.3) unstable; urgency=medium
+
+  * Update to 2.3.3
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Thu, 19 Apr 2018 14:39:42 +0200
+
+mlvpn (2.3.0~bpo70+1) wheezy-backports; urgency=medium
+
+  *  Update to 2.3.0
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Mon, 16 Nov 2015 15:03:46 +0100
+
+mlvpn (2.1.4~bpo70+1) wheezy-backports; urgency=medium
+
+  * Update to 2.1.4 release.
+  * Rebuild for wheezy-backports.
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Fri, 17 Apr 2015 11:35:12 +0200
+
+mlvpn (2.1.3~bpo70+2) wheezy-backports; urgency=medium
+
+  * Update to 2.1.3 release.
+  * Rebuild for wheezy-backports.
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Thu, 16 Apr 2015 10:49:44 +0200
+
+mlvpn (2.1.2~bpo70+1) wheezy-backports; urgency=medium
+
+  * Rebuild for wheezy-backports.
+  * Rebuild for wheezy-backports.
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Mon, 30 Mar 2015 13:36:52 +0200
+
+mlvpn (2.1.2) unstable; urgency=medium
+
+  * Update to 2.1.2 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Tue, 17 Mar 2015 13:27:54 +0100
+
+mlvpn (2.1.0) unstable; urgency=medium
+  * Update to 2.1.0 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Sun, 08 Mar 2015 20:06:20 +0100
+
+mlvpn (2.0.5) unstable; urgency=low
+  * Update to 2.0.5 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Tue, 17 Feb 2015 01:05:24 +0100
+
+mlvpn (2.0.4) unstable; urgency=low
+  * Update to 2.0.4 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Mon, 16 Feb 2015 23:25:50 +0100
+
+mlvpn (2.0.3) UNRELEASED; urgency=low
+  * Update to 2.0.3 release.
+
+ -- Laurent Coustet <ed@zehome.com>  Wed, 11 Feb 2015 22:57:49 +0100
+
+mlvpn (2.0.2) UNRELEASED; urgency=low
+  * Uses libev / libsodium instead of custom event system.
+
+ -- Laurent Coustet <ed@zehome.com>  Mon, 02 Feb 2015 22:51:36 +0100
+
+mlvpn (1.3.2) UNRELEASED; urgency=low
+  * Improve debian wheezy support. (Uses /run instead of /var/run)
+  * closes #31
+
+ -- Laurent Coustet <ed@zehome.com>  Wed, 12 Feb 2014 20:16:18 +0100
+
+mlvpn (1.3-1) UNRELEASED; urgency=low
+  * Buffer system refactoring (Improving performance)
+  * Introduce new system to re-order packets on the receiving side.
+    (Can be disabled with compile option and configuration)
+
+ -- Laurent Coustet <ed@zehome.com>  Sun, 28 Oct 2012 18:40:00 +0200
+
+mlvpn (1.2-1) UNRELEASED; urgency=low
+  * New version, not a public release yet
+  * Based on mlvpn 1.2 (dev/untested)
+
+ -- Laurent Coustet <ed@zehome.com>  Sat, 05 May 2012 16:47:19 +0200
+
+mlvpn (1.0-1.1) UNRELEASED; urgency=low
+
+  * Non-maintainer upload.
+  * Create debian user for mlvpn before install
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Fri, 09 Mar 2012 10:47:36 +0100
+
+mlvpn (1.0-1) UNRELEASED; urgency=low
+
+  * Initial release.
+
+ -- Laurent Coustet <laurent.coustet@clarisys.fr>  Fri, 02 Mar 2012 11:38:42 +0100

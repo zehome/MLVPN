@@ -1,0 +1,10 @@
+# uscan(1) configuration file.
+version=4
+
+opts="\
+pgpmode=none,\
+repacksuffix=+dfsg,\
+repack,compression=xz,\
+dversionmangle=s{[+~]dfsg\d*}{},\
+" https://github.com/zehome/MLVPN/releases \
+  .*/archive/v?(\d[\d\.]+)\.tar\.gz

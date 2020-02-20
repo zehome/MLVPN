@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/rules/autoreconf.mk
+include /usr/share/cdbs/1/class/autotools.mk
+
+DEB_CONFIGURE_EXTRA_FLAGS = --without-install-examples
+DEB_CONFIGURE_EXTRA_FLAGS += --with-systemdsystemunitdir=/lib/systemd/system
+DEB_CONFIGURE_EXTRA_FLAGS += --with-systemdsystemgeneratordir=/lib/systemd/system-generators
+DEB_CONFIGURE_EXTRA_FLAGS += --with-systemdtmpfilesdir=/usr/lib/tmpfiles.d

@@ -1,0 +1,23 @@
+Source: mlvpn
+Maintainer: Laurent Coustet <ed@zehome.com>
+Section: net
+Priority: optional
+Standards-Version: 3.9.6
+Build-Depends: debhelper (>= 5),
+               cdbs,
+               dh-autoreconf,
+               libev-dev,
+               libpcap-dev,
+               libsodium-dev,
+               pkg-config,
+               ruby-ronn
+Build-Conflicts: autoconf2.13, automake1.4
+Vcs-Git: https://git@github.com/zehome/MLVPN.git
+Vcs-browser: https://github.com/zehome/MLVPN.git
+Homepage: http://www.mlvpn.fr/
+
+Package: mlvpn
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, net-tools, adduser, passwd
+Description: MultiLink Virtual Public Network aggregator.
+ MLVPN aggregates multiple links into one tun/tap tunnel.

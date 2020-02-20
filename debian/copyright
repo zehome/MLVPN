@@ -1,0 +1,15 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: zehome/MLVPN
+Source: https://github.com/zehome/MLVPN
+Files: *
+Copyright: 2015-2020 Laurent Coustet <ed@zehome.com>
+License: BSD-2-clause
+
+Files: src/strlcpy.c src/strlcat.c
+Copyright: 1998, 2015 Todd C. Miller <millert@openbsd.org>
+License: ISC
+
+Files: src/vis.c
+Copyright: 1989, 1993 The Regents of the University of California.
+License: BSD-3-clause
+
