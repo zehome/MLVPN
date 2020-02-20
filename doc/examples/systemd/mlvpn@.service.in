@@ -6,7 +6,7 @@ ReloadPropagatedFrom=mlvpn.service
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=@sbindir@/mlvpn --config @sysconfdir@/mlvpn/%i.conf --user mlvpn
+ExecStart=@sbindir@/mlvpn --config @sysconfdir@/mlvpn/%i.conf --name %i --user mlvpn
 ExecReload=/bin/kill -HUP $MAINPID
 WorkingDirectory=@sysconfdir@/mlvpn
 Restart=on-failure
