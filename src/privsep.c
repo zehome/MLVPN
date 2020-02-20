@@ -81,7 +81,7 @@ enum cmd_types {
 };
 
 /* Error message for some communication between processes */
-#define ERRMSGSIZ 1024
+#define ERRMSGSIZ 8192
 
 static int priv_fd = -1;
 static volatile pid_t child_pid = -1;
