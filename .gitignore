@@ -27,3 +27,4 @@ test/
 *.swo
 *.tmp
 mlvpn-*.tar.gz
+tmp/
