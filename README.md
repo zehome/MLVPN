@@ -21,6 +21,10 @@ MLVPN will do its best to achieve the following tasks:
 
 ## Quick install
 
+### A Nice tutorial using OpenBSD
+
+See [solene's article on how to use mlvpn on OpenBSD](https://dataswamp.org/~solene/2020-03-28-mlvpn.html)
+
 ### Install debian package
 ```sh
 sudo apt-key adv --keyserver pgp.mit.edu --recv 3324C952
