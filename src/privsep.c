@@ -116,7 +116,7 @@ priv_init(char *argv[], char *username)
     struct sigaction sa;
     struct addrinfo hints, *res0, *res;
     char hostname[MLVPN_MAXHNAMSTR], servname[MLVPN_MAXHNAMSTR];
-    char *phostname, *pservname;
+    char *phostname, *pservname = NULL;
     char script_path[MAXPATHLEN] = {0};
     char tuntapname[MLVPN_IFNAMSIZ];
     char **script_argv;
@@ -339,7 +339,7 @@ priv_init(char *argv[], char *username)
             else if (hostname_len > 0) {
                 must_read(socks[0], &hostname, hostname_len);
                 hostname[hostname_len - 1] = '\0';
-                phostname = hostname;
+                phostname = *hostname ? hostname : NULL;
             } else {
                 phostname = NULL;
             }
@@ -350,7 +350,7 @@ priv_init(char *argv[], char *username)
             if (servname_len > 0) {
                 must_read(socks[0], &servname, servname_len);
                 servname[servname_len - 1] = '\0';
-                pservname = servname;
+                pservname = *servname ? servname : NULL;
             } else {
                 pservname = NULL;
             }

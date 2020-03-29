@@ -784,7 +784,7 @@ mlvpn_rtun_bind(mlvpn_tunnel_t *t)
     hints.ai_socktype = SOCK_DGRAM;
 
     n = priv_getaddrinfo(t->bindaddr, t->bindport, &res, &hints);
-    if (n < 0)
+    if (n <= 0)
     {
         log_warnx(NULL, "%s getaddrinfo error: %s", t->name, gai_strerror(n));
         return -1;
@@ -828,7 +828,7 @@ mlvpn_rtun_start(mlvpn_tunnel_t *t)
     hints.ai_socktype = SOCK_DGRAM;
 
     ret = priv_getaddrinfo(addr, port, &t->addrinfo, &hints);
-    if (ret < 0 || !t->addrinfo)
+    if (ret <= 0 || !t->addrinfo)
     {
         log_warnx("dns", "%s getaddrinfo(%s,%s) failed: %s",
            t->name, addr, port, gai_strerror(ret));

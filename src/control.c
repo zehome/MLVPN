@@ -186,7 +186,7 @@ mlvpn_control_init(struct mlvpn_control *ctrl)
         ret = priv_getaddrinfo(ctrl->bindaddr, ctrl->bindport,
                                &res, &hints);
         bak = res;
-        if (ret < 0 || ! res)
+        if (ret <= 0 || ! res)
         {
             log_warnx("control", "priv_getaddrinfo(%s,%s) failed: %s",
                    ctrl->bindaddr, ctrl->bindport,
