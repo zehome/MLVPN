@@ -30,6 +30,7 @@
 extern struct tuntap_s tuntap;
 extern char *_progname;
 extern struct mlvpn_status_s mlvpn_status;
+void mlvpn_control_write_metrics(struct mlvpn_control *ctrl);
 void mlvpn_control_write_status(struct mlvpn_control *ctrl);
 
 
@@ -369,6 +370,9 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
     if (strcasecmp(cmd, "status") == 0 || strcasecmp(cmd, "/status") == 0)
     {
         mlvpn_control_write_status(ctrl);
+    } else if (strcasecmp(cmd, "metrics") == 0 || strcasecmp(cmd, "/metrics") == 0)
+    {
+        mlvpn_control_write_metrics(ctrl);
     } else if (strcasecmp(cmd, "quit") == 0) {
         mlvpn_control_write(ctrl, "bye.", 4);
         mlvpn_control_close_client(ctrl);
@@ -379,6 +383,42 @@ mlvpn_control_parse(struct mlvpn_control *ctrl, char *line)
 
     if (ctrl->http)
         ctrl->close_after_write = 1;
+}
+
+void mlvpn_control_write_metrics(struct mlvpn_control *ctrl)
+{
+    char buf[1024];
+    size_t ret;
+    mlvpn_tunnel_t *t;
+
+#define control_writef(fmt, ...) do { \
+    ret = snprintf(buf, sizeof(buf), (fmt), ##__VA_ARGS__); \
+    mlvpn_control_write(ctrl, buf, ret); \
+} while (0)
+
+    control_writef("uptime %u\n", (uint32_t) mlvpn_status.start_time);
+    control_writef("last_reload %u\n", (uint32_t) mlvpn_status.last_reload);
+    control_writef("pid %d\n", 0);
+
+    LIST_FOREACH(t, &rtuns, entries)
+    {
+        /* Prometheus only supports numeric metrics, so we expand the status into one boolean metric per status. */
+        control_writef("disconnected{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_DISCONNECTED ? 1 : 0));
+        control_writef("waitingpeer{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_AUTHSENT ? 1 : 0));
+        control_writef("connected{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_AUTHOK ? 1 : 0));
+        control_writef("lossy{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_LOSSY ? 1 : 0));
+
+        control_writef("sentpackets{tunnel=\"%s\"} %" PRIu64 "\n", t->name, t->sentpackets);
+        control_writef("recvpackets{tunnel=\"%s\"} %" PRIu64 "\n", t->name, t->recvpackets);
+        control_writef("sentbytes{tunnel=\"%s\"} %" PRIu64 "\n", t->name, t->sentbytes);
+        control_writef("recvbytes{tunnel=\"%s\"} %" PRIu64 "\n", t->name, t->recvbytes);
+        control_writef("bandwidth{tunnel=\"%s\"} %u\n", t->name, t->bandwidth);
+        control_writef("srtt{tunnel=\"%s\"} %u\n", t->name, (uint32_t) t->srtt);
+        control_writef("loss{tunnel=\"%s\"} %u\n", t->name, mlvpn_loss_ratio(t));
+        control_writef("disconnects{tunnel=\"%s\"} %u\n", t->name, t->disconnects);
+        control_writef("last_packet{tunnel=\"%s\"} %u\n", t->name, (uint32_t) t->last_activity);
+        control_writef("timeout{tunnel=\"%s\"} %u\n", t->name, (uint32_t) t->timeout);
+    }
 }
 
 void mlvpn_control_write_status(struct mlvpn_control *ctrl)
