@@ -47,7 +47,7 @@
 #include "timestamp.h"
 
 #define MLVPN_MAXHNAMSTR 256
-#define MLVPN_MAXPORTSTR 6
+#define MLVPN_MAXPORTSTR 5
 
 /* Number of packets in the queue. Each pkt is ~ 1520 */
 /* 1520 * 128 ~= 24 KBytes of data maximum per channel VMSize */
@@ -191,8 +191,8 @@ int mlvpn_sock_set_nonblocking(int fd);
 
 int mlvpn_loss_ratio(mlvpn_tunnel_t *tun);
 int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks);
-mlvpn_tunnel_t *mlvpn_rtun_wrr_choose();
-mlvpn_tunnel_t *mlvpn_rtun_choose();
+mlvpn_tunnel_t *mlvpn_rtun_wrr_choose(uint32_t len);
+mlvpn_tunnel_t *mlvpn_rtun_choose(uint32_t len);
 mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     const char *bindaddr, const char *bindport, uint32_t bindfib,
     const char *destaddr, const char *destport,
