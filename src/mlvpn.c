@@ -82,6 +82,7 @@ static char **saved_argv;
 struct ev_loop *loop;
 static ev_timer reorder_drain_timeout;
 static ev_timer reorder_adjust_rtt_timeout;
+struct rtunhead rtuns;
 char *status_command = NULL;
 char *process_title = NULL;
 int logdebug = 0;
@@ -1491,11 +1492,11 @@ main(int argc, char **argv)
     mlvpn_systemd_notify();
 #endif
 
+    LIST_INIT(&rtuns);
     priv_init(argv, mlvpn_options.unpriv_user);
     if (mlvpn_options.change_process_title)
         update_process_title();
 
-    LIST_INIT(&rtuns);
     freebuf = mlvpn_freebuffer_init(512);
 
     /* Kill me if my root process dies ! */

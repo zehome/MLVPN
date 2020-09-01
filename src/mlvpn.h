@@ -130,7 +130,9 @@ enum chap_status {
     MLVPN_LOSSY
 };
 
-LIST_HEAD(rtunhead, mlvpn_tunnel_s) rtuns;
+LIST_HEAD(rtunhead, mlvpn_tunnel_s);
+
+extern struct rtunhead rtuns;
 
 typedef struct mlvpn_tunnel_s
 {
