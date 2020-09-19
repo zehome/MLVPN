@@ -5,7 +5,7 @@ What is mlvpn
 mlvpn is a piece of software, similar to OpenVPN_, which can create a network
 tunnel between two computers.
 
-mlvpn encapsulates network packets, using UDP and send them encrypted over the
+mlvpn encapsulates network packets, using UDP and sends them encrypted over the
 internet to another location.
 
 The primary use of mlvpn is to create bonded/aggregated_ network links in order to
