@@ -54,7 +54,7 @@ insserv mlvpn
 ### Build from source
 ```sh
 # Debian
-$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev
+$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev pkg-config
 # OR ArchLinux
 $ sudo pacman -S base-devel git libev libsodium
 $ ./autogen.sh
