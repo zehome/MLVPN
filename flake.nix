@@ -4,24 +4,52 @@
   };
 
   outputs = inp:
-    let
-      pkgs = inp.nixpkgs.legacyPackages.x86_64-linux;
-    in
-    {
-      defaultPackage.x86_64-linux = pkgs.stdenv.mkDerivation {
+    let 
+      systems = [ "aarch64-linux" "armv7l-linux" "x86_64-linux" ];
+      pkgsForSystem = system: inp.nixpkgs.legacyPackages."${system}";
+      pkgsCross = system: crossSystem: import inp.nixpkgs {
+        inherit system crossSystem;
+      };
+      lib = inp.nixpkgs.lib;
+      buildFor = pkgs: pkgs.stdenv.mkDerivation {
         src = ./.;
         name = "mlvpn";
-        buildInputs = with pkgs; [
+        nativeBuildInputs = with pkgs; [
           automake
           autoconf
+          pkg-config
+        ];
+        buildInputs = with pkgs; [
           libev
           libsodium
           libpcap
-          pkg-config
         ];
         preConfigure = ''
           ./autogen.sh
         '';
       };
-    };
+    in
+      rec {
+        defaultPackage = lib.genAttrs systems (system: packages."${system}".mlvpn);
+        packages = lib.genAttrs systems (system: 
+          {
+            mlvpn = buildFor (pkgsForSystem system);
+            mlvpn-static = buildFor (pkgsForSystem system).pkgsStatic;
+          }
+
+          # cross compiled packages
+          // (lib.listToAttrs (map (crossSystem:
+            lib.nameValuePair
+              "mlvpn-${crossSystem}"
+              (buildFor (pkgsCross system crossSystem))
+          ) (builtins.filter (s: s != system) systems) ))
+          
+          # cross compiled static packages
+          // (lib.listToAttrs (map (crossSystem:
+            lib.nameValuePair
+              "mlvpn-static-${crossSystem}"
+              (buildFor (pkgsCross system crossSystem).pkgsStatic)
+          ) (builtins.filter (s: s != system) systems) ))
+        );
+      };
 }
