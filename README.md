@@ -51,7 +51,38 @@ chmod +x /etc/init.d/mlvpn
 insserv mlvpn
 ```
 
-### Build from source
+## Build from source (using nix)
+Using nix, MLVPN can be built on any linux system without the need to manually setup a build environment or install dependencies.
+It also allows to build static binaries and cross built binaries.
+It just requires nix to be installed (see [getting nix](https://nixos.org/download.html))
+
+First obtain a flakes compatible nix  :
+```sh
+  NIX_CONFIG="experimental-features = flakes nix-command" nix-shell -p nixFlakes
+```
+Build MLVPN via nix:
+
+  - Build for your current platform  
+    ```sh
+      nix build github:zehome/MLVPN
+    ```
+  - Static build for your current platform  
+    ```sh
+      nix build github:zehome/MLVPN#mlvpn-static
+    ```
+  - Cross build for another platform
+    ```sh
+      nix build github:zehome/MLVPN#mlvpn-aarch64-linux
+    ```
+  - Static cross build for another platform
+    ```sh
+      nix build github:zehome/MLVPN#mlvpn-static-aarch64-linux
+    ```
+The binary will end up in `./result/bin`
+
+
+## Build from source (debian / arch)
+
 ```sh
 # Debian
 $ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev pkg-config
