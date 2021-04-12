@@ -58,7 +58,7 @@ It just requires nix to be installed (see [getting nix](https://nixos.org/downlo
 
 First obtain a flakes compatible nix  :
 ```sh
-  nix-shell -p nixFlakes
+  NIX_CONFIG="experimental-features = flakes nix-command" nix-shell -p nixFlakes
 ```
 Build MLVPN via nix:
 
