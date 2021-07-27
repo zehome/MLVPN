@@ -105,7 +105,16 @@ Experiment to know what value is best for you\. Good starting point can be as sm
 \fIloss_tolerence\fR = 0 mlvpn monitors packet loss on every link\. If the packet loss ratio on a link exceed the specified value in percent, the link changes state to MLVPN_LOSSY and is removed from aggregation\.
 .
 .IP
-Lossy links ARE used anyway if no other choices are available (if all links are lossy)
+Lossy links ARE used anyway if no other choices are available (if all links are slow or lossy)
+.
+.IP
+\fB100 or more\fR disables the loss tolerence system\.
+.
+.IP "\(bu" 4
+\fIlatency_tolerence\fR = 0 mlvpn monitors smoothed round trip time on every link\. If the SRTT on a link exceeds the specified value in milliseconds, the link changes state to MLVPN_HIGH_LATENCY and is removed from aggregation\.
+.
+.IP
+Slow links ARE used anyway if no other choices are available (if all links are slow or lossy)
 .
 .IP
 \fB100 or more\fR disables the loss tolerence system\.
@@ -172,13 +181,13 @@ The reorder buffer will be sent "as is" on the network if the buffer can\'t be r
 MLVPN status can be monitored by using ps\. mlvpn prints it\'s \-\-name, then the status of each tunnel prefixed by the status\.
 .
 .P
-Status availables: \fB!\fR: down, \fB@\fR: up, \fB~\fR: lossy
+Status availables: \fB!\fR: down, \fB@\fR: up, \fB~\fR: lossy or slow
 .
 .P
 Example: \fBmlvpn: adsl3g !3g @adsl ~wifi\fR
 .
 .P
-3g is \fBdown\fR, adsl is \fBup\fR and wifi is \fBlossy\fR (up, but above loss_tolerence threshold)\.
+3g is \fBdown\fR, adsl is \fBup\fR and wifi is \fBlossy or slow\fR (up, but above loss_tolerence or latency_tolerance threshold)\.
 .
 .SH "EXAMPLE"
 See examples/mlvpn\.conf

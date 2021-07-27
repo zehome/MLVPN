@@ -47,7 +47,7 @@ int mlvpn_rtun_wrr_reset(struct rtunhead *head, int use_fallbacks)
             (t->status == MLVPN_AUTHOK))
         {
             if (wrr.len >= MAX_TUNNELS)
-                fatalx("You have too much tunnels declared");
+                fatalx("You have too many tunnels declared");
             wrr.tunnel[wrr.len] = t;
             wrr.tunval[wrr.len] = 0.0;
             wrr.len++;

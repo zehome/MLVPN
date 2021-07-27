@@ -1330,6 +1330,7 @@ update_process_title()
             case MLVPN_AUTHOK:
                 s = "@";
                 break;
+            case MLVPN_HIGH_LATENCY:
             case MLVPN_LOSSY:
                 s = "~";
                 break;

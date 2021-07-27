@@ -451,6 +451,8 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
             status = "connected";
         else if (t->status == MLVPN_LOSSY)
             status = "lossy link";
+        else if (t->status == MLVPN_HIGH_LATENCY)
+            status = "slow link";
         else
             status = "unknown";
 
