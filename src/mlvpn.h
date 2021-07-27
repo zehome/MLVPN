@@ -127,7 +127,8 @@ enum chap_status {
     MLVPN_DISCONNECTED,
     MLVPN_AUTHSENT,
     MLVPN_AUTHOK,
-    MLVPN_LOSSY
+    MLVPN_LOSSY,
+    MLVPN_HIGH_LATENCY
 };
 
 LIST_HEAD(rtunhead, mlvpn_tunnel_s);
@@ -149,6 +150,7 @@ typedef struct mlvpn_tunnel_s
     int conn_attempts;    /* connection attempts */
     int fallback_only;    /* if set, this link will be used when all others are down */
     uint32_t loss_tolerence; /* How much loss is acceptable before the link is discarded */
+    uint32_t latency_tolerence; /* How much latency is acceptable before the link is discarded */
     uint64_t seq;
     uint64_t expected_receiver_seq;
     uint64_t saved_timestamp;
@@ -200,7 +202,7 @@ mlvpn_tunnel_t *mlvpn_rtun_new(const char *name,
     const char *destaddr, const char *destport,
     int server_mode, uint32_t timeout,
     int fallback_only, uint32_t bandwidth,
-    uint32_t loss_tolerence);
+    uint32_t loss_tolerence, uint32_t latency_tolerence);
 void mlvpn_rtun_drop(mlvpn_tunnel_t *t);
 void mlvpn_rtun_status_down(mlvpn_tunnel_t *t);
 #ifdef HAVE_FILTERS
