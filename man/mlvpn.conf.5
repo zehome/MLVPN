@@ -106,6 +106,9 @@ Experiment to know what value is best for you\. Good starting point can be as sm
 .
 .IP
 Lossy links ARE used anyway if no other choices are available (if all links are slow or lossy)
+.IP
+Values must be the same in the configuration on both sides of the link, this affects outbound traffic scheduling only. If only the client has this setting, lossy links will lead to upload data being disabled. In a video call for example, you will still receive traffic on the lossy link.
+.
 .
 .IP
 \fB100 or more\fR disables the loss tolerence system\.
@@ -115,9 +118,11 @@ Lossy links ARE used anyway if no other choices are available (if all links are 
 .
 .IP
 Slow links ARE used anyway if no other choices are available (if all links are slow or lossy)
+.IP
+Values must be the same in the configuration on both sides of the link, this affects outbound traffic scheduling only. If only the client has this setting, high latency situations will lead to upload data being disabled. In a video call for example, you will still receive traffic on the high latency link.
 .
 .IP
-\fB100 or more\fR disables the loss tolerence system\.
+\fB1000 or more\fR disables the loss tolerence system\.
 .
 .IP "" 0
 .
