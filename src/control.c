@@ -407,6 +407,7 @@ void mlvpn_control_write_metrics(struct mlvpn_control *ctrl)
         control_writef("waitingpeer{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_AUTHSENT ? 1 : 0));
         control_writef("connected{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_AUTHOK ? 1 : 0));
         control_writef("lossy{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_LOSSY ? 1 : 0));
+        control_writef("slow{tunnel=\"%s\"} %u\n", t->name, (t->status == MLVPN_HIGH_LATENCY ? 1 : 0));
 
         control_writef("sentpackets{tunnel=\"%s\"} %" PRIu64 "\n", t->name, t->sentpackets);
         control_writef("recvpackets{tunnel=\"%s\"} %" PRIu64 "\n", t->name, t->recvpackets);
@@ -450,6 +451,8 @@ void mlvpn_control_write_status(struct mlvpn_control *ctrl)
             status = "connected";
         else if (t->status == MLVPN_LOSSY)
             status = "lossy link";
+        else if (t->status == MLVPN_HIGH_LATENCY)
+            status = "slow link";
         else
             status = "unknown";
 

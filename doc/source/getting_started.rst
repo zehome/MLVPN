@@ -102,7 +102,7 @@ Tunnel prefix reference
 -----------------------
     * '!' means down
     * '@' means up & running
-    * '~' means up but lossy (above the configured threshold)
+    * '~' means up but lossy or slow (above the configured threshold)
 
 Hot reloading mlvpn configuration
 =================================

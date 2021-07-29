@@ -71,6 +71,12 @@ cleartext_data = 0
 # This value is expressed in percent.
 #loss_tolerence = 10
 
+# Latency tolerence
+# Defines the maximum latency accepted before the link affected is being
+# considered too slow and removed from agregation.
+# This value is expressed in milliseconds.
+#latency_tolerence = 10
+
 # Filtering system
 # when MLVPN is configured to balance traffic across multiple links
 # It may be required to force some traffic (VoIP) through a specific
@@ -107,6 +113,9 @@ bindport = 5080
 # If it is a lossy link and we want to keep using it,
 # even if 30% of packets are lost
 #loss_tolerence = 30
+# If it is a slow link and we want to keep using it,
+# even if the SRTT is 300ms
+#latency_tolerence = 300
 #bandwidth_upload = 512000
 
 #[dsl2]

@@ -53,6 +53,7 @@ mlvpn_config(int config_file_fd, int first_time)
     uint32_t tun_mtu = 0;
 
     uint32_t default_loss_tolerence = 100;
+    uint32_t default_latency_tolerence = 1000;
     uint32_t default_timeout = 60;
     uint32_t default_server_mode = 0; /* 0 => client */
     uint32_t cleartext_data = 0;
@@ -196,6 +197,14 @@ mlvpn_config(int config_file_fd, int first_time)
                     default_loss_tolerence = 100;
                 }
 
+                _conf_set_uint_from_conf(
+                        config, lastSection, "latency_tolerence",
+                        &default_latency_tolerence, 1000,  NULL, 0);
+                if (default_latency_tolerence > 1000) {
+                    log_warnx("config", "latency_tolerence is capped to 1000 %%");
+                    default_latency_tolerence = 1000;
+                }
+
                 /* Tunnel configuration */
                 _conf_set_str_from_conf(
                     config, lastSection, "ip4", &tmp, NULL, NULL, 0);
@@ -275,6 +284,7 @@ mlvpn_config(int config_file_fd, int first_time)
                 uint32_t bwlimit = 0;
                 uint32_t timeout = 30;
                 uint32_t loss_tolerence;
+                uint32_t latency_tolerence;
                 int create_tunnel = 1;
 
                 if (default_server_mode)
@@ -327,6 +337,13 @@ mlvpn_config(int config_file_fd, int first_time)
                 if (loss_tolerence > 100) {
                     log_warnx("config", "loss_tolerence is capped to 100 %%");
                     loss_tolerence = 100;
+                }
+                _conf_set_uint_from_conf(
+                        config, lastSection, "latency_tolerence", &latency_tolerence,
+                        default_latency_tolerence, NULL, 0);
+                if (latency_tolerence > 1000) {
+                    log_warnx("config", "latency_tolerence is capped to 1000 %%");
+                    latency_tolerence = 1000;
                 }
                 _conf_set_uint_from_conf(
                     config, lastSection, "fallback_only", &fallback_only, 0,
@@ -382,6 +399,12 @@ mlvpn_config(int config_file_fd, int first_time)
                                 tmptun->name, tmptun->loss_tolerence, loss_tolerence);
                             tmptun->loss_tolerence = loss_tolerence;
                         }
+                        if (tmptun->latency_tolerence != latency_tolerence)
+                        {
+                            log_info("config", "%s latency tolerence changed from %d%% to %d%%",
+                                     tmptun->name, tmptun->latency_tolerence, latency_tolerence);
+                            tmptun->latency_tolerence = latency_tolerence;
+                        }
                         create_tunnel = 0;
                         break; /* Very important ! */
                     }
@@ -393,7 +416,7 @@ mlvpn_config(int config_file_fd, int first_time)
                     mlvpn_rtun_new(
                         lastSection, bindaddr, bindport, bindfib, dstaddr, dstport,
                         default_server_mode, timeout, fallback_only,
-                        bwlimit, loss_tolerence);
+                        bwlimit, loss_tolerence, latency_tolerence);
                 }
                 if (bindaddr)
                     free(bindaddr);

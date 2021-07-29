@@ -628,7 +628,7 @@ mlvpn_rtun_new(const char *name,
                const char *destaddr, const char *destport,
                int server_mode, uint32_t timeout,
                int fallback_only, uint32_t bandwidth,
-               uint32_t loss_tolerence)
+               uint32_t loss_tolerence, uint32_t latency_tolerence)
 {
     mlvpn_tunnel_t *new;
 
@@ -676,6 +676,7 @@ mlvpn_rtun_new(const char *name,
     new->bandwidth = bandwidth;
     new->fallback_only = fallback_only;
     new->loss_tolerence = loss_tolerence;
+    new->latency_tolerence = latency_tolerence;
     if (bindaddr)
         strlcpy(new->bindaddr, bindaddr, sizeof(new->bindaddr));
     if (bindport)
@@ -1166,6 +1167,25 @@ mlvpn_rtun_send_disconnect(mlvpn_tunnel_t *t)
 }
 
 static void
+switch_to_fallback_if_necessary() {
+    mlvpn_tunnel_t *t;
+    LIST_FOREACH(t, &rtuns, entries) {
+        if (! t->fallback_only && t->status != MLVPN_HIGH_LATENCY && t->status != MLVPN_LOSSY) {
+            mlvpn_status.fallback_mode = 0;
+            mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
+            return;
+        }
+    }
+    if (mlvpn_options.fallback_available) {
+        log_info(NULL, "all tunnels are down, lossy or too slow, switch fallback mode");
+        mlvpn_status.fallback_mode = 1;
+        mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
+    } else {
+        log_info(NULL, "all tunnels are down, lossy or too slow but fallback is not available");
+    }
+}
+
+static void
 mlvpn_rtun_check_lossy(mlvpn_tunnel_t *tun)
 {
     int loss = mlvpn_loss_ratio(tun);
@@ -1181,23 +1201,30 @@ mlvpn_rtun_check_lossy(mlvpn_tunnel_t *tun)
         tun->status = MLVPN_AUTHOK;
         status_changed = 1;
     }
-    /* are all links in lossy mode ? switch to fallback ? */
+    /* are all links in high latency or lossy mode ? switch to fallback ? */
     if (status_changed) {
-        mlvpn_tunnel_t *t;
-        LIST_FOREACH(t, &rtuns, entries) {
-            if (! t->fallback_only && t->status != MLVPN_LOSSY) {
-                mlvpn_status.fallback_mode = 0;
-                mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
-                return;
-            }
-        }
-        if (mlvpn_options.fallback_available) {
-            log_info(NULL, "all tunnels are down or lossy, switch fallback mode");
-            mlvpn_status.fallback_mode = 1;
-            mlvpn_rtun_wrr_reset(&rtuns, mlvpn_status.fallback_mode);
-        } else {
-            log_info(NULL, "all tunnels are down or lossy but fallback is not available");
-        }
+        switch_to_fallback_if_necessary();
+    }
+}
+
+static void
+mlvpn_rtun_check_slow(mlvpn_tunnel_t *tun)
+{
+    int status_changed = 0;
+    if (tun->srtt >= tun->latency_tolerence) {
+        log_info("rtt", "%s latency reached threashold: %fms/%dms",
+                 tun->name, tun->srtt, tun->latency_tolerence);
+        tun->status = MLVPN_HIGH_LATENCY;
+        status_changed = 1;
+    } else if (tun->srtt < tun->latency_tolerence && tun->status == MLVPN_HIGH_LATENCY) {
+        log_info("rtt", "%s latency acceptable again: %fms/%dms",
+                 tun->name, tun->srtt, tun->latency_tolerence);
+        tun->status = MLVPN_AUTHOK;
+        status_changed = 1;
+    }
+    /* are all links in high latency or lossy mode ? switch to fallback ? */
+    if (status_changed) {
+        switch_to_fallback_if_necessary();
     }
 }
 
@@ -1221,6 +1248,7 @@ mlvpn_rtun_check_timeout(EV_P_ ev_timer *w, int revents)
         ev_io_start(EV_A_ &t->io_write);
     }
     mlvpn_rtun_check_lossy(t);
+    mlvpn_rtun_check_slow(t);
 }
 
 static void
@@ -1302,6 +1330,7 @@ update_process_title()
             case MLVPN_AUTHOK:
                 s = "@";
                 break;
+            case MLVPN_HIGH_LATENCY:
             case MLVPN_LOSSY:
                 s = "~";
                 break;

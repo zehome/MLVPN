@@ -92,7 +92,24 @@ The **[general]** section is reserved for global configuration.
     Lossy links ARE used anyway if no other choices are available (if all links
     are lossy)
 
+    This setting affects outbound traffic only, streaming UDP data such as video
+    calling will still receive traffic if this setting is not reflected in the
+    configuration on both sides of the link
+
     **100 or more** disables the loss tolerence system.
+
+  - _latency_tolerence_ = 0
+    mlvpn monitors packet latency on every link. If the packet latency
+    on a link exceeds the specified value in milliseconds,
+    the link changes state to MLVPN_HIGH_LATENCY and is removed from aggregation.
+
+    Slow links ARE used anyway if no other choices are available (if all links
+    are lossy)
+    This setting affects outbound traffic only, streaming UDP data such as video
+        calling will still receive traffic if this setting is not reflected in the
+        configuration on both sides of the link
+
+    **1000 or more** disables the latency tolerence system.
 
 
 ### TUNNELS

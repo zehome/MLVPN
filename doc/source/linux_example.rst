@@ -327,6 +327,7 @@ Take a look at example config files for more details. (**man mlvpn.conf** can be
     password = "you have not changed me yet?"
     reorder_buffer_size = 64
     loss_tolerence = 50
+    latency_tolerence = 250
 
     [filters]
 
@@ -402,6 +403,7 @@ mlvpn0.conf
     password = "pleasechangeme!"
     reorder_buffer_size = 64
     loss_tolerence = 50
+    latency_tolerence = 250
 
     [filters]
 
