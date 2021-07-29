@@ -54,11 +54,11 @@ jobs:
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)
     - run: |
-       apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev pkg-config
+       sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev pkg-config
        ./autogen.sh
        ./configure
        make
-       make install
+       sudo make install
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
