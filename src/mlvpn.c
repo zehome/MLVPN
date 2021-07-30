@@ -1215,12 +1215,12 @@ mlvpn_rtun_check_slow(mlvpn_tunnel_t *tun)
     }
     int status_changed = 0;
     if (tun->srtt >= tun->latency_tolerence) {
-        log_info("rtt", "%s latency reached threashold: %f%%/%d%%",
+        log_info("rtt", "%s latency reached threashold: %fms/%dms",
                  tun->name, tun->srtt, tun->latency_tolerence);
         tun->status = MLVPN_HIGH_LATENCY;
         status_changed = 1;
     } else if (tun->srtt < tun->latency_tolerence && tun->status == MLVPN_HIGH_LATENCY) {
-        log_info("rtt", "%s latency acceptable again: %f%%/%d%%",
+        log_info("rtt", "%s latency acceptable again: %fms/%dms",
                  tun->name, tun->srtt, tun->latency_tolerence);
         tun->status = MLVPN_AUTHOK;
         status_changed = 1;
