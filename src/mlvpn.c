@@ -1210,6 +1210,9 @@ mlvpn_rtun_check_lossy(mlvpn_tunnel_t *tun)
 static void
 mlvpn_rtun_check_slow(mlvpn_tunnel_t *tun)
 {
+    if(tun->latency_tolerence == 1000) {
+        return;
+    }
     int status_changed = 0;
     if (tun->srtt >= tun->latency_tolerence) {
         log_info("rtt", "%s latency reached threashold: %fms/%dms",
