@@ -1214,7 +1214,7 @@ mlvpn_rtun_check_slow(mlvpn_tunnel_t *tun)
         return;
     }
     int status_changed = 0;
-    if (tun->srtt >= tun->latency_tolerence) {
+    if (tun->srtt >= tun->latency_tolerence && tun->status == MLVPN_AUTHOK) {
         log_info("rtt", "%s latency reached threashold: %fms/%dms",
                  tun->name, tun->srtt, tun->latency_tolerence);
         tun->status = MLVPN_HIGH_LATENCY;
