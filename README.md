@@ -85,7 +85,7 @@ The binary will end up in `./result/bin`
 
 ```sh
 # Debian
-$ sudo apt-get install build-essential make autoconf libev-dev libsodium-dev libpcap-dev pkg-config
+$ sudo apt-get install build-essential make autoconf automake libev-dev libsodium-dev libpcap-dev pkg-config
 # OR ArchLinux
 $ sudo pacman -S base-devel git libev libsodium
 $ ./autogen.sh
@@ -96,7 +96,7 @@ $ make install
 
 ### Build debian package
 ```sh
-$ sudo apt-get install build-essential make autoconf
+$ sudo apt-get install build-essential make autoconf debhelper fakeroot cdbs ruby-ronn
 $ dpkg-buildpackage -us -uc -rfakeroot
 ```
 
